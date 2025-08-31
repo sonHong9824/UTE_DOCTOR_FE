@@ -4,10 +4,10 @@ import { ModeToggle } from "@/components/mode-toggle";
 
 const Navbar = () => {
   return (
-    <div className="w-full h-20 lg:h-28 border-b border-border bg-background/80 backdrop-blur-md">
+    <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md">
       <div className="max-w-screen-2xl h-full mx-auto px-4 flex items-center justify-between">
         <h1 className="text-2xl uppercase font-bold text-foreground">
-          DOCTOR
+          DoctorCare
         </h1>
         
         <ul className="hidden lg:flex items-center gap-8 uppercase text-sm font-semibold text-foreground">
