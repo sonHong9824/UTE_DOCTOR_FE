@@ -1,6 +1,11 @@
 "use client";
 
+import Navbar from "@/components/navbar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserProfileDTO } from "@/dto/userProfile.dto";
+import { AccountStatusEnum } from "@/enum/account-status-enum";
+import { GenderEnum } from "@/enum/gender-enum";
 import { useEffect, useRef, useState } from "react";
 
 export default function EffectExample() {
@@ -56,33 +61,108 @@ export default function EffectExample() {
         
 return (
     <div className="min-h-screen">
+        <Navbar />
         {user ? (
         <div className="flex">
             {/* User avt */}
-            <div className="w-1/3 min-h-screen p-4 flex flex-col justify-center items-center">
+            <div className="w-1/2 min-h-screen p-4 flex flex-col justify-center items-end pb-48">
                 <img 
                     ref={avatarRef}
                     id="avatar"
                     src={user.avatarUrl}
                     alt={`${user.name}'s avatar`}
                     className="w-64 h-64 rounded-full mx-auto
-                     justify-center items-center object-cover object-center border-4 border-gray-500"
+                       object-cover object-center border-4 border-gray-500"
                 /> 
-                <div>
+                {/* <div>
                     <button className="mt-8 text-gray-500 text-3xl italic
                      underline hover:cursor-pointer"
                      onClick={handleChangeAvatar}>Change my avatar</button>
-                </div>
+                </div> */}
             </div>
             {/* User info */}
-            <div className="w-2/3 p-4 flex flex-col justify-center items-center">
-                <h1 className="text-2xl font-bold mb-4">{user.name}</h1>
-                <p className="mb-2"><strong>Email:</strong> {user.email}</p>
-                {user.bio && <p className="mb-2"><strong>Bio:</strong> {user.bio}</p>}
-                {user.location && <p className="mb-2"><strong>Location:</strong> {user.location}</p>}
-                <p className="text-sm text-gray-500">
-                    Joined on {new Date(user.createdAt).toLocaleDateString()}
-                </p>
+            
+            <div className="w-1/2 p-16 flex flex-col items-start justify-center mb-32">
+             <Card className="px-6 py-3 border border-gray-300 shadow-md w-3/4">
+                <div className="flex flex-row justify-center w-full">
+                    <CardTitle className="font-semibold text-3xl">My Information</CardTitle>
+                </div>
+                <div className="flex flex-col">
+                    {/* Name */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Name:</div>
+                        <div className="ml-6 text-lg">{user.name || "Unknown"}</div>
+                    </div>
+                     {/* Gender */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Gender:</div>
+                        <div className="ml-6 text-lg">{user.gender || GenderEnum.OTHER}</div>
+                    </div>
+                      {/* Email */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Email:</div>
+                        <div className="ml-6 text-lg">{user.email || "Unknown"}</div>
+                    </div>
+                       {/* Phone */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">PhoneNumber:</div>
+                        <div className="ml-6 text-lg">{user.phoneNumber || "Unknown"}</div>
+                    </div>
+                   {/* dob */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Date of Birth:</div>
+                        <div className="ml-6 text-lg">
+                            {user.dateOfBirth
+                            ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                })
+                            : "Unknown"}
+                        </div>
+                    </div>
+                       {/* Adddress */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Address:</div>
+                        <div className="ml-6 text-lg">{user.address || "Unknown"}</div>
+                    </div>
+                       {/* Account Status */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Status:</div>
+                        <div className="ml-6 text-lg">
+                            <span
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                user.status === AccountStatusEnum.ACTIVE
+                                ? "bg-green-100 text-green-600"
+                                : "bg-red-100 text-red-600"
+                            }`}
+                            >
+                            {user.status || AccountStatusEnum.INACTIVE}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Created At */}
+                    <div className="flex flex-row mt-4">
+                        <div className="underline text-lg">Joined At:</div>
+                        <div className="ml-6 text-lg">
+                            {user.createdAt
+                            ? new Date(user.createdAt).toLocaleDateString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                })
+                            : "Unknown"}
+                        </div>
+                    </div>
+                </div>
+                <Button
+                className="mt-6 self-center hover:cursor-pointer"
+                onClick={() => alert("Edit information")}>
+                    Edit Information
+                </Button>
+
+            </Card>
             </div>
 
         </div>
