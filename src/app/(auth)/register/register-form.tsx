@@ -1,23 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Link from "next/link";
+import { GenderEnum } from "@/enum/gender-enum";
 import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { z } from "zod";
 
 const registerSchema = z
   .object({
     fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
     email: z.string().email("Email không hợp lệ"),
-    phone: z
+    phoneNumber: z
       .string()
       .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
     dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
-    gender: z.enum(["male", "female", "other"]),
+    gender: z.enum(GenderEnum),
     password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
     confirmPassword: z.string(),
   })
@@ -27,7 +28,7 @@ const registerSchema = z
   });
 
 interface RegisterFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (email: string) => void;
 }
 
 export default function RegisterForm({ onSuccess }: RegisterFormProps) {
@@ -35,9 +36,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
-    phone: "",
+    phoneNumber: "",
     dob: "",
-    gender: "male",
+    gender: GenderEnum.OTHER,
     password: "",
     confirmPassword: "",
   });
@@ -50,7 +51,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
     setForm({ ...form, [name]: value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = registerSchema.safeParse(form);
 
@@ -65,8 +66,32 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     console.log("Register data:", form);
 
+    const baseApi = process.env.BASE_API || "http://localhost:3001";
+    try {
+      const res = await fetch(`${baseApi}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      console.log("Register response:", res);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Đăng ký thất bại");
+      }
+      if (onSuccess) {
+        onSuccess(form.email);
+        alert("Đăng ký thành công! Vui lòng đăng nhập.");
+      } else {
+        alert("Đăng ký thất bại! Vui lòng thử lại.");
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      console.error(err.message);
+      alert(err.message);
+    }
+
     if (onSuccess) {
-      onSuccess();
+      onSuccess(form.email);
     } else {
       router.push("/dashboard");
     }
@@ -112,9 +137,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         <Label htmlFor="phone">Số điện thoại</Label>
         <Input
           id="phone"
-          name="phone"
+          name="phoneNumber"
           placeholder="0901234567"
-          value={form.phone}
+          value={form.phoneNumber}
           onChange={handleChange}
           required
         />
@@ -141,7 +166,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
       <div>
         <Label>Giới tính</Label>
         <div className="flex gap-6 mt-2">
-          {["male", "female", "other"].map((g) => (
+          {Object.values(GenderEnum).map((g) => (
             <label key={g} className="flex items-center gap-2">
               <input
                 type="radio"
@@ -150,8 +175,12 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
                 checked={form.gender === g}
                 onChange={handleChange}
               />
-              <span className="capitalize">
-                {g === "male" ? "Nam" : g === "female" ? "Nữ" : "Khác"}
+              <span>
+                {g === GenderEnum.MALE
+                  ? "Nam"
+                  : g === GenderEnum.FEMALE
+                  ? "Nữ"
+                  : "Khác"}
               </span>
             </label>
           ))}
