@@ -13,7 +13,12 @@ export default function EffectExample() {
     const apiUrl = process.env.BASE_API || "http://localhost:3001";
     useEffect(() => {
         // Get user profile from API
-        fetch(`${apiUrl}/api/users/by-email?email=aaaa@example.com`)
+        const email = localStorage.getItem("email") || "";
+        if (!email) {
+            console.error("No email found in localStorage");
+            return;
+        }
+        fetch(`${apiUrl}/api/users/by-email?email=${encodeURIComponent(email)}`)
             .then((res) => res.json())
             .then(
                 function (response) {
