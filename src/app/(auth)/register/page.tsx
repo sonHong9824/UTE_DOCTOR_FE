@@ -1,37 +1,54 @@
 "use client";
 
-import { useState } from "react";
 import RegisterForm from "@/app/(auth)/register/register-form";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 export default function Register() {
   const [openOtpModal, setOpenOtpModal] = useState(false);
   const [otp, setOtp] = useState("");
   const [email, setEmail] = useState("");
 
+  const router = useRouter();
   // callback khi đăng ký thành công
   const handleRegisterSuccess = (userEmail?: string) => {
+    console.log("User email for OTP:", userEmail);
     if (userEmail) setEmail(userEmail);
     setOpenOtpModal(true);
   };
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     console.log("OTP nhập:", otp);
-    // TODO: gọi API verify OTP
-    setOpenOtpModal(false);
+    const baseApi = process.env.BASE_API || "http://localhost:3001";
+    const res = await fetch(`${baseApi}/api/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, otp }),
+    });
+    console.log("Verify OTP response:", res);
+    if (!res.ok) {
+      alert("Xác thực OTP thất bại! Vui lòng thử lại.");
+      return;
+    }
+    else {
+      alert("Xác thực OTP thành công! Vui lòng đăng nhập.");
+
+      router.push("/login");
+    }
+      setOpenOtpModal(false);
   };
 
   return (
