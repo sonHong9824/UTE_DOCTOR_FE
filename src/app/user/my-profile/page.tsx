@@ -2,10 +2,10 @@
 
 import Navbar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserProfileDTO } from "@/dto/userProfile.dto";
-import { AccountStatusEnum } from "@/enum/account-status-enum";
-import { GenderEnum } from "@/enum/gender-enum";
+import { Card, CardTitle } from "@/components/ui/card";
+import { AccountStatusEnum } from "@/enum/account-status.enum";
+import { GenderEnum } from "@/enum/gender.enum";
+import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
 import { useEffect, useRef, useState } from "react";
 
 export default function EffectExample() {

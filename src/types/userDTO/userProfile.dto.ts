@@ -1,5 +1,5 @@
-import { AccountStatusEnum } from "@/enum/account-status-enum";
-import { GenderEnum } from "@/enum/gender-enum";
+import { AccountStatusEnum } from "@/enum/account-status.enum";
+import { GenderEnum } from "@/enum/gender.enum";
 
 export interface UserProfileDTO {
   id: string;
