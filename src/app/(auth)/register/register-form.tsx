@@ -12,13 +12,13 @@ import { z } from "zod";
 
 const registerSchema = z
   .object({
-    fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
+    //fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
     email: z.string().email("Email không hợp lệ"),
-    phoneNumber: z
-      .string()
-      .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
-    dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
-    gender: z.enum(GenderEnum),
+    // phoneNumber: z
+    //   .string()
+    //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
+    //dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
+    //gender: z.enum(GenderEnum),
     password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
     confirmPassword: z.string(),
   })
@@ -99,7 +99,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-xl mx-auto">
-      {/* Full name */}
+      {/* Full name
       <div>
         <Label htmlFor="fullName">Họ và tên</Label>
         <Input
@@ -113,7 +113,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.fullName && (
           <p className="text-sm text-red-600">{errors.fullName}</p>
         )}
-      </div>
+      </div> */}
 
       {/* Email */}
       <div>
@@ -132,7 +132,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         )}
       </div>
 
-      {/* Phone */}
+      {/* Phone
       <div>
         <Label htmlFor="phone">Số điện thoại</Label>
         <Input
@@ -146,9 +146,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.phone && (
           <p className="text-sm text-red-600">{errors.phone}</p>
         )}
-      </div>
+      </div> */}
 
-      {/* Ngày sinh */}
+      {/* Ngày sinh
       <div>
         <Label htmlFor="dob">Ngày sinh</Label>
         <Input
@@ -160,9 +160,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
           required
         />
         {errors.dob && <p className="text-sm text-red-600">{errors.dob}</p>}
-      </div>
+      </div> */}
 
-      {/* Giới tính */}
+      {/* Giới tính
       <div>
         <Label>Giới tính</Label>
         <div className="flex gap-6 mt-2">
@@ -188,7 +188,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.gender && (
           <p className="text-sm text-red-600">{errors.gender}</p>
         )}
-      </div>
+      </div> */}
 
       {/* Password */}
       <div>
@@ -241,6 +241,10 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
           <p className="text-sm text-red-600">{errors.confirmPassword}</p>
         )}
       </div>
+
+
+      {/* Medical recors
+      <MedicalRecordForm></MedicalRecordForm> */}
 
       {/* Submit button */}
       <Button type="submit" className="w-full">
