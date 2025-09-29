@@ -11,13 +11,13 @@ import { Eye, EyeOff } from "lucide-react";
 
 const registerSchema = z
   .object({
-    fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
+    // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
     email: z.string().email("Email không hợp lệ"),
-    phone: z
-      .string()
-      .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
-    dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
-    gender: z.enum(["male", "female", "other"]),
+    // phone: z
+    //   .string()
+    //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
+    // dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
+    // gender: z.enum(["male", "female", "other"]),
     password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
     confirmPassword: z.string(),
   })
@@ -27,17 +27,17 @@ const registerSchema = z
   });
 
 interface RegisterFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (email: string) => void;
 }
 
 export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const router = useRouter();
   const [form, setForm] = useState({
-    fullName: "",
+    // fullName: "",
     email: "",
-    phone: "",
-    dob: "",
-    gender: "male",
+    // phone: "",
+    // dob: "",
+    // gender: "male",
     password: "",
     confirmPassword: "",
   });
@@ -66,7 +66,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
     console.log("Register data:", form);
 
     if (onSuccess) {
-      onSuccess();
+      onSuccess(form.email);
     } else {
       router.push("/dashboard");
     }
@@ -75,7 +75,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-xl mx-auto">
       {/* Full name */}
-      <div>
+      {/* <div>
         <Label htmlFor="fullName">Họ và tên</Label>
         <Input
           id="fullName"
@@ -88,7 +88,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.fullName && (
           <p className="text-sm text-red-600">{errors.fullName}</p>
         )}
-      </div>
+      </div> */}
 
       {/* Email */}
       <div>
@@ -108,7 +108,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
       </div>
 
       {/* Phone */}
-      <div>
+      {/* <div>
         <Label htmlFor="phone">Số điện thoại</Label>
         <Input
           id="phone"
@@ -121,10 +121,10 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.phone && (
           <p className="text-sm text-red-600">{errors.phone}</p>
         )}
-      </div>
+      </div> */}
 
       {/* Ngày sinh */}
-      <div>
+      {/* <div>
         <Label htmlFor="dob">Ngày sinh</Label>
         <Input
           id="dob"
@@ -135,10 +135,10 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
           required
         />
         {errors.dob && <p className="text-sm text-red-600">{errors.dob}</p>}
-      </div>
+      </div> */}
 
       {/* Giới tính */}
-      <div>
+      {/* <div>
         <Label>Giới tính</Label>
         <div className="flex gap-6 mt-2">
           {["male", "female", "other"].map((g) => (
@@ -159,7 +159,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.gender && (
           <p className="text-sm text-red-600">{errors.gender}</p>
         )}
-      </div>
+      </div> */}
 
       {/* Password */}
       <div>

@@ -32,6 +32,7 @@ export default function Register() {
     console.log("OTP nhập:", otp);
     // TODO: gọi API verify OTP
     setOpenOtpModal(false);
+    console.log("Register data:", email);
   };
 
   return (
