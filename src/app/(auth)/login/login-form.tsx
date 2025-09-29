@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { login } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ResponseCode as rc } from "@/enum/response-code.enum";
 import Link from "next/link";
-
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 export default function LoginForm() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -23,11 +24,32 @@ export default function LoginForm() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Login data:", form);
-    // TODO: gọi API đăng nhập ở đây
-    router.push("/dashboard");
+    // const baseApiUrl = process.env.BASE_API || "http://localhost:3001/api";
+    // const response = await fetch(`${baseApiUrl}/auth/login`, {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify(form),
+    // });
+    const res = await login(form);
+    console.log("Login response:", res);
+    if (res.code != rc.SUCCESS) {
+      alert("Đăng nhập thất bại! Vui lòng thử lại.");
+      console.log("Login failed:", res);
+      return;
+    }
+    else { 
+      alert("Đăng nhập thành công!"); 
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("email", form.email);
+      localStorage.setItem("accessToken", res.data.accessToken);
+      localStorage.setItem("refreshToken", res.data.refreshToken);
+      console.log("Login successful:", res);
+      router.push("/user/my-profile");
+    }
+
   };
 
   return (

@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import Link from "next/link";
+import { GenderEnum } from "@/enum/gender.enum";
 import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { z } from "zod";
 
 const registerSchema = z
   .object({
+<<<<<<< HEAD
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
     email: z.string().email("Email không hợp lệ"),
     // phone: z
@@ -18,6 +20,15 @@ const registerSchema = z
     //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
     // dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
     // gender: z.enum(["male", "female", "other"]),
+=======
+    //fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
+    email: z.string().email("Email không hợp lệ"),
+    // phoneNumber: z
+    //   .string()
+    //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
+    //dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
+    //gender: z.enum(GenderEnum),
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
     password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
     confirmPassword: z.string(),
   })
@@ -35,9 +46,15 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [form, setForm] = useState({
     // fullName: "",
     email: "",
+<<<<<<< HEAD
     // phone: "",
     // dob: "",
     // gender: "male",
+=======
+    phoneNumber: "",
+    dob: "",
+    gender: GenderEnum.OTHER,
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
     password: "",
     confirmPassword: "",
   });
@@ -50,7 +67,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
     setForm({ ...form, [name]: value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const result = registerSchema.safeParse(form);
 
@@ -65,6 +82,30 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     console.log("Register data:", form);
 
+    const baseApi = process.env.BASE_API || "http://localhost:3001";
+    try {
+      const res = await fetch(`${baseApi}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      console.log("Register response:", res);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Đăng ký thất bại");
+      }
+      if (onSuccess) {
+        onSuccess(form.email);
+        alert("Đăng ký thành công! Vui lòng đăng nhập.");
+      } else {
+        alert("Đăng ký thất bại! Vui lòng thử lại.");
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      console.error(err.message);
+      alert(err.message);
+    }
+
     if (onSuccess) {
       onSuccess(form.email);
     } else {
@@ -74,8 +115,13 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-xl mx-auto">
+<<<<<<< HEAD
       {/* Full name */}
       {/* <div>
+=======
+      {/* Full name
+      <div>
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="fullName">Họ và tên</Label>
         <Input
           id="fullName"
@@ -107,14 +153,19 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         )}
       </div>
 
+<<<<<<< HEAD
       {/* Phone */}
       {/* <div>
+=======
+      {/* Phone
+      <div>
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="phone">Số điện thoại</Label>
         <Input
           id="phone"
-          name="phone"
+          name="phoneNumber"
           placeholder="0901234567"
-          value={form.phone}
+          value={form.phoneNumber}
           onChange={handleChange}
           required
         />
@@ -123,8 +174,13 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         )}
       </div> */}
 
+<<<<<<< HEAD
       {/* Ngày sinh */}
       {/* <div>
+=======
+      {/* Ngày sinh
+      <div>
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="dob">Ngày sinh</Label>
         <Input
           id="dob"
@@ -137,11 +193,16 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.dob && <p className="text-sm text-red-600">{errors.dob}</p>}
       </div> */}
 
+<<<<<<< HEAD
       {/* Giới tính */}
       {/* <div>
+=======
+      {/* Giới tính
+      <div>
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label>Giới tính</Label>
         <div className="flex gap-6 mt-2">
-          {["male", "female", "other"].map((g) => (
+          {Object.values(GenderEnum).map((g) => (
             <label key={g} className="flex items-center gap-2">
               <input
                 type="radio"
@@ -150,8 +211,12 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
                 checked={form.gender === g}
                 onChange={handleChange}
               />
-              <span className="capitalize">
-                {g === "male" ? "Nam" : g === "female" ? "Nữ" : "Khác"}
+              <span>
+                {g === GenderEnum.MALE
+                  ? "Nam"
+                  : g === GenderEnum.FEMALE
+                  ? "Nữ"
+                  : "Khác"}
               </span>
             </label>
           ))}
@@ -212,6 +277,10 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
           <p className="text-sm text-red-600">{errors.confirmPassword}</p>
         )}
       </div>
+
+
+      {/* Medical recors
+      <MedicalRecordForm></MedicalRecordForm> */}
 
       {/* Submit button */}
       <Button type="submit" className="w-full">
