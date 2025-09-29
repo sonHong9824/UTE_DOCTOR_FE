@@ -115,7 +115,28 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
   };
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex flex-col space-y-6 w-full">
+      {/* Biểu đồ huyết áp */}
+      <div className="flex flex-row justify-between pb-1">
+            <Card className="p-4 shadow-md border border-gray-200 w-[48%]">
+              <h3 className="text-xl font-semibold mb-4">Huyết áp theo thời gian</h3>
+              {record.bloodPressure.length > 0 ? (
+                <Line data={bpChartData} />
+              ) : (
+                <p className="italic text-gray-500 text-center">Chưa có dữ liệu huyết áp</p>
+              )}
+            </Card>
+
+            {/* Biểu đồ nhịp tim */}
+            <Card className="p-4 shadow-md border border-gray-200 w-[48%]">
+              <h3 className="text-xl font-semibold mb-4">Nhịp tim theo thời gian</h3>
+              {record.heartRate.length > 0 ? (
+                <Line data={hrChartData} />
+              ) : (
+                <p className="italic text-gray-500 text-center">Chưa có dữ liệu nhịp tim</p>
+              )}
+            </Card>
+      </div>
       {/* Biểu đồ tổng quan */}
       <Card className="p-4 shadow-md border border-gray-200">
         <h3 className="text-xl font-semibold mb-4">Tổng quan hồ sơ y tế</h3>
@@ -125,66 +146,6 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
           <p className="italic text-gray-500 text-center">Chưa có dữ liệu hồ sơ y tế</p>
         )}
       </Card>
-
-      {/* Biểu đồ huyết áp */}
-      <Card className="p-4 shadow-md border border-gray-200">
-        <h3 className="text-xl font-semibold mb-4">Huyết áp theo thời gian</h3>
-        {record.bloodPressure.length > 0 ? (
-          <Line data={bpChartData} />
-        ) : (
-          <p className="italic text-gray-500 text-center">Chưa có dữ liệu huyết áp</p>
-        )}
-      </Card>
-
-      {/* Biểu đồ nhịp tim */}
-      <Card className="p-4 shadow-md border border-gray-200">
-        <h3 className="text-xl font-semibold mb-4">Nhịp tim theo thời gian</h3>
-        {record.heartRate.length > 0 ? (
-          <Line data={hrChartData} />
-        ) : (
-          <p className="italic text-gray-500 text-center">Chưa có dữ liệu nhịp tim</p>
-        )}
-      </Card>
-
-      {/* Chi tiết từng bản ghi */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {(["medicalHistory", "drugAllergies", "foodAllergies"] as const).map((section) => (
-          <Card key={section} className="p-4 shadow-md border border-gray-200">
-            <h4 className="text-lg font-semibold mb-3">
-              {section === "medicalHistory"
-                ? "Tiền sử bệnh"
-                : section === "drugAllergies"
-                ? "Dị ứng thuốc"
-                : "Dị ứng thức ăn"}
-              <Badge className="ml-2">{record[section].length}</Badge>
-            </h4>
-
-            {record[section].length === 0 ? (
-              <p className="italic text-gray-500">Chưa có dữ liệu</p>
-            ) : (
-              <div className="space-y-3">
-                {record[section].map((r, index) => (
-                  <div
-                    key={index}
-                    className="p-3 border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition"
-                  >
-                    <p>
-                      <span className="font-semibold">Tên:</span> {r.name || "Chưa có"}
-                    </p>
-                    <p>
-                      <span className="font-semibold">Mô tả:</span> {r.description || "Chưa có"}
-                    </p>
-                    <p>
-                      <span className="font-semibold">Ngày ghi nhận:</span>{" "}
-                      {r.dateRecord ? new Date(r.dateRecord).toLocaleDateString("vi-VN") : "Chưa có"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }
