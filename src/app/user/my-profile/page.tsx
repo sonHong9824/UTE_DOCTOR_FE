@@ -1,33 +1,41 @@
 "use client";
 
+import { GetUserProfile } from "@/apis/user/user.api";
+import MedicalRecordDisplay from "@/components/forms/medical-record-forms/medical-record-display-form";
 import Navbar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
+import { ResponseCode as rc } from "@/enum/response-code.enum";
 import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
 import { useEffect, useRef, useState } from "react";
 
 export default function EffectExample() {
     const [user, setUser] = useState<UserProfileDTO | null>(null);
-    const apiUrl = process.env.BASE_API || "http://localhost:3001";
+    
     useEffect(() => {
-        // Get user profile from API
         const email = localStorage.getItem("email") || "";
         if (!email) {
-            console.error("No email found in localStorage");
-            return;
+        console.error("No email found in localStorage");
+        return;
         }
-        fetch(`${apiUrl}/api/users/by-email?email=${encodeURIComponent(email)}`)
-            .then((res) => res.json())
-            .then(
-                function (response) {
-                    setUser(response.data);
-                    console.log("Fetched user profile:", response.data);
-                }
-            )
-            .catch((err) => console.error("Failed to fetch user profile:", err));
-        
+
+        const fetchUserProfile = async () => {
+        try {
+            const response = await GetUserProfile({email});
+            if (response?.code == rc.SUCCESS)
+            {
+                console.log("Fetched user profile:", response.data);
+                setUser(response.data);
+            }
+            
+        } catch (err) {
+            console.error("Failed to fetch user profile:", err);
+        }
+        };
+
+        fetchUserProfile();
     }, []);
 
     const avatarRef = useRef<HTMLImageElement>(null);
@@ -65,112 +73,122 @@ export default function EffectExample() {
     }
         
 return (
-    <div className="min-h-screen">
+    <div className="min-h-screen mb-16">
         <Navbar />
         {user ? (
-        <div className="flex">
-            {/* User avt */}
-            <div className="w-1/2 min-h-screen p-4 flex flex-col justify-center items-end pb-48">
-                <img 
-                    ref={avatarRef}
-                    id="avatar"
-                    src={user.avatarUrl}
-                    alt={`${user.name}'s avatar`}
-                    className="w-64 h-64 rounded-full mx-auto
-                       object-cover object-center border-4 border-gray-500"
-                /> 
-                {/* <div>
-                    <button className="mt-8 text-gray-500 text-3xl italic
-                     underline hover:cursor-pointer"
-                     onClick={handleChangeAvatar}>Change my avatar</button>
-                </div> */}
-            </div>
-            {/* User info */}
-            
-            <div className="w-1/2 p-16 flex flex-col items-start justify-center mb-32">
-             <Card className="px-6 py-3 border border-gray-300 shadow-md w-3/4">
-                <div className="flex flex-row justify-center w-full">
-                    <CardTitle className="font-semibold text-3xl">My Information</CardTitle>
+            <div className="flex flex-row w-full mt-8">
+                {/* Left Section */}
+                <div className="flex flex-col mt-12 w-1/2">
+                    {/* User avt */}
+                    <div className="p-4 flex flex-col justify-start items-end">
+                        <img 
+                            ref={avatarRef}
+                            id="avatar"
+                            src={user.avatarUrl}
+                            alt={`${user.name}'s avatar`}
+                            className="w-64 h-64 rounded-full mx-auto
+                            object-cover object-center border-4 border-gray-500"
+                        /> 
+                        {/* <div>
+                            <button className="mt-8 text-gray-500 text-3xl italic
+                            underline hover:cursor-pointer"
+                            onClick={handleChangeAvatar}>Change my avatar</button>
+                        </div> */}
+                    </div>
+
+                    {/* User info */}
+                    <div className="flex flex-row items-start justify-center">
+                        <Card className="px-6 py-3 border border-gray-300 shadow-md w-3/4">
+                            <div className="flex flex-row justify-center w-full">
+                                <CardTitle className="font-semibold text-3xl">My Information</CardTitle>
+                            </div>
+                            <div className="flex flex-col">
+                                {/* Name */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Name:</div>
+                                    <div className="ml-6 text-lg">{user.name || "Unknown"}</div>
+                                </div>
+                                {/* Gender */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Gender:</div>
+                                    <div className="ml-6 text-lg">{user.gender || GenderEnum.OTHER}</div>
+                                </div>
+                                {/* Email */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Email:</div>
+                                    <div className="ml-6 text-lg">{user.email || "Unknown"}</div>
+                                </div>
+                                {/* Phone */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">PhoneNumber:</div>
+                                    <div className="ml-6 text-lg">{user.phoneNumber || "Unknown"}</div>
+                                </div>
+                            {/* dob */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Date of Birth:</div>
+                                    <div className="ml-6 text-lg">
+                                        {user.dateOfBirth
+                                        ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN", {
+                                            day: "2-digit",
+                                            month: "2-digit",
+                                            year: "numeric",
+                                            })
+                                        : "Unknown"}
+                                    </div>
+                                </div>
+                                {/* Adddress */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Address:</div>
+                                    <div className="ml-6 text-lg">{user.address || "Unknown"}</div>
+                                </div>
+                                {/* Account Status */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Status:</div>
+                                    <div className="ml-6 text-lg">
+                                        <span
+                                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                            user.status === AccountStatusEnum.ACTIVE
+                                            ? "bg-green-100 text-green-600"
+                                            : "bg-red-100 text-red-600"
+                                        }`}
+                                        >
+                                        {user.status || AccountStatusEnum.INACTIVE}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Created At */}
+                                <div className="flex flex-row mt-4">
+                                    <div className="underline text-lg">Joined At:</div>
+                                    <div className="ml-6 text-lg">
+                                        {user.createdAt
+                                        ? new Date(user.createdAt).toLocaleDateString("vi-VN", {
+                                            day: "2-digit",
+                                            month: "2-digit",
+                                            year: "numeric",
+                                            })
+                                        : "Unknown"}
+                                    </div>
+                                </div>
+                            </div>
+                            <Button
+                            className="mt-6 self-center hover:cursor-pointer"
+                            onClick={() => alert("Edit information")}>
+                                Edit Information
+                            </Button>
+                        </Card>
+                    </div>
                 </div>
-                <div className="flex flex-col">
-                    {/* Name */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Name:</div>
-                        <div className="ml-6 text-lg">{user.name || "Unknown"}</div>
-                    </div>
-                     {/* Gender */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Gender:</div>
-                        <div className="ml-6 text-lg">{user.gender || GenderEnum.OTHER}</div>
-                    </div>
-                      {/* Email */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Email:</div>
-                        <div className="ml-6 text-lg">{user.email || "Unknown"}</div>
-                    </div>
-                       {/* Phone */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">PhoneNumber:</div>
-                        <div className="ml-6 text-lg">{user.phoneNumber || "Unknown"}</div>
-                    </div>
-                   {/* dob */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Date of Birth:</div>
-                        <div className="ml-6 text-lg">
-                            {user.dateOfBirth
-                            ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                })
-                            : "Unknown"}
-                        </div>
-                    </div>
-                       {/* Adddress */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Address:</div>
-                        <div className="ml-6 text-lg">{user.address || "Unknown"}</div>
-                    </div>
-                       {/* Account Status */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Status:</div>
-                        <div className="ml-6 text-lg">
-                            <span
-                            className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                                user.status === AccountStatusEnum.ACTIVE
-                                ? "bg-green-100 text-green-600"
-                                : "bg-red-100 text-red-600"
-                            }`}
-                            >
-                            {user.status || AccountStatusEnum.INACTIVE}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Created At */}
-                    <div className="flex flex-row mt-4">
-                        <div className="underline text-lg">Joined At:</div>
-                        <div className="ml-6 text-lg">
-                            {user.createdAt
-                            ? new Date(user.createdAt).toLocaleDateString("vi-VN", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                })
-                            : "Unknown"}
-                        </div>
-                    </div>
+                                                
+                {/* Right Setion */}
+                <div className="flex w-1/2 flex-col justify-center items-center">
+                 <Card className="px-6 py-3 border border-gray-300 shadow-md w-3/4">
+                    <MedicalRecordDisplay medicalRecord={user.medicalRecord} />
+                 </Card>
+                    
                 </div>
-                <Button
-                className="mt-6 self-center hover:cursor-pointer"
-                onClick={() => alert("Edit information")}>
-                    Edit Information
-                </Button>
-
-            </Card>
             </div>
-
-        </div>
+        
         
         ) : (
             <p className="text-gray-500 text-center">Loading user profile...</p>
