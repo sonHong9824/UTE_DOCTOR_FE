@@ -1,7 +1,7 @@
 "use client";
 
 import { GetUserProfile } from "@/apis/user/user.api";
-import MedicalRecordDisplay from "@/components/forms/medical-record-forms/medical-record-display-form";
+import MedicalRecordDisplay from "@/components/medical-record/medical-record-display";
 import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
 import Navbar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -185,12 +185,8 @@ return (
 
                                                     
                     {/* Right Setion */}
-                    <div className="flex w-1/2 flex-col justify-end items-center me-8">
+                    <div className="flex w-1/2 flex-col justify-end items-center me-8"> 
                         <MedicalRecordDisplay medicalRecord={user.medicalRecord} />
-
-                    {/* Có thể lazy load detail */}
-                 
-                
                     </div>
                     
                 </div>

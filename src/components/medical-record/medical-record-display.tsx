@@ -1,17 +1,18 @@
 import { Card } from "@/components/ui/card";
 import { MedicalRecordDto } from "@/types/userDTO/medical-record.dto";
 import {
-    BarElement,
-    CategoryScale,
-    Chart as ChartJS,
-    Legend,
-    LinearScale,
-    LineElement,
-    PointElement,
-    Title,
-    Tooltip,
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Legend,
+  LinearScale,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
 } from "chart.js";
 import { Bar, Line } from "react-chartjs-2";
+import VitalStatsCard from "../cards/vital-stat-card";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
@@ -23,7 +24,7 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
   const record: MedicalRecordDto = {
     height: medicalRecord?.height || 0,
     weight: medicalRecord?.weight || 0,
-    bloodType: medicalRecord?.bloodType || null,
+    bloodType: medicalRecord?.bloodType,
     medicalHistory: medicalRecord?.medicalHistory || [],
     drugAllergies: medicalRecord?.drugAllergies || [],
     foodAllergies: medicalRecord?.foodAllergies || [],
@@ -46,19 +47,20 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
   };
 
+  // Biểu đồ line huyết áp
   const bpChartData = {
-    labels: record.bloodPressure.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
+    labels: record.bloodPressure.map((r) => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
     datasets: [
       {
-        label: "Huyết áp tâm thu",
-        data: record.bloodPressure.map(r => (typeof r.value === "object" ? r.value.systolic : 0)),
+        label: "Huyết áp tâm thu (Systolic)",
+        data: record.bloodPressure.map((r) => (typeof r.value === "object" ? r.value.systolic : 0)),
         borderColor: "#ef4444",
         backgroundColor: "#ef4444",
         tension: 0.2,
       },
       {
-        label: "Huyết áp tâm trương",
-        data: record.bloodPressure.map(r => (typeof r.value === "object" ? r.value.diastolic : 0)),
+        label: "Huyết áp tâm trương (Diastolic)",
+        data: record.bloodPressure.map((r) => (typeof r.value === "object" ? r.value.diastolic : 0)),
         borderColor: "#3b82f6",
         backgroundColor: "#3b82f6",
         tension: 0.2,
@@ -66,12 +68,13 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
     ],
   };
 
+  // Biểu đồ line nhịp tim
   const hrChartData = {
-    labels: record.heartRate.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
+    labels: record.heartRate.map((r) => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
     datasets: [
       {
-        label: "Nhịp tim",
-        data: record.heartRate.map(r => (typeof r.value === "number" ? r.value : 0)),
+        label: "Nhịp tim (BPM)",
+        data: record.heartRate.map((r) => (typeof r.value === "number" ? r.value : 0)),
         borderColor: "#10b981",
         backgroundColor: "#10b981",
         tension: 0.2,
@@ -81,6 +84,15 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
 
   return (
     <div className="flex flex-col space-y-6">
+      <VitalStatsCard bloodType={medicalRecord.bloodType} height={medicalRecord.height} weight={medicalRecord.weight}/>
+      <div className="flex flex-row justify-between">
+            <Card className="p-4 shadow-md border border-gray-200 w-[48%]">
+                {record.bloodPressure.length > 0 ? <Line data={bpChartData}/> : <p className="italic text-gray-500 text-center">Chưa có dữ liệu huyết áp</p>}
+            </Card>
+            <Card className="p-4 shadow-md border border-gray-200 w-[48%]">
+                {record.heartRate.length > 0 ? <Line data={hrChartData}/> : <p className="italic text-gray-500 text-center">Chưa có dữ liệu nhịp tim</p>}
+            </Card>
+        </div>
       <Card className="p-4 shadow-md border border-gray-200">
         {record.medicalHistory.length + record.drugAllergies.length + record.foodAllergies.length > 0 ? (
           <Bar data={barChartData} options={barChartOptions} />
@@ -89,14 +101,7 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
         )}  
       </Card>
 
-        <div className="flex flex-row">
-            <Card className="p-4 shadow-md border border-gray-200 w-1/2">
-                {record.bloodPressure.length > 0 ? <Line data={bpChartData} /> : <p className="italic text-gray-500 text-center">Chưa có dữ liệu huyết áp</p>}
-            </Card>
-            <Card className="p-4 shadow-md border border-gray-200 w-1/2">
-                {record.heartRate.length > 0 ? <Line data={hrChartData} /> : <p className="italic text-gray-500 text-center">Chưa có dữ liệu nhịp tim</p>}
-            </Card>
-        </div>
+        
     </div>
   );
 }
