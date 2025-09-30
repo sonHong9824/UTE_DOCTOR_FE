@@ -6,15 +6,19 @@ import Link from "next/link";
 
 const Navbar = () => {
   return (
-    <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md">
+    <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md sticky top-0">
       <div className="max-w-screen-2xl h-full mx-auto px-4 flex items-center justify-between">
-        <h1 className="text-2xl uppercase font-bold text-foreground">
-          DoctorCare
-        </h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <span className="text-blue-600 dark:text-blue-400">Doctor+</span>
+            </Link>
+          </h1>
         
         <ul className="hidden lg:flex items-center gap-8 uppercase text-sm font-semibold text-foreground">
           <li className="navbarLi">GIỚI THIỆU</li>
-          <li className="navbarLi">CHUYÊN KHOA</li>
+          <li className="navbarLi">
+            <Link href="/chuyen-khoa">CHUYÊN KHOA</Link>
+          </li>
           <li className="navbarLi">CHUYÊN GIA - BÁC SĨ</li>
           <li className="navbarLi">TIN TỨC</li>
           <li className="navbarLi">LIÊN HỆ</li>
