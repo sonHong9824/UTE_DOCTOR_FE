@@ -11,7 +11,7 @@ interface UserContentProps {
 
 export default function UserContent({ user, activeTab }: UserContentProps) {
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-4">
       {activeTab === "general-health" && <MedicalRecordDisplay medicalRecord={user.medicalRecord} />}
       
       {activeTab === "personal-info" && (

@@ -1,6 +1,25 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicalRecordDto } from "@/types/userDTO/medical-record.dto";
+
+// Custom TabsTrigger styled theo theme
+function ThemedTabsTrigger({ children, value }: { children: React.ReactNode; value: string }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="px-6 py-3 text-lg font-semibold text-muted-foreground
+                 data-[state=active]:text-primary 
+                 data-[state=active]:border-b-2 
+                 data-[state=active]:border-primary
+                 transition-colors"
+    >
+      {children}
+    </TabsTrigger>
+  );
+}
 
 interface MedicalRecordDetailProps {
   medicalRecord: MedicalRecordDto;
@@ -8,44 +27,70 @@ interface MedicalRecordDetailProps {
 
 export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDetailProps) {
   const record: MedicalRecordDto = {
-      medicalHistory: medicalRecord?.medicalHistory || [],
-      drugAllergies: medicalRecord?.drugAllergies || [],
-      foodAllergies: medicalRecord?.foodAllergies || [],
-      height: 0,
-      weight: 0,
-      bloodType: null,
-      bloodPressure: [],
-      heartRate: []
+    medicalHistory: medicalRecord?.medicalHistory || [],
+    drugAllergies: medicalRecord?.drugAllergies || [],
+    foodAllergies: medicalRecord?.foodAllergies || [],
+    height: 0,
+    weight: 0,
+    bloodType: null,
+    bloodPressure: [],
+    heartRate: [],
   };
 
+  const sections = [
+    { key: "medicalHistory", label: "Tiền sử bệnh", color: "border-blue-400" },
+    { key: "drugAllergies", label: "Dị ứng thuốc", color: "border-orange-400" },
+    { key: "foodAllergies", label: "Dị ứng thức ăn", color: "border-green-400" },
+  ] as const;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 w-[95%] mx-auto">
-  {(["medicalHistory", "drugAllergies", "foodAllergies"] as const).map(section => (
-    <div
-      key={section}
-      className="p-5 bg-white rounded-xl shadow-md hover:shadow-lg hover:scale-105 transition-transform duration-200"
-    >
-      <h4 className="text-lg font-semibold mb-3 flex items-center justify-between">
-        {section === "medicalHistory" ? "Tiền sử bệnh" : section === "drugAllergies" ? "Dị ứng thuốc" : "Dị ứng thức ăn"}
-        <Badge className="ml-2">{record[section].length}</Badge>
-      </h4>
-
-      {record[section].length === 0 ? (
-        <p className="italic text-gray-500">Chưa có dữ liệu</p>
-      ) : (
-        <div className="space-y-4">
-          {record[section].map((r, index) => (
-            <div key={index} className="p-4 border-l-4 border-blue-400 bg-gray-50 rounded-lg">
-              <p><span className="font-semibold">Tên:</span> {r.name || "Chưa có"}</p>
-              <p><span className="font-semibold">Mô tả:</span> {r.description || "Chưa có"}</p>
-              <p><span className="font-semibold">Ngày ghi nhận:</span> {r.dateRecord ? new Date(r.dateRecord).toLocaleDateString("vi-VN") : "Chưa có"}</p>
-            </div>
-          ))}
+      <Tabs defaultValue="medicalHistory">
+        {/* Tab headers */}
+        <div className="mb-6 border-b border-border">
+          <TabsList className="flex gap-3">
+            {sections.map((section) => (
+              <ThemedTabsTrigger key={section.key} value={section.key}>
+                {section.label}
+                <Badge variant="gray" className="text-base px-3 py-1">
+                  {record[section.key].length}
+                </Badge>
+              </ThemedTabsTrigger>
+            ))}
+          </TabsList>
         </div>
-      )}
-    </div>
-  ))}
-</div>
 
+        {/* Tab content */}
+        {sections.map((section) => (
+          <TabsContent key={section.key} value={section.key}>
+            {record[section.key].length === 0 ? (
+              <p className="italic text-muted-foreground text-center py-8 text-lg">
+                Chưa có dữ liệu
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {record[section.key].map((r, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-5 border-l-4 ${section.color} bg-card rounded-lg shadow-sm hover:shadow-md transition`}
+                  >
+                    <p className="text-lg">
+                      <span className="font-semibold">Tên:</span> {r.name || "Chưa có"}
+                    </p>
+                    <p className="text-lg">
+                      <span className="font-semibold">Mô tả:</span> {r.description || "Chưa có"}
+                    </p>
+                    <p className="text-lg">
+                      <span className="font-semibold">Ngày ghi nhận:</span>{" "}
+                      {r.dateRecord
+                        ? new Date(r.dateRecord).toLocaleDateString("vi-VN")
+                        : "Chưa có"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
   );
 }
