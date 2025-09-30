@@ -76,6 +76,12 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --card-bg: oklch(1 0 0); /* trắng */
+  --card-text: oklch(0.129 0.042 264.695);
+  --chart-color-systolic: #ef4444; /* đỏ */
+  --chart-color-diastolic: #3b82f6; /* xanh dương */
+  --chart-color-hr: #10b981; /* xanh lá */
+  --chart-bg: oklch(1 0 0 / 5%); /* nền nhẹ cho chart */
 }
 
 .dark {
@@ -110,6 +116,13 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+
+  --card-bg: oklch(0.208 0.042 265.755);
+  --card-text: oklch(0.984 0.003 247.858);
+  --chart-color-systolic: #f87171;
+  --chart-color-diastolic: #60a5fa;
+  --chart-color-hr: #34d399;
+  --chart-bg: oklch(0.208 0.042 265.755 / 10%);
 }
 
 @layer base {
