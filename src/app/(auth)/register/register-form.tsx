@@ -12,7 +12,6 @@ import { z } from "zod";
 
 const registerSchema = z
   .object({
-<<<<<<< HEAD
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
     email: z.string().email("Email không hợp lệ"),
     // phone: z
@@ -20,15 +19,6 @@ const registerSchema = z
     //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
     // dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
     // gender: z.enum(["male", "female", "other"]),
-=======
-    //fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
-    email: z.string().email("Email không hợp lệ"),
-    // phoneNumber: z
-    //   .string()
-    //   .regex(/^[0-9]{9,11}$/, "Số điện thoại phải có 9-11 chữ số"),
-    //dob: z.string().nonempty("Vui lòng chọn ngày sinh"),
-    //gender: z.enum(GenderEnum),
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
     password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
     confirmPassword: z.string(),
   })
@@ -46,15 +36,9 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [form, setForm] = useState({
     // fullName: "",
     email: "",
-<<<<<<< HEAD
     // phone: "",
     // dob: "",
     // gender: "male",
-=======
-    phoneNumber: "",
-    dob: "",
-    gender: GenderEnum.OTHER,
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
     password: "",
     confirmPassword: "",
   });
@@ -115,13 +99,8 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-xl mx-auto">
-<<<<<<< HEAD
       {/* Full name */}
       {/* <div>
-=======
-      {/* Full name
-      <div>
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="fullName">Họ và tên</Label>
         <Input
           id="fullName"
@@ -153,13 +132,8 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         )}
       </div>
 
-<<<<<<< HEAD
       {/* Phone */}
       {/* <div>
-=======
-      {/* Phone
-      <div>
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="phone">Số điện thoại</Label>
         <Input
           id="phone"
@@ -174,13 +148,8 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         )}
       </div> */}
 
-<<<<<<< HEAD
       {/* Ngày sinh */}
       {/* <div>
-=======
-      {/* Ngày sinh
-      <div>
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label htmlFor="dob">Ngày sinh</Label>
         <Input
           id="dob"
@@ -193,13 +162,8 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         {errors.dob && <p className="text-sm text-red-600">{errors.dob}</p>}
       </div> */}
 
-<<<<<<< HEAD
       {/* Giới tính */}
       {/* <div>
-=======
-      {/* Giới tính
-      <div>
->>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
         <Label>Giới tính</Label>
         <div className="flex gap-6 mt-2">
           {Object.values(GenderEnum).map((g) => (
