@@ -5,26 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicalRecordDto } from "@/types/userDTO/medical-record.dto";
 import { useState } from "react";
+import { Modal } from "@/components/ui/modal";
 
-// Giả lập Modal đơn giản
-function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6">
-        {children}
-        <div className="mt-4 text-right">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
-          >
-            Đóng
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Custom TabsTrigger styled
 function ThemedTabsTrigger({ children, value }: { children: React.ReactNode; value: string }) {

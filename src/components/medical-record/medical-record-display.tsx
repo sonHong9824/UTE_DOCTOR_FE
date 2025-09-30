@@ -12,7 +12,8 @@ import {
   Tooltip,
 } from "chart.js";
 import { useMemo } from "react";
-import { Bar, Line } from "react-chartjs-2";
+import { Line } from "react-chartjs-2";
+import HealthRankCard from "../cards/health-rank-card";
 import VitalStatsCard from "../cards/vital-stat-card";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
@@ -43,28 +44,6 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
     muted: rootStyle.getPropertyValue("--muted-foreground").trim() || "#6b7280",
     cardBg: rootStyle.getPropertyValue("--card").trim() || "#ffffff",
   };
-
-  // Chart dữ liệu tổng quan hồ sơ y tế
-  const barChartData = useMemo(() => ({
-    labels: ["Tiền sử bệnh", "Dị ứng thuốc", "Dị ứng thức ăn"],
-    datasets: [
-      { label: "Tiền sử bệnh", data: [record.medicalHistory.length, 0, 0], backgroundColor: chartColors.systolic },
-      { label: "Dị ứng thuốc", data: [0, record.drugAllergies.length, 0], backgroundColor: chartColors.diastolic },
-      { label: "Dị ứng thức ăn", data: [0, 0, record.foodAllergies.length], backgroundColor: chartColors.hr },
-    ],
-  }), [record.medicalHistory.length, record.drugAllergies.length, record.foodAllergies.length, chartColors]);
-
-  const barChartOptions = useMemo(() => ({
-    responsive: true,
-    plugins: {
-      legend: { labels: { color: chartColors.text } },
-      title: { display: true, text: "Tổng quan hồ sơ y tế", color: chartColors.text },
-    },
-    scales: {
-      y: { beginAtZero: true, ticks: { stepSize: 1, color: chartColors.text } },
-      x: { ticks: { color: chartColors.text } },
-    },
-  }), [chartColors]);
 
   // Chart huyết áp
   const bpChartData = useMemo(() => ({
@@ -129,24 +108,43 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
     plugins: { legend: { labels: { color: chartColors.text, font: { size: 12 } } } },
   }), [chartColors]);
 
+  const bmi =
+    medicalRecord.weight && medicalRecord.height
+      ? Number((medicalRecord.weight / ((medicalRecord.height / 100) ** 2)).toFixed(1))
+      : 0;
+  function calculateHealthRank(): number {
+    if (bmi < 18.5) return 40; // hơi thấp
+    if (bmi < 25) return 90;   // lý tưởng
+    if (bmi < 30) return 70;   // thừa cân
+    return 50;                 // béo phì
+  }
+
+
   return (
     <div className="flex flex-col space-y-6">
-      <VitalStatsCard bloodType={record.bloodType} height={record.height} weight={record.weight} />
+      <div className="grid grid-cols-10 gap-4 items-stretch">
+      <div className="col-span-7">
+        <VitalStatsCard
+          bloodType={record.bloodType}
+          height={record.height}
+          weight={record.weight}
+          bmi={bmi}
+        />
+      </div>
+      <div className="col-span-3">
+        <HealthRankCard rankPercent={calculateHealthRank()}/>
+      </div>
+    </div>
+
+
       <div className="flex flex-row justify-between gap-4">
-        <Card className="p-4 shadow-md border w-[48%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
+        <Card className="p-4 shadow-md border w-[49%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
           {record.bloodPressure.length > 0 ? <Line data={bpChartData} options={bpChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu huyết áp</p>}
         </Card>
-        <Card className="p-4 shadow-md border w-[48%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
+        <Card className="p-4 shadow-md border w-[49%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
           {record.heartRate.length > 0 ? <Line data={hrChartData} options={hrChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu nhịp tim</p>}
         </Card>
       </div>
-      <Card className="p-4 shadow-md border" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
-        {record.medicalHistory.length + record.drugAllergies.length + record.foodAllergies.length > 0 ? (
-          <Bar data={barChartData} options={barChartOptions} />
-        ) : (
-          <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu hồ sơ y tế</p>
-        )}
-      </Card>
     </div>
   );
 }
