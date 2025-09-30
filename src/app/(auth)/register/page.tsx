@@ -32,6 +32,11 @@ export default function Register() {
 
   const handleVerifyOtp = async () => {
     console.log("OTP nhập:", otp);
+<<<<<<< HEAD
+    // TODO: gọi API verify OTP
+    setOpenOtpModal(false);
+    console.log("Register data:", email);
+=======
     const baseApi = process.env.BASE_API || "http://localhost:3001";
     const res = await fetch(`${baseApi}/api/auth/verify-otp`, {
       method: "POST",
@@ -49,6 +54,7 @@ export default function Register() {
       router.push("/login");
     }
       setOpenOtpModal(false);
+>>>>>>> 67f551faac5dd44b91aa56b9e16b68581a90cdb8
   };
 
   return (
