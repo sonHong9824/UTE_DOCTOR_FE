@@ -1,10 +1,20 @@
-import React from "react";
+"use client";
+
+
+import React, { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import Link from "next/link";
 
 
 const Navbar = () => {
+  const [email, setEmail] = useState<string | null>(null);
+  useEffect(() => {
+    const storeEmail = localStorage.getItem("email");
+    if (storeEmail) {
+      setEmail(storeEmail);
+    }
+  }, []);
   return (
     <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md sticky top-0">
       <div className="max-w-screen-2xl h-full mx-auto px-4 flex items-center justify-between">
@@ -26,18 +36,37 @@ const Navbar = () => {
         
         <div className="hidden lg:flex gap-6 items-center">
           <ModeToggle />
-          <Link
-            href="/register"
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
-          >
-            Đăng ký
-          </Link>
-          <Link
-            href="/login"
-            className="px-4 py-2 text-sm font-semibold rounded-lg border border-primary text-primary hover:bg-primary/10 transition"
-          >
-            Đăng nhập
-          </Link>
+          {email ? (
+            <div className="flex items-center gap-4">
+              <span className="font-semibold">
+                Xin chào, {email ? email.slice(0, 2).toUpperCase() : ""}
+              </span>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("email");
+                  setEmail(null);
+                }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-500 text-red-500 hover:bg-red-100 transition"
+              >
+                Đăng xuất
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/register"
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
+              >
+                Đăng ký
+              </Link>
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-primary text-primary hover:bg-primary/10 transition"
+              >
+                Đăng nhập
+              </Link>
+            </>
+          )}
           <button className="px-6 py-3 text-sm font-semibold rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 transition">
             Đăng ký khám
           </button>
