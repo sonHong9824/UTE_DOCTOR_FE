@@ -1,7 +1,7 @@
 interface BadgeProps {
-  children: React.ReactNode;
-  variant?: "blue" | "green" | "orange" | "red" | "gray" | "secondary";
-  className?: string;
+  children: React.ReactNode
+  variant?: "blue" | "green" | "orange" | "red" | "gray" | "secondary" | "destructive" | "outline" | "default" | "warning" | "success"
+  className?: string
 }
 
 export const Badge = ({ children, variant = "gray", className }: BadgeProps) => {
@@ -11,7 +11,10 @@ export const Badge = ({ children, variant = "gray", className }: BadgeProps) => 
     orange: "bg-orange-100 text-orange-800",
     red: "bg-red-100 text-red-800",
     gray: "bg-gray-200 text-gray-800",
-    secondary: "bg-gray-100 text-gray-600", // thêm style cho secondary
+    secondary: "bg-gray-100 text-gray-600",
+    warning: "bg-yellow-100 text-yellow-800",
+    success: "bg-green-200 text-green-900",
+    destructive: "bg-red-100 text-red-700 border border-red-200",
   };
 
   return (
