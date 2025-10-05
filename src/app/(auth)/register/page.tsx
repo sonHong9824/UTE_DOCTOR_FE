@@ -15,6 +15,7 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { ResponseCode } from "@/enum/response-code.enum";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 export default function Register() {
@@ -23,11 +24,11 @@ export default function Register() {
   const [email, setEmail] = useState("");
 
   const router = useRouter();
-  // callback khi đăng ký thành công
-  const handleRegisterSuccess = (userEmail?: string) => {
-    console.log("User email for OTP:", userEmail);
-    if (userEmail) setEmail(userEmail);
-    setOpenOtpModal(true);
+  const handleRegisterSuccess = (responseCode: ResponseCode, userEmail: string) => {
+    if (responseCode === ResponseCode.SUCCESS) {
+      if (userEmail) setEmail(userEmail);
+      setOpenOtpModal(true);
+    }
   };
 
   const handleVerifyOtp = async () => {

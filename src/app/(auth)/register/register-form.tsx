@@ -7,9 +7,10 @@ import { GenderEnum } from "@/enum/gender.enum";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
-
+import { io, Socket } from "socket.io-client";
+import { ResponseCode } from "@/enum/response-code.enum";
 const registerSchema = z
   .object({
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
@@ -28,7 +29,7 @@ const registerSchema = z
   });
 
 interface RegisterFormProps {
-  onSuccess?: (email: string) => void;
+  onSuccess?: (responseCode: ResponseCode, userEmail: string) => void;
 }
 
 export default function RegisterForm({ onSuccess }: RegisterFormProps) {
@@ -45,6 +46,41 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+   const [socket, setSocket] = useState<Socket | null>(null);
+
+  // Init WebSocket
+  useEffect(() => {
+    if (!form.email) return;
+
+    const newSocket = io(process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001");
+    setSocket(newSocket);
+
+    newSocket.on("connect", () => {
+      console.log("Socket connected:", newSocket.id);
+      newSocket.emit("join", { userEmail: form.email });
+    });
+
+    console.log("Init socket for register'user email: ", form.email)
+
+    newSocket.on("registerStatus", (data: any) => {
+      const rawData = JSON.stringify(data);
+      console.log("Raw Data: ", rawData)
+      if (data.code === ResponseCode.SUCCESS) {
+         alert(`Đăng ký thành công: ${data.message}`);
+         if (onSuccess) {
+          onSuccess(data!.code, form.email);
+        }
+       } else {
+         alert(`Đăng ký thất bại: ${data.message}`);
+         return;
+       }
+    })
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, [form.email]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -73,28 +109,17 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      console.log("Register response:", res);
+
+      // Nếu server trả lỗi HTTP, log thôi, không show alert
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.message || "Đăng ký thất bại");
-      }
-      if (onSuccess) {
-        onSuccess(form.email);
-        alert("Đăng ký thành công! Vui lòng đăng nhập.");
-      } else {
-        alert("Đăng ký thất bại! Vui lòng thử lại.");
-        router.push("/dashboard");
+        alert("Error when connecting to server!")
+        console.error("Register failed:", data.message || "Đăng ký thất bại");
       }
     } catch (err: any) {
-      console.error(err.message);
-      alert(err.message);
+      console.error("Register error:", err.message);
     }
 
-    if (onSuccess) {
-      onSuccess(form.email);
-    } else {
-      router.push("/dashboard");
-    }
   };
 
   return (
