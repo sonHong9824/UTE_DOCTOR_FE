@@ -3,14 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GenderEnum } from "@/enum/gender.enum";
+import { ResponseCode } from "@/enum/response-code.enum";
+import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import { socketClient } from "@/services/socket/socket-client";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Socket } from "socket.io-client";
 import { z } from "zod";
-import { io, Socket } from "socket.io-client";
-import { ResponseCode } from "@/enum/response-code.enum";
 const registerSchema = z
   .object({
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
@@ -46,40 +47,29 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-   const [socket, setSocket] = useState<Socket | null>(null);
 
   // Init WebSocket
   useEffect(() => {
     if (!form.email) return;
 
-    const newSocket = io(process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001");
-    setSocket(newSocket);
+    socketClient.emit(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: form.email });
+    console.log("Init socket for register user email: ", form.email);
 
-    newSocket.on("connect", () => {
-      console.log("Socket connected:", newSocket.id);
-      newSocket.emit("join", { userEmail: form.email });
+    socketClient.on(SocketEventsEnum.REGISTER_STATUS, (data: any) => {
+      console.log("Raw Data: ", JSON.stringify(data));
+      if (data.code === ResponseCode.SUCCESS) {
+        alert(`Đăng ký thành công: ${data.message}`);
+        if (onSuccess) onSuccess(data.code, form.email);
+      } else {
+        alert(`Đăng ký thất bại: ${data.message}`);
+      }
     });
 
-    console.log("Init socket for register'user email: ", form.email)
-
-    newSocket.on("registerStatus", (data: any) => {
-      const rawData = JSON.stringify(data);
-      console.log("Raw Data: ", rawData)
-      if (data.code === ResponseCode.SUCCESS) {
-         alert(`Đăng ký thành công: ${data.message}`);
-         if (onSuccess) {
-          onSuccess(data!.code, form.email);
-        }
-       } else {
-         alert(`Đăng ký thất bại: ${data.message}`);
-         return;
-       }
-    })
-
     return () => {
-      newSocket.disconnect();
+      socketClient.disconnect();
     };
   }, [form.email]);
+
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

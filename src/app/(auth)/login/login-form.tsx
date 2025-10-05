@@ -27,12 +27,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Login data:", form);
-    // const baseApiUrl = process.env.BASE_API || "http://localhost:3001/api";
-    // const response = await fetch(`${baseApiUrl}/auth/login`, {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(form),
-    // });
+    
     const res = await login(form);
     console.log("Login response:", res);
     if (res.code != rc.SUCCESS) {
