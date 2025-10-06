@@ -1,5 +1,6 @@
 "use client";
 
+import { register } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,7 +52,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   // Init WebSocket
   useEffect(() => {
     if (!form.email) return;
-
+    
     socketClient.emit(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: form.email });
     console.log("Init socket for register user email: ", form.email);
 
@@ -94,22 +95,16 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     const baseApi = process.env.BASE_API || "http://localhost:3001";
     try {
-      const res = await fetch(`${baseApi}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await register(form);
 
       // Nếu server trả lỗi HTTP, log thôi, không show alert
-      if (!res.ok) {
-        const data = await res.json();
+      if (res.code != ResponseCode.SUCCESS) {
         alert("Error when connecting to server!")
-        console.error("Register failed:", data.message || "Đăng ký thất bại");
+        console.error("Register failed:", res.message || "Đăng ký thất bại");
       }
     } catch (err: any) {
       console.error("Register error:", err.message);
     }
-
   };
 
   return (
