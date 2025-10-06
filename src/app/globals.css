@@ -82,6 +82,28 @@
   --chart-color-diastolic: #3b82f6; /* xanh dương */
   --chart-color-hr: #10b981; /* xanh lá */
   --chart-bg: oklch(1 0 0 / 5%); /* nền nhẹ cho chart */
+  
+  /* Doctor Theme Colors */
+  --doctor-primary: oklch(0.45 0.15 250); /* Professional blue */
+  --doctor-primary-foreground: oklch(0.98 0.01 250);
+  --doctor-secondary: oklch(0.95 0.02 250); /* Light blue-gray */
+  --doctor-secondary-foreground: oklch(0.25 0.05 250);
+  --doctor-accent: oklch(0.92 0.03 250); /* Subtle accent */
+  --doctor-accent-foreground: oklch(0.25 0.05 250);
+  --doctor-muted: oklch(0.96 0.01 250); /* Very light background */
+  --doctor-muted-foreground: oklch(0.45 0.05 250);
+  --doctor-border: oklch(0.90 0.02 250);
+  --doctor-ring: oklch(0.45 0.15 250);
+  
+  /* Status Colors */
+  --status-success: oklch(0.55 0.15 140); /* Green */
+  --status-success-foreground: oklch(0.98 0.01 140);
+  --status-warning: oklch(0.70 0.15 60); /* Amber */
+  --status-warning-foreground: oklch(0.15 0.05 60);
+  --status-error: oklch(0.60 0.20 20); /* Red */
+  --status-error-foreground: oklch(0.98 0.01 20);
+  --status-info: oklch(0.55 0.15 250); /* Blue */
+  --status-info-foreground: oklch(0.98 0.01 250);
 }
 
 .dark {
@@ -123,6 +145,28 @@
   --chart-color-diastolic: #60a5fa;
   --chart-color-hr: #34d399;
   --chart-bg: oklch(0.208 0.042 265.755 / 10%);
+  
+  /* Doctor Theme Colors - Dark Mode */
+  --doctor-primary: oklch(0.60 0.15 250); /* Brighter blue for dark mode */
+  --doctor-primary-foreground: oklch(0.15 0.05 250);
+  --doctor-secondary: oklch(0.25 0.05 250); /* Dark blue-gray */
+  --doctor-secondary-foreground: oklch(0.90 0.02 250);
+  --doctor-accent: oklch(0.30 0.05 250); /* Darker accent */
+  --doctor-accent-foreground: oklch(0.90 0.02 250);
+  --doctor-muted: oklch(0.20 0.03 250); /* Dark background */
+  --doctor-muted-foreground: oklch(0.65 0.05 250);
+  --doctor-border: oklch(0.35 0.05 250);
+  --doctor-ring: oklch(0.60 0.15 250);
+  
+  /* Status Colors - Dark Mode */
+  --status-success: oklch(0.65 0.15 140); /* Brighter green */
+  --status-success-foreground: oklch(0.15 0.05 140);
+  --status-warning: oklch(0.75 0.15 60); /* Brighter amber */
+  --status-warning-foreground: oklch(0.15 0.05 60);
+  --status-error: oklch(0.70 0.20 20); /* Brighter red */
+  --status-error-foreground: oklch(0.15 0.05 20);
+  --status-info: oklch(0.65 0.15 250); /* Brighter blue */
+  --status-info-foreground: oklch(0.15 0.05 250);
 }
 
 @layer base {
@@ -133,3 +177,14 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Ẩn thanh cuộn trên tất cả trình duyệt */
+::-webkit-scrollbar {
+  display: none;
+}
+
+html, body {
+  -ms-overflow-style: none;  /* IE và Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+

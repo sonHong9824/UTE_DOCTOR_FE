@@ -34,15 +34,24 @@ export default function LoginForm() {
       alert("Đăng nhập thất bại! Vui lòng thử lại.");
       console.log("Login failed:", res);
       return;
-    }
-    else { 
-      alert("Đăng nhập thành công!"); 
+    } else {
+      alert("Đăng nhập thành công!");
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("email", form.email);
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
+      localStorage.setItem("role", res.data.role);
+      localStorage.setItem("id", res.data.id);
+
       console.log("Login successful:", res);
-      router.push("/user/my-profile");
+
+      // Điều hướng theo role
+      if (res.data.role === "DOCTOR") {
+        alert("xin chao bac si");
+        router.push("/doctor");
+      } else {
+        router.push("/"); // home của bệnh nhân
+      }
     }
 
   };
