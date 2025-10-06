@@ -2,10 +2,10 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MedicalRecordDto } from "@/types/userDTO/medical-record.dto";
-import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
+import { useState } from "react";
 
 
 // Custom TabsTrigger styled

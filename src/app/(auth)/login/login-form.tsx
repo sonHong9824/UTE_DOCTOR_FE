@@ -13,7 +13,7 @@ export default function LoginForm() {
   const [form, setForm] = useState({
     email: "",
     password: "",
-    remember: false,
+    //remember: false,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,7 +92,7 @@ export default function LoginForm() {
           <input
             type="checkbox"
             name="remember"
-            checked={form.remember}
+            //checked={form.remember}
             onChange={handleChange}
             className="h-4 w-4 rounded border-gray-300"
           />

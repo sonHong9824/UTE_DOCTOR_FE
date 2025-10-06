@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { MedicalRecordDto } from "@/types/userDTO/medical-record.dto";
+import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import {
   BarElement,
   CategoryScale,

@@ -1,21 +1,25 @@
-import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
+import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
+import UserInfoCard from "../cards/user-info-card";
 import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
-import UserInfoCard from "../cards/user-info-card";
+import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 
 interface UserContentProps {
-  user: UserProfileDTO;
+  user: PatientProfileDto;
   activeTab: string;
 }
 
 export default function UserContent({ user, activeTab }: UserContentProps) {
+  if (!user.medicalRecord) {
+    return <p>Chưa có hồ sơ y tế</p>;
+  }
   return (
     <div className="flex-1 p-4">
       {activeTab === "general-health" && <MedicalRecordDisplay medicalRecord={user.medicalRecord} />}
       
       {activeTab === "personal-info" && (
-          <UserInfoCard user={user}/>
+          <UserInfoCard user={user.accountProfileDto}/>
       )}
 
       {activeTab === "password" && (
