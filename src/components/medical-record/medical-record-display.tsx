@@ -34,6 +34,8 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
     heartRate: medicalRecord?.heartRate || [],
   };
 
+  console.log("Received medical record: ", medicalRecord)
+
   // Lấy màu từ CSS variables để hỗ trợ dark/light mode
   const rootStyle = getComputedStyle(document.documentElement);
   const chartColors = {

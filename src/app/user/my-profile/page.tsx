@@ -244,6 +244,10 @@ export default function ProfilePage() {
         console.log("Patient profile received:", data);
         if (data.code === rc.SUCCESS) setUser(data.data);
       });
+
+  //   return () => {
+  //   socketClient.disconnect();
+  // };
   }, []);
 
   if (!user) return <p className="text-center mt-8">Loading...</p>;

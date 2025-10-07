@@ -1,4 +1,4 @@
-import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
+
 import UserInfoCard from "../cards/user-info-card";
 import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
