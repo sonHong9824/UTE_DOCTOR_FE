@@ -463,7 +463,7 @@ export default function SchedulePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Lịch làm việc tháng hiện tại</CardTitle>
+                <CardTitle className="mb-3">Lịch làm việc tháng hiện tại</CardTitle>
                 <CardDescription>
                   {formatDate(monthStart)} - {formatDate(monthEnd)}
                 </CardDescription>
