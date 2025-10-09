@@ -20,11 +20,27 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      console.error("Unauthorized. Maybe refresh token or redirect to login?");
-      // TODO: refresh token flow
+    // Khi có response từ server
+    if (error.response) {
+      const { status, data } = error.response;
+
+      if (status === 401) {
+        console.error("Unauthorized — maybe expired token?");
+        // 👉 TODO: refresh token hoặc redirect login
+      } else if (status === 403) {
+        console.warn("Forbidden:", data?.message || "No permission");
+      } else if (status >= 500) {
+        console.error("Server error:", status, data?.message);
+      }
+    } else if (error.request) {
+      // Khi không có phản hồi từ server (mạng lỗi)
+      console.error("Network error: No response from server");
+    } else {
+      // Lỗi khác (config, timeout,...)
+      console.error("Axios setup error:", error.message);
     }
-    return Promise.reject(error);
+
+    return Promise.reject(error); // luôn reject để nơi gọi có thể xử lý
   }
 );
 

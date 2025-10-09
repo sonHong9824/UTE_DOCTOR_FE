@@ -1,15 +1,18 @@
 "use client";
 
+import { register } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GenderEnum } from "@/enum/gender.enum";
+import { ResponseCode } from "@/enum/response-code.enum";
+import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import { socketClient } from "@/services/socket/socket-client";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Socket } from "socket.io-client";
 import { z } from "zod";
-
 const registerSchema = z
   .object({
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
@@ -28,7 +31,7 @@ const registerSchema = z
   });
 
 interface RegisterFormProps {
-  onSuccess?: (email: string) => void;
+  onSuccess?: (responseCode: ResponseCode, userEmail: string) => void;
 }
 
 export default function RegisterForm({ onSuccess }: RegisterFormProps) {
@@ -45,6 +48,30 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Init WebSocket
+  useEffect(() => {
+    if (!form.email) return;
+    
+    socketClient.emit(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: form.email });
+    console.log("Init socket for register user email: ", form.email);
+
+    socketClient.on(SocketEventsEnum.REGISTER_STATUS, (data: any) => {
+      console.log("Raw Data: ", JSON.stringify(data));
+      if (data.code === ResponseCode.SUCCESS) {
+        alert(`Đăng ký thành công: ${data.message}`);
+        if (onSuccess) onSuccess(data.code, form.email);
+      } else {
+        alert(`Đăng ký thất bại: ${data.message}`);
+      }
+    });
+
+    return () => {
+      socketClient.disconnect();
+    };
+  }, [form.email]);
+
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -68,32 +95,15 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
     const baseApi = process.env.BASE_API || "http://localhost:3001";
     try {
-      const res = await fetch(`${baseApi}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      console.log("Register response:", res);
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message || "Đăng ký thất bại");
-      }
-      if (onSuccess) {
-        onSuccess(form.email);
-        alert("Đăng ký thành công! Vui lòng đăng nhập.");
-      } else {
-        alert("Đăng ký thất bại! Vui lòng thử lại.");
-        router.push("/dashboard");
+      const res = await register(form);
+
+      // Nếu server trả lỗi HTTP, log thôi, không show alert
+      if (res.code != ResponseCode.SUCCESS) {
+        alert("Error when connecting to server!")
+        console.error("Register failed:", res.message || "Đăng ký thất bại");
       }
     } catch (err: any) {
-      console.error(err.message);
-      alert(err.message);
-    }
-
-    if (onSuccess) {
-      onSuccess(form.email);
-    } else {
-      router.push("/dashboard");
+      console.error("Register error:", err.message);
     }
   };
 

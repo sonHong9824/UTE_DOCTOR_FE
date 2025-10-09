@@ -205,30 +205,49 @@
 //     );
 // }
 "use client";
-import { GetUserProfile } from "@/apis/user/user.api";
+import { GetPatientProfile } from "@/apis/user/user.api";
 import Sidebar from "@/components/layout/side-bar";
 import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
 import { ResponseCode as rc } from "@/enum/response-code.enum";
-import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
+import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import { socketClient } from "@/services/socket/socket-client";
+import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useEffect, useState } from "react";
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<UserProfileDTO | null>(null);
+  const [user, setUser] = useState<PatientProfileDto | null>(null);
   const [activeTab, setActiveTab] = useState<string>("general-health");
 
   useEffect(() => {
     const email = localStorage.getItem("email") || "";
     if (!email) return;
+
+  
     const fetchUserProfile = async () => {
       try {
-        const response = await GetUserProfile({ email });
-        if (response?.code === rc.SUCCESS) setUser(response.data);
+        const response = await GetPatientProfile({ email });
+        // if (response?.code === rc.SUCCESS) setUser(response.data);
       } catch (err) {
         console.error(err);
       }
     };
+
+    // Join room, server chỉ nhận và ack (PENDING)
+    socketClient.emit(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: email });
+
+
     fetchUserProfile();
+  
+    // Listen patient profile
+    socketClient.on(SocketEventsEnum.PATIENT_PROFILE, (data: any) => {
+        console.log("Patient profile received:", data);
+        if (data.code === rc.SUCCESS) setUser(data.data);
+      });
+
+  //   return () => {
+  //   socketClient.disconnect();
+  // };
   }, []);
 
   if (!user) return <p className="text-center mt-8">Loading...</p>;
