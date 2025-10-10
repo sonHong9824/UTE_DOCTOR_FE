@@ -1,23 +1,18 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   CalendarDays, Clock, Plus, CheckCircle2, Users, AlertTriangle, 
   Calendar, ChevronRight, Filter, MoreVertical, CalendarCheck, 
-  CalendarX, ArrowRight, Calendar as CalendarIcon, ClipboardList
+  ArrowRight, ClipboardList
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-type ShiftKey = "morning" | "noon" | "afternoon";
+type ShiftKey = "morning" | "afternoon" | "extra";
 
 type Slot = {
   date: string; // YYYY-MM-DD
@@ -26,72 +21,122 @@ type Slot = {
   end: string; // HH:mm
   location?: string;
   notes?: string;
-  hasClient?: boolean; // có khách đặt
-  completed?: boolean; // đã khám xong
+  hasClient?: boolean;
+  completed?: boolean;
 };
 
+// Danh sách thứ trong tuần (theo tiếng Việt)
 const viDays = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
 
-function getDayLabel(dateStr: string) {
+// Hàm lấy tên thứ từ chuỗi ngày (YYYY-MM-DD)
+export function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return viDays[d.getDay()];
 }
 
-function formatDate(dateStr: string) {
+// Hàm định dạng ngày về dạng DD/MM/YYYY
+export function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
 }
 
+// Kiểm tra năm nhuận
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+// Trả về số ngày trong một tháng (1–12)
+export function getDaysInMonth(year: number, month: number): number {
+  const daysInMonth = [
+    31,
+    isLeapYear(year) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  return daysInMonth[month - 1];
+}
+
+function enumerateMonthDays(year: number, month: number): string[] {
+  // month dạng 1–12
+  const daysInMonth = getDaysInMonth(year, month);
+  const days: string[] = [];
+  for (let i = 1; i <= daysInMonth; i++) {
+    const d = new Date(year, month - 1, i); // <-- TRỪ 1 ở đây ✅
+    const yearStr = d.getFullYear();
+    const monthStr = String(d.getMonth() + 1).padStart(2, "0");
+    const dayStr = String(d.getDate()).padStart(2, "0");
+    days.push(`${yearStr}-${monthStr}-${dayStr}`);
+  }
+  return days;
+}
+
+
 export default function SchedulePage() {
   const todayStr = new Date().toISOString().slice(0, 10);
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const [date, setDate] = useState(todayStr);
+  const [shift, setShift] = useState<ShiftKey>("morning");
+  const [location, setLocation] = useState("");
+  const [notes, setNotes] = useState("");
+  const [dialogMode, setDialogMode] = useState<"register" | "register_month" | "cancel" | "warning">("register");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedShift, setSelectedShift] = useState<ShiftKey | null>(null);
+  const [now, setNow] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  function formatDateLocal(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  // Thay vì .toISOString().slice(0,10)
+  const monthStart = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
+  const monthEnd = formatDateLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
 
   const SHIFTS: { key: ShiftKey; label: string; start: string; end: string }[] = [
-    { key: "morning", label: "Buổi sáng (08:00 - 11:30)", start: "08:00", end: "11:30" },
-    { key: "noon", label: "Buổi trưa (11:30 - 13:30)", start: "11:30", end: "13:30" },
-    { key: "afternoon", label: "Buổi chiều (13:30 - 17:00)", start: "13:30", end: "17:00" },
+    { key: "morning", label: "Ca sáng (07:30 - 11:30)", start: "07:30", end: "11:30" },
+    { key: "afternoon", label: "Ca chiều (13:30 - 17:30)", start: "13:30", end: "17:30" },
+    { key: "extra", label: "Ngoài giờ (18:00 - 21:00)", start: "18:00", end: "21:00" },
   ];
+
   const [slots, setSlots] = useState<Slot[]>([
     { date: todayStr, shiftKey: "morning", start: "08:00", end: "11:30", location: "Phòng 201", notes: "Khám tổng quát", hasClient: true, completed: false },
     { date: todayStr, shiftKey: "afternoon", start: "13:30", end: "17:00", location: "Phòng 202", notes: "Siêu âm", hasClient: true, completed: true },
   ]);
   const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(todayStr);
-  const [shift, setShift] = useState<ShiftKey>("morning");
-  const [location, setLocation] = useState("");
-  const [notes, setNotes] = useState("");
-  const [dialogMode, setDialogMode] = useState<"register" | "cancel" | "warning">("register");
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedShift, setSelectedShift] = useState<ShiftKey | null>(null);
 
   const todayList = useMemo(() => {
-    return [...slots]
-      .filter((s) => s.date === todayStr)
-      .sort((a, b) => a.start.localeCompare(b.start));
+    return slots.filter((s) => s.date === todayStr).sort((a, b) => a.start.localeCompare(b.start));
   }, [slots, todayStr]);
 
   const weekGroups = useMemo(() => {
     const result: Record<string, Slot[]> = {};
     viDays.forEach((day) => (result[day] = []));
-
     const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - now.getDay()); // Start from Sunday
+    weekStart.setDate(now.getDate() - weekStart.getDay());
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
       const dateStr = d.toISOString().slice(0, 10);
       const dayLabel = viDays[d.getDay()];
-      const daySlots = slots.filter((s) => s.date === dateStr);
-      result[dayLabel] = daySlots;
+      result[dayLabel] = slots.filter((s) => s.date === dateStr);
     }
     return result;
   }, [slots, now]);
 
   const addSlot = () => {
     if (!date) return;
-    // Enforce date in current month
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
     setSlots((prev) => [
@@ -105,29 +150,12 @@ export default function SchedulePage() {
     setNotes("");
   };
 
-  function getDaysInMonth(year: number, month: number): number {
-    return new Date(year, month + 1, 0).getDate();
-    }
-
-    // Tạo mảng ngày dạng YYYY-MM-DD
-    function enumerateMonthDays(year: number, month: number): string[] {
-    const daysInMonth = getDaysInMonth(year, month);
-    const days: string[] = [];
-
-    for (let i = 1; i <= daysInMonth; i++) {
-        const d = new Date(year, month, i);
-        days.push(d.toISOString().slice(0, 10)); // YYYY-MM-DD
-    }
-
-    return days;
-    }
-
-    // Trả về ngày bắt đầu và kết thúc tháng (string)
-    function getMonthRange(year: number, month: number) {
-    const start = new Date(year, month, 1).toISOString().slice(0, 10);
-    const end = new Date(year, month, getDaysInMonth(year, month)).toISOString().slice(0, 10);
-    return { start, end };
-    }
+  // useEffect(() => {
+  //   const daysList = enumerateMonthDays(now.getFullYear(), now.getMonth() + 1);
+  //   console.log("monthStart:", monthStart);
+  //   console.log("monthEnd:", monthEnd);
+  //   console.log("daysList:", daysList);
+  // }, [now, monthStart, monthEnd]);
 
   function getShiftState(dateStr: string, key: ShiftKey): "none" | "registered" | "hasClient" | "completed" {
     const found = slots.find((s) => s.date === dateStr && s.shiftKey === key);
@@ -151,13 +179,7 @@ export default function SchedulePage() {
       setOpen(true);
       setSelectedDate(dateStr);
       setSelectedShift(key);
-    } else if (state === "hasClient") {
-      setDialogMode("warning");
-      setOpen(true);
-      setSelectedDate(dateStr);
-      setSelectedShift(key);
-    } else {
-      // completed: show info (optional), treat as warning for now
+    } else if (state === "hasClient" || state === "completed") {
       setDialogMode("warning");
       setOpen(true);
       setSelectedDate(dateStr);
@@ -169,6 +191,16 @@ export default function SchedulePage() {
     if (!selectedDate || !selectedShift) return;
     setSlots((prev) => prev.filter((s) => !(s.date === selectedDate && s.shiftKey === selectedShift)));
     setOpen(false);
+  }
+
+  // Dropdown chọn tháng/năm, luôn đặt về ngày 1
+  function handleMonthChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newMonth = Number(e.target.value); // value 1–12
+    setNow(new Date(now.getFullYear(), newMonth - 1, 1)); // -1 để Date hiểu đúng
+  }
+
+  function handleYearChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setNow(new Date(Number(e.target.value), now.getMonth(), 1));
   }
 
   return (
@@ -253,7 +285,7 @@ export default function SchedulePage() {
           <CardContent>
             <div className="text-2xl font-bold">{slots.filter((s) => s.completed).length}</div>
             <p className="text-xs text-muted-foreground">
-              {Math.round((slots.filter((s) => s.completed).length / slots.length) * 100)}% hoàn thành
+              {slots.length > 0 ? Math.round((slots.filter((s) => s.completed).length / slots.length) * 100) : 0}% hoàn thành
             </p>
           </CardContent>
           <CardFooter className="pt-0">
@@ -405,132 +437,132 @@ export default function SchedulePage() {
           </div>
         </TabsContent>
 
-        {/* <TabsContent value="month">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {viDays.map((label) => (
-              <Card key={label}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{label}</CardTitle>
-                  <CardDescription>
-                    {(weekGroups[label] || []).length} ca trực
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {(weekGroups[label] || []).length === 0 ? (
-                    <div className="text-center py-8">
-                      <CalendarDays className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-20" />
-                      <p className="text-sm text-muted-foreground">Không có lịch</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {(weekGroups[label] || []).map((slot, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                          <div className="text-center">
-                            <p className="text-xs font-semibold">{slot.start}</p>
-                            <p className="text-xs text-muted-foreground">-</p>
-                            <p className="text-xs font-semibold">{slot.end}</p>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate">{slot.location || "Phòng khám"}</p>
-                              {slot.hasClient && (
-                                <Badge variant={slot.completed ? "success" : "warning"} className="text-xs">
-                                  {slot.completed ? "Đã khám" : "Có lịch"}
-                                </Badge>
-                              )}
-                            </div>
-                            {slot.notes && (
-                              <p className="text-xs text-muted-foreground truncate">{slot.notes}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="pt-0">
-                  <Button variant="ghost" size="sm" className="w-full text-xs">
-                    <Plus className="mr-1 h-3 w-3" />
-                    Thêm ca trực
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        </TabsContent> */}
-
         <TabsContent value="month">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="mb-3">Lịch làm việc tháng hiện tại</CardTitle>
-                <CardDescription>
-                  {formatDate(monthStart)} - {formatDate(monthEnd)}
-                </CardDescription>
+                <CardTitle className="mb-3">Lịch làm việc theo tháng</CardTitle>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    {/* Chọn tháng và năm */}
+                    <select
+                      value={now.getMonth() + 1}
+                      onChange={handleMonthChange}
+                      className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>Tháng {i + 1}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={now.getFullYear()}
+                      onChange={handleYearChange}
+                      className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <option key={i} value={new Date().getFullYear() - 2 + i}>
+                          {new Date().getFullYear() - 2 + i}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <CardDescription>
+                    {formatDate(monthStart)} - {formatDate(monthEnd)}
+                  </CardDescription>
+                </div>
               </div>
-              <Button variant="outline" size="sm">
-                <CalendarCheck className="mr-2 h-4 w-4" />
-                Xuất lịch
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  setOpen(true);
+                  setDialogMode("register_month");
+                }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Đăng ký tháng
+                </Button>
+                <Button variant="outline" size="sm">
+                  <CalendarCheck className="mr-2 h-4 w-4" />
+                  Xuất lịch
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
+                {/* Thêm log kiểm tra ở đây */}
+                {(() => {
+                  const daysList = enumerateMonthDays(now.getFullYear(), now.getMonth() + 1);
+                  console.log("monthStart:", monthStart);
+                  console.log("monthEnd:", monthEnd);
+                  console.log("daysList:", daysList);
+                  return null;
+                })()}
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Ngày</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Sáng</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Trưa</th>
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Chiều</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Ca sáng</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Ca chiều</th>
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-muted-foreground">Ngoài giờ</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {enumerateMonthDays(now.getFullYear(), now.getMonth()).map((dStr) => (
-                      <tr key={dStr} className="border-b border-border/50 hover:bg-accent/20 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{formatDate(dStr)}</span>
-                            <span className="text-sm text-muted-foreground">({getDayLabel(dStr)})</span>
-                          </div>
-                        </td>
-                        {["morning", "noon", "afternoon"].map((k) => {
-                          const state = getShiftState(dStr, k as ShiftKey);
-                          const cls =
-                            state === "completed"
-                              ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900"
-                              : state === "hasClient"
-                              ? "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900"
-                              : state === "registered"
-                              ? "bg-muted text-muted-foreground border-border"
-                              : "bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground";
-                          const label =
-                            state === "completed"
-                              ? "Có khách - Đã khám"
-                              : state === "hasClient"
-                              ? "Có khách"
-                              : state === "registered"
-                              ? "Đã đăng ký"
-                              : "Chưa đăng ký";
-                          return (
-                            <td key={k} className="px-4 py-3">
-                              <button
-                                onClick={() => onClickShift(dStr, k as ShiftKey)}
-                                className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-medium transition-all duration-200 ${cls}`}
-                              >
-                                {label}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
+                  {enumerateMonthDays(now.getFullYear(), now.getMonth() + 1).map((dStr) => (
+                    <tr
+                      key={dStr}
+                      className="border-b border-border/50 hover:bg-accent/20 transition-colors"
+                    >
+                      {/* Cột ngày + thứ */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{formatDate(dStr)}</span>
+                          <span className="text-sm text-muted-foreground">
+                            ({getDayLabel(dStr)})
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Các ca làm việc */}
+                      {["morning", "afternoon", "extra"].map((k) => {
+                        const state = getShiftState(dStr, k as ShiftKey);
+
+                        const cls =
+                          state === "completed"
+                            ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-900"
+                            : state === "hasClient"
+                            ? "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-900"
+                            : state === "registered"
+                            ? "bg-muted text-muted-foreground border-border"
+                            : "bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground";
+
+                        const label =
+                          state === "completed"
+                            ? "Có khách - Đã khám"
+                            : state === "hasClient"
+                            ? "Có khách"
+                            : state === "registered"
+                            ? "Đã đăng ký"
+                            : "Chưa đăng ký";
+
+                        return (
+                          <td key={k} className="px-4 py-3">
+                            <button
+                              onClick={() => onClickShift(dStr, k as ShiftKey)}
+                              className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-medium transition-all duration-200 ${cls}`}
+                            >
+                              {label}
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+
                 </table>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-
       </Tabs>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -560,7 +592,7 @@ export default function SchedulePage() {
                   <label className="block text-sm font-semibold mb-2">Ca làm việc</label>
                   <select 
                     value={shift} 
-                    onChange={(e) => setShift(e.target.value as any)} 
+                    onChange={(e) => setShift(e.target.value as ShiftKey)} 
                     className="w-full h-10 rounded-lg border px-3 text-sm focus:outline-none focus:ring-2"
                   >
                     {SHIFTS.map((s) => (
@@ -626,7 +658,7 @@ export default function SchedulePage() {
                 <p className="font-medium mb-2">Xác nhận hủy lịch</p>
                 <p className="text-sm text-muted-foreground">
                   Bạn có chắc muốn hủy lịch đã đăng ký cho <span className="font-medium">{selectedDate}</span> (
-                  {selectedShift === "morning" ? "Buổi sáng" : selectedShift === "noon" ? "Buổi trưa" : "Buổi chiều"}
+                  {selectedShift === "morning" ? "Buổi sáng" : selectedShift === "afternoon" ? "Buổi chiều" : "Ngoài giờ"}
                   )?
                 </p>
               </div>
@@ -664,5 +696,3 @@ export default function SchedulePage() {
     </div>
   );
 }
-
-
