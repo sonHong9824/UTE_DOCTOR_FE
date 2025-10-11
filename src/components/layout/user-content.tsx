@@ -1,5 +1,6 @@
 
 import UserInfoCard from "../cards/user-info-card";
+import AppointmentForm from "../forms/appointments/appointment-form.draft";
 import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
@@ -30,6 +31,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
       )}
 
       {activeTab === "medical-detail" && <MedicalRecordDetail medicalRecord={user.medicalRecord} />}
+      {activeTab === "appointments" && <AppointmentForm />}
     </div>
   );
 }

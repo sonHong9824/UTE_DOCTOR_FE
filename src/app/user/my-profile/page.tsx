@@ -211,7 +211,7 @@ import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
 import { ResponseCode as rc } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
-import { socketClient } from "@/services/socket/socket-client";
+import { createPatientProfileSocket, socketClient } from "@/services/socket/socket-client";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useEffect, useState } from "react";
 
@@ -233,18 +233,21 @@ export default function ProfilePage() {
       }
     };
 
-    // Join room, server chỉ nhận và ack (PENDING)
-    socketClient.emit(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: email });
+    const patientProfileSocket = createPatientProfileSocket(); // Use the existing socketClient for patient profile
+    
+    patientProfileSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
+      console.log("✅ Room joined confirmed, now calling API");
+      fetchUserProfile(); // Bây giờ mới call API
+    });
 
-
-    fetchUserProfile();
-  
     // Listen patient profile
-    socketClient.on(SocketEventsEnum.PATIENT_PROFILE, (data: any) => {
+    patientProfileSocket.on(SocketEventsEnum.PATIENT_PROFILE, (data: any) => {
         console.log("Patient profile received:", data);
         if (data.code === rc.SUCCESS) setUser(data.data);
-      });
+    });
 
+    patientProfileSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email }); // Join room first
+    console.log("Emitted join room for email:", email);
   //   return () => {
   //   socketClient.disconnect();
   // };

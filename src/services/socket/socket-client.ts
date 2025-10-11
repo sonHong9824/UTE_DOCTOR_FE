@@ -58,10 +58,19 @@ class SocketClient {
     console.log(`Emitted event safely: ${event}`, data);
   }
 
+  async joinRoom(email: string): Promise<void> {
+    return new Promise((resolve) => {
+      this.socket.emit(SocketEventsEnum.JOIN_ROOM, { email }, () => {
+        console.log(`[Socket] Joined room: ${email}`);
+        resolve();
+      });
+    });
+  }
 }
 
 const BASE_API = process.env.NEXT_PUBLIC_BASE_API || 'http://localhost:3001';
 export const socketClient = new SocketClient(BASE_API || 'http://localhost:3001');
 export const authSocket = new SocketClient(BASE_API, "/auth");
-export const chatSocket = new SocketClient(BASE_API, "/chat");
-export const notiSocket = new SocketClient(BASE_API, "/noti");
+export const createNotiSocket = () => new SocketClient(BASE_API, "/noti"); // Lazy initialization
+export const createChatSocket = () => new SocketClient(BASE_API, "/chat"); // Lazy initialization
+export const createPatientProfileSocket = () => new SocketClient(BASE_API, "/patient-profile"); // Lazy initialization

@@ -4,4 +4,6 @@ export enum SocketEventsEnum {
   OTP_SENT = "otpSent",
   USER_LOGOUT = "userLogout",
   PATIENT_PROFILE = "PATIENT_PROFILE",
+  JOIN_ROOM = "JOIN_ROOM",
+  ROOM_JOINED = "ROOM_JOINED",
 }
