@@ -16,12 +16,19 @@ export function DatePicker({
   value?: Date;
   onChange: (date: Date | undefined) => void;
   className?: string;
-  limitDays?: number;
+  limitDays?: number; // nếu undefined → không giới hạn ngày
 }) {
   const [open, setOpen] = React.useState(false);
 
   const today = new Date();
-  const maxDate = limitDays ? new Date(today.getTime() + limitDays * 24 * 60 * 60 * 1000) : undefined;
+  const maxDate = limitDays
+    ? new Date(today.getTime() + limitDays * 24 * 60 * 60 * 1000)
+    : undefined;
+
+  // ✅ Tạo rule disable động — chỉ áp dụng khi limitDays tồn tại
+  const disabledRule = limitDays
+    ? { before: today, after: maxDate }
+    : undefined;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -42,13 +49,18 @@ export function DatePicker({
           mode="single"
           selected={value}
           onSelect={(date) => {
-            if (!date) return;
-            if (limitDays && (date < today || (maxDate && date > maxDate))) return;
+            // ✅ Nếu có giới hạn ngày → kiểm tra hợp lệ trước khi chọn
+            if (limitDays && date) {
+              if (date < today || (maxDate && date > maxDate)) {
+                alert("Ngày không hợp lệ!");
+                return;
+              }
+            }
+
             onChange(date);
             setOpen(false);
           }}
-          fromDate={limitDays ? today : undefined}
-          toDate={maxDate}
+          disabled={disabledRule}
           initialFocus
         />
       </PopoverContent>
