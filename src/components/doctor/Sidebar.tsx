@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Dispatch, SetStateAction } from "react";
+
 
 const menuItems = [
   { 
@@ -52,9 +54,16 @@ const menuItems = [
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed: boolean;
+  setCollapsed: Dispatch<SetStateAction<boolean>>;
+}
+
+
+
+export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  // const [collapsed, setCollapsed] = useState(false);
 
   return (
     <aside
@@ -72,16 +81,21 @@ export default function Sidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dortor+</h1>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Doctor+</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">Doctor Portal</p>
             </div>
           )}
         </div>
-        <button 
+        <button
           onClick={() => setCollapsed(!collapsed)}
           className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400"
         >
-          <ChevronRight className={cn("w-5 h-5 transition-transform", collapsed ? "rotate-180" : "")} />
+          <ChevronRight
+            className={cn(
+              "w-5 h-5 transition-transform",
+              collapsed ? "rotate-180" : ""
+            )}
+          />
         </button>
       </div>
 
