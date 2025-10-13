@@ -11,7 +11,8 @@ import {
   Calendar, ChevronRight, Filter, MoreVertical, CalendarCheck, 
   ArrowRight, ClipboardList, Loader2
 } from "lucide-react";
-import { getShiftsByDoctorMonth } from "@/apis/doctor/shift.api";
+import { getShiftsByDoctorMonth, deleteShiftById } from "@/apis/doctor/shift.api";
+import { toast } from "sonner";
 
 // Types
 interface ShiftData {
@@ -291,12 +292,85 @@ export default function SchedulePage() {
     }
   }
 
-  function cancelSlot() {
-    if (!selectedDate || !selectedShift) return;
-    // TODO: Call API to delete shift
-    setSlots((prev) => prev.filter((s) => !(s.date === selectedDate && s.shiftKey === selectedShift)));
+  async function cancelSlot() {
+  console.log("🧩 [cancelSlot] Bắt đầu kiểm tra ca làm việc");
+  console.log("🔹 selectedDate:", selectedDate);
+  console.log("🔹 selectedShift:", selectedShift);
+  console.log("📋 Tổng số slots hiện có:", allSlots.length);
+  console.log(allSlots);
+
+  if (!selectedDate || !selectedShift) {
+    console.warn("⚠️ selectedDate hoặc selectedShift chưa được chọn");
+    return;
+  }
+
+  // ✅ Tìm slot cần hủy trong allSlots (bao gồm cả API và local)
+  const found = allSlots.find(
+    (s) => s.date.slice(0, 10) === selectedDate && s.shiftKey === selectedShift
+  );
+
+  if (!found) {
+    console.error("❌ Không tìm thấy slot phù hợp!");
+    alert("Không tìm thấy ca làm việc để hủy!");
+    return;
+  }
+
+  if (!found._id) {
+    console.error("❌ Slot không có _id:", found);
+    alert("Không tìm thấy ID ca làm việc để hủy!");
+    return;
+  }
+
+  try {
+    console.log("🚀 Gọi API deleteShiftById với _id:", found._id);
+    const res = await deleteShiftById(found._id);
+    console.log("📦 Kết quả từ API:", res);
+
+    if (res?.code === "SUCCESS") {
+      console.log("✅ Hủy thành công ca:", found);
+
+      // 🧩 Cập nhật state allSlots — không cần fetch lại
+      // Loại bỏ slot vừa hủy khỏi slots (nếu là local)
+      setSlots((prev) => prev.filter((s) => s._id !== found._id));
+
+      // Nếu slot đến từ API (apiSlots), ta cập nhật thẳng monthData
+      setMonthData((prev) =>
+        prev
+          ? {
+              ...prev,
+              shifts: prev.shifts.filter((s) => s._id !== found._id),
+              statistics: {
+                ...prev.statistics,
+                totalShifts: prev.statistics.totalShifts - 1,
+                available:
+                  prev.statistics.available -
+                  (found.status === "available" ? 1 : 0),
+                hasClient:
+                  prev.statistics.hasClient -
+                  (found.status === "hasClient" ? 1 : 0),
+                completed:
+                  prev.statistics.completed -
+                  (found.status === "completed" ? 1 : 0),
+              },
+            }
+          : prev
+      );
+
+      alert(res.message || "Đã hủy ca làm việc thành công!");
+    } else {
+      console.error("⚠️ Hủy thất bại:", res);
+      alert(res?.message || "Không thể hủy ca làm việc!");
+    }
+  } catch (error) {
+    console.error("🔥 Lỗi khi hủy ca:", error);
+    alert("Đã xảy ra lỗi khi kết nối tới máy chủ!");
+  } finally {
     setOpen(false);
   }
+}
+
+
+
 
   function handleMonthChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newMonth = Number(e.target.value);

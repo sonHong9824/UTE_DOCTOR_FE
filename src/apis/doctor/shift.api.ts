@@ -18,3 +18,9 @@ export const getShiftsByDoctorMonth = async (
 
   return res.data;
 };
+
+export const deleteShiftById = async (shiftId: string): Promise<{ code: number; message: string }> => {
+  const res = await axiosClient.delete(`/shift/${shiftId}`);
+  return res.data;
+};
+
