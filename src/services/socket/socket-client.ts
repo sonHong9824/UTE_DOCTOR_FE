@@ -74,3 +74,4 @@ export const authSocket = new SocketClient(BASE_API, "/auth");
 export const createNotiSocket = () => new SocketClient(BASE_API, "/noti"); // Lazy initialization
 export const createChatSocket = () => new SocketClient(BASE_API, "/chat"); // Lazy initialization
 export const createPatientProfileSocket = () => new SocketClient(BASE_API, "/patient-profile"); // Lazy initialization
+export const createAppointmentSocket = () => new SocketClient(BASE_API, "/appointment"); // Lazy initialization
