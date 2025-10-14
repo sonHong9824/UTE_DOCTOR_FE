@@ -2,10 +2,9 @@
 import { getAppointmentFieldsData } from '@/apis/appointment/appointment.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
-import { createAppointmentSocket, createFetchDataFieldsAppointmentSocket } from '@/services/socket/socket-client';
-import { useState, useEffect } from 'react';
+import { createFetchDataFieldsAppointmentSocket } from '@/services/socket/socket-client';
+import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
-import { email } from 'zod';
 
 type DoctorDto = {
   id: string;
@@ -70,7 +69,7 @@ const mockSpecialties = [
 ];
 
 const mockDoctors: Doctor[] = [
-  { id: "DOC001", name: "BS. Nguyễn Văn An", email: "nvan@hospital.com", specialty: "Tim mạch" },
+  { id: "DOC001", name: "BS. Nguyễn Văn An", email: "nvan@hospital.com", specialty: "Trung tâm tim mạch" },
   { id: "DOC002", name: "BS. Trần Thị Bình", email: "ttbinh@hospital.com", specialty: "Tim mạch" },
   { id: "DOC003", name: "BS. Lê Minh Cường", email: "lmcuong@hospital.com", specialty: "Thần kinh" },
   { id: "DOC004", name: "BS. Phạm Thu Dung", email: "ptdung@hospital.com", specialty: "Thần kinh" },
@@ -94,15 +93,23 @@ const mockDoctors: Doctor[] = [
 
 export default function AppointmentForm() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [specialties, setSpecialties] = useState<{_id: string, name: string, descripton: string}[]>([]);
+  
+  
+  // Lazy search states for doctor
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
+  const [doctorSuggestions, setDoctorSuggestions] = useState<Doctor[]>([]); // suggestions list
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorDto | null>(null); // doctor object đã chọn
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [hasDoctor, setHasDoctor] = useState(false);
 
-  // Lazy search states
-  const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
-  const [doctorSuggestions, setDoctorSuggestions] = useState<Doctor[]>([]); // suggestions list
-  const [selectedDoctor, setSelectedDoctor] = useState<DoctorDto | null>(null); // doctor object đã chọn
+  // Lazy search for specialties for specialty
+  const [specialties, setSpecialties] = useState<{_id: string, name: string, description: string}[]>([]);
+  const [specialtySearchTerm, setSpecialtySearchTerm] = useState("");
+  const [specialtySuggestions, setSpecialtySuggestions] = useState<{_id: string, name:string, description: string}[]>([]);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<any | null>(null);
+   const [showSuggestions, setShowSuggestions] = useState(false); // Prevent suggestion form double cliking
+
 
   const [formData, setFormData] = useState<AppointmentBookingDto>({
     date: new Date(),
@@ -116,14 +123,14 @@ export default function AppointmentForm() {
     patientEmail: 'td13052004@gmail.com'
   });
 
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  // const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   // Load mock data
   useEffect(() => {
     setTimeSlots(mockTimeSlots);
-    // setSpecialties(mockSpecialties);
+    
     setDoctors(mockDoctors);
 
     const appointmentFieldsDataSocket = createFetchDataFieldsAppointmentSocket();
@@ -134,7 +141,7 @@ export default function AppointmentForm() {
         // Cập nhật state cho form
           if (data.specialties && data.specialties.length > 0) {
             setSpecialties(data.specialties);
-            setFormData(prev => ({ ...prev, specialty: data.specialties[0] }));
+            setFormData(prev => ({ ...prev, specialty: data.specialties[0].id }));
       }
       }
     );
@@ -149,9 +156,6 @@ export default function AppointmentForm() {
     if (mockTimeSlots.length > 0) {
       setFormData(prev => ({ ...prev, timeSlotId: mockTimeSlots[0]._id }));
     }
-    // if (mockSpecialties.length > 0) {
-    //   setFormData(prev => ({ ...prev, specialty: mockSpecialties[0] }));
-    // }
 
     return () => {
       appointmentFieldsDataSocket.off(SocketEventsEnum.HOSPITAL_SPECIALTIES_FETCHED);
@@ -166,7 +170,7 @@ export default function AppointmentForm() {
       setFilteredDoctors(filtered);
 
       // Reset doctor selection when specialty changes
-      setSelectedDoctorId('');
+      // setSelectedDoctorId('');
       setDoctorSearchTerm('');
       setDoctorSuggestions([]);
       setSelectedDoctor(null);
@@ -181,6 +185,33 @@ export default function AppointmentForm() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // ----- Debounce search specialties -----
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!specialtySearchTerm) {
+        setSpecialtySuggestions([]);
+        return;
+      }
+
+      const filtered = specialties.filter(spec =>
+        spec.name.toLowerCase().includes(specialtySearchTerm.toLowerCase())
+      );
+      setSpecialtySuggestions(filtered);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [specialtySearchTerm]);
+
+  // ----- Handle select -----
+  const handleSelectSpecialty = (spec: any) => {
+    setSelectedSpecialty(spec);
+    setFormData(prev => ({ ...prev, specialty: spec._id }));
+    setSpecialtySearchTerm(spec.name);
+    setSpecialtySuggestions([]); // hide dropdown
+    setShowSuggestions(false);
+  };
+
+
   // Toggle chọn bác sĩ
   const toggleDoctor = () => {
     const newHasDoctor = !hasDoctor;
@@ -191,7 +222,7 @@ export default function AppointmentForm() {
       setSelectedDoctor(null);
       setDoctorSearchTerm('');
       setDoctorSuggestions([]);
-      setSelectedDoctorId('');
+      // setSelectedDoctorId('');
       setFormData(prev => ({ ...prev, doctor: null }));
     }
   };
@@ -212,7 +243,7 @@ export default function AppointmentForm() {
     // setDoctorSuggestions(suggestions);
   };
 
-  // Debounce logic
+  // Debounce logic for doctor
   useEffect(() => {
     if (!doctorSearchTerm) {
       setDoctorSuggestions([]);
@@ -234,7 +265,7 @@ export default function AppointmentForm() {
     setSelectedDoctor(doc);
     setDoctorSearchTerm(doc.name);
     setDoctorSuggestions([]);
-    setSelectedDoctorId(doc.id);
+    // setSelectedDoctorId(doc.id);
 
     // Update formData
     setFormData(prev => ({
@@ -278,6 +309,17 @@ export default function AppointmentForm() {
 
   const getTimeSlotDisplay = (slot: TimeSlot) => `${slot.label} (${slot.start} - ${slot.end})`;
 
+  function handleSpecialtySearch(value: string): void {
+    console.log("Keyword: ", value)
+    console.log("Suggestion: ", specialtySuggestions)
+    setSpecialtySearchTerm(value || '');
+
+    if (!value) {
+      setSpecialtySuggestions([]);
+      return;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
       <div className="max-w-4xl mx-auto">
@@ -308,21 +350,39 @@ export default function AppointmentForm() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chuyên Khoa *</label>
-                  <select
-                    value={formData.specialty || ''}
-                    onChange={(e) => handleChange('specialty', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">-- Chọn chuyên khoa --</option>
-                    {specialties.map(spec => (
-                      <option key={spec._id} value={spec.name}>
-                        {spec.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+
+                  {/* Lazy search specialty dropdown */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Chuyên Khoa *</label>
+                    
+                    <input
+                      type="text"
+                      value={specialtySearchTerm}
+                      onChange={(e) => {
+                        handleSpecialtySearch(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      placeholder="Nhập để tìm chuyên khoa..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+
+                    {/* Dropdown suggestion */}
+                   {showSuggestions && specialtySuggestions.length > 0 && (
+                    <ul className="absolute z-10 w-full border border-gray-300 bg-white rounded-lg mt-1 max-h-60 overflow-y-auto shadow-md">
+                      {specialtySuggestions.map((spec) => (
+                        <li
+                          key={spec._id}
+                          className="px-4 py-2 cursor-pointer hover:bg-blue-100"
+                          onClick={() => handleSelectSpecialty(spec)}
+                        >
+                          {spec.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  </div>
+                
               </div>
             </div>
 
