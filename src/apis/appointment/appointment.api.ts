@@ -13,14 +13,28 @@ export const bookAppointment = async(form: any) =>
     }
 }
 
-export const getAppointmentFieldsData = async (email: string) => {
+export const getSpecialties = async (email: string) => {
   try {
-    const res = await axiosClient.get<ApiResponse<any>>('/appointment/fields-data', {
+    const res = await axiosClient.get<ApiResponse<{ _id: string, name: string }[]>>('/chuyenkhoa', {
       params: { email } 
     });
-    console.log('[Axios] Get booking appointment fields data', res);
-    return res;
+    console.log('[Axios] Get specialty field data', res);
+    return res.data;
   } catch (e) {
     console.error("Failed to fetch field data", e);
   }
 };
+
+export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword: string}) => {
+    try {
+        const res = await axiosClient.get<ApiResponse<{id: string, name: string, email: string, specialtyId: string}[]>>("/doctors/specialty", {
+        params: params
+        });
+        console.log('[Axios] Get doctors by specialty', res);
+        return res.data;
+    }
+    catch (e) {
+        console.error("Failed to fetch doctors by specialty", e);
+    }
+    
+}

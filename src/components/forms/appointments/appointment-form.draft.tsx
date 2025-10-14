@@ -1,10 +1,11 @@
 
-import { getAppointmentFieldsData } from '@/apis/appointment/appointment.api';
+import { getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { createFetchDataFieldsAppointmentSocket } from '@/services/socket/socket-client';
 import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
+import { set } from 'zod';
 
 type DoctorDto = {
   id: string;
@@ -23,12 +24,12 @@ type Doctor = {
   id: string;
   name: string;
   email: string;
-  specialty: string;
+  specialtyId: string;
 };
 
 type AppointmentBookingDto = {
   hospitalName: string;
-  specialty?: string;
+  specialty: string | null;
   date: Date;
   timeSlotId: string;
   doctor: DoctorDto | null;
@@ -68,32 +69,31 @@ const mockSpecialties = [
   "Phẫu thuật tổng hợp"
 ];
 
-const mockDoctors: Doctor[] = [
-  { id: "DOC001", name: "BS. Nguyễn Văn An", email: "nvan@hospital.com", specialty: "Trung tâm tim mạch" },
-  { id: "DOC002", name: "BS. Trần Thị Bình", email: "ttbinh@hospital.com", specialty: "Tim mạch" },
-  { id: "DOC003", name: "BS. Lê Minh Cường", email: "lmcuong@hospital.com", specialty: "Thần kinh" },
-  { id: "DOC004", name: "BS. Phạm Thu Dung", email: "ptdung@hospital.com", specialty: "Thần kinh" },
-  { id: "DOC005", name: "BS. Hoàng Văn Em", email: "hvem@hospital.com", specialty: "Nội tiết" },
-  { id: "DOC006", name: "BS. Võ Thị Phượng", email: "vtphuong@hospital.com", specialty: "Nội tiết" },
-  { id: "DOC007", name: "BS. Đặng Quốc Gia", email: "dqgia@hospital.com", specialty: "Tiêu hóa" },
-  { id: "DOC008", name: "BS. Ngô Thị Hằng", email: "nthang@hospital.com", specialty: "Tiêu hóa" },
-  { id: "DOC009", name: "BS. Bùi Văn Hùng", email: "bvhung@hospital.com", specialty: "Hô hấp" },
-  { id: "DOC010", name: "BS. Lý Thị Kim", email: "ltkim@hospital.com", specialty: "Hô hấp" },
-  { id: "DOC011", name: "BS. Trương Văn Long", email: "tvlong@hospital.com", specialty: "Thận - Tiết niệu" },
-  { id: "DOC012", name: "BS. Đinh Thị Mai", email: "dtmai@hospital.com", specialty: "Da liễu" },
-  { id: "DOC013", name: "BS. Dương Văn Nam", email: "dvnam@hospital.com", specialty: "Mắt" },
-  { id: "DOC014", name: "BS. Phan Thị Oanh", email: "ptoanh@hospital.com", specialty: "Tai Mũi Họng" },
-  { id: "DOC015", name: "BS. Huỳnh Văn Phúc", email: "hvphuc@hospital.com", specialty: "Răng Hàm Mặt" },
-  { id: "DOC016", name: "BS. Mai Thị Quỳnh", email: "mtquynh@hospital.com", specialty: "Sản phụ khoa" },
-  { id: "DOC017", name: "BS. Lưu Văn Sơn", email: "lvson@hospital.com", specialty: "Nhi khoa" },
-  { id: "DOC018", name: "BS. Tô Thị Tâm", email: "tttam@hospital.com", specialty: "Nhi khoa" },
-  { id: "DOC019", name: "BS. Cao Văn Tùng", email: "cvtung@hospital.com", specialty: "Chấn thương chỉnh hình" },
-  { id: "DOC020", name: "BS. Đỗ Thị Uyên", email: "dtuyen@hospital.com", specialty: "Phẫu thuật tổng hợp" }
-];
+// const mockDoctors: Doctor[] = [
+//   { id: "DOC001", name: "BS. Nguyễn Văn An", email: "nvan@hospital.com", specialty: "Trung tâm tim mạch" },
+//   { id: "DOC002", name: "BS. Trần Thị Bình", email: "ttbinh@hospital.com", specialty: "Tim mạch" },
+//   { id: "DOC003", name: "BS. Lê Minh Cường", email: "lmcuong@hospital.com", specialty: "Thần kinh" },
+//   { id: "DOC004", name: "BS. Phạm Thu Dung", email: "ptdung@hospital.com", specialty: "Thần kinh" },
+//   { id: "DOC005", name: "BS. Hoàng Văn Em", email: "hvem@hospital.com", specialty: "Nội tiết" },
+//   { id: "DOC006", name: "BS. Võ Thị Phượng", email: "vtphuong@hospital.com", specialty: "Nội tiết" },
+//   { id: "DOC007", name: "BS. Đặng Quốc Gia", email: "dqgia@hospital.com", specialty: "Tiêu hóa" },
+//   { id: "DOC008", name: "BS. Ngô Thị Hằng", email: "nthang@hospital.com", specialty: "Tiêu hóa" },
+//   { id: "DOC009", name: "BS. Bùi Văn Hùng", email: "bvhung@hospital.com", specialty: "Hô hấp" },
+//   { id: "DOC010", name: "BS. Lý Thị Kim", email: "ltkim@hospital.com", specialty: "Hô hấp" },
+//   { id: "DOC011", name: "BS. Trương Văn Long", email: "tvlong@hospital.com", specialty: "Thận - Tiết niệu" },
+//   { id: "DOC012", name: "BS. Đinh Thị Mai", email: "dtmai@hospital.com", specialty: "Da liễu" },
+//   { id: "DOC013", name: "BS. Dương Văn Nam", email: "dvnam@hospital.com", specialty: "Mắt" },
+//   { id: "DOC014", name: "BS. Phan Thị Oanh", email: "ptoanh@hospital.com", specialty: "Tai Mũi Họng" },
+//   { id: "DOC015", name: "BS. Huỳnh Văn Phúc", email: "hvphuc@hospital.com", specialty: "Răng Hàm Mặt" },
+//   { id: "DOC016", name: "BS. Mai Thị Quỳnh", email: "mtquynh@hospital.com", specialty: "Sản phụ khoa" },
+//   { id: "DOC017", name: "BS. Lưu Văn Sơn", email: "lvson@hospital.com", specialty: "Nhi khoa" },
+//   { id: "DOC018", name: "BS. Tô Thị Tâm", email: "tttam@hospital.com", specialty: "Nhi khoa" },
+//   { id: "DOC019", name: "BS. Cao Văn Tùng", email: "cvtung@hospital.com", specialty: "Chấn thương chỉnh hình" },
+//   { id: "DOC020", name: "BS. Đỗ Thị Uyên", email: "dtuyen@hospital.com", specialty: "Phẫu thuật tổng hợp" }
+// ];
 
 export default function AppointmentForm() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  
   
   // Lazy search states for doctor
   const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
@@ -102,13 +102,14 @@ export default function AppointmentForm() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [hasDoctor, setHasDoctor] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Lazy search for specialties for specialty
-  const [specialties, setSpecialties] = useState<{_id: string, name: string, description: string}[]>([]);
+  const [specialties, setSpecialties] = useState<{_id: string, name: string}[]>([]);
   const [specialtySearchTerm, setSpecialtySearchTerm] = useState("");
-  const [specialtySuggestions, setSpecialtySuggestions] = useState<{_id: string, name:string, description: string}[]>([]);
+  const [specialtySuggestions, setSpecialtySuggestions] = useState<{_id: string, name:string }[]>([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState<any | null>(null);
-   const [showSuggestions, setShowSuggestions] = useState(false); // Prevent suggestion form double cliking
+  const [showSuggestions, setShowSuggestions] = useState(false); // Prevent suggestion form double cliking
 
 
   const [formData, setFormData] = useState<AppointmentBookingDto>({
@@ -131,42 +132,35 @@ export default function AppointmentForm() {
   useEffect(() => {
     setTimeSlots(mockTimeSlots);
     
-    setDoctors(mockDoctors);
+    //setDoctors(mockDoctors);
 
-    const appointmentFieldsDataSocket = createFetchDataFieldsAppointmentSocket();
-    appointmentFieldsDataSocket.on(
-      SocketEventsEnum.HOSPITAL_SPECIALTIES_FETCHED,
-      (data: any) => {
-        console.log("🏥 Received specialties from server:", data);
-        // Cập nhật state cho form
-          if (data.specialties && data.specialties.length > 0) {
-            setSpecialties(data.specialties);
-            setFormData(prev => ({ ...prev, specialty: data.specialties[0].id }));
+    const fetchChuyenKhoa = async () => {
+      const email = localStorage.getItem('email');
+      if (!email) {
+        console.warn("⚠️ No email found in localStorage");
+        return;
       }
+
+      try {
+        const res = await getSpecialties(email);
+        console.log(res);
+        setSpecialties(res!.data);
+      } catch (err) {
+        console.error("Failed to fetch specialties:", err);
       }
-    );
-    appointmentFieldsDataSocket.once(SocketEventsEnum.ROOM_JOINED, (data: any) => {
-      console.log("✅ Joined room successfully:", data);
-      getAppointmentFieldsData(localStorage.getItem('email')!.toString()); // Call HTTP to init connection
-    });
-
-    appointmentFieldsDataSocket.emit(SocketEventsEnum.JOIN_ROOM, { email: localStorage.getItem('email') || 'guest' });
-
-
+    };
+    fetchChuyenKhoa();
+    
     if (mockTimeSlots.length > 0) {
       setFormData(prev => ({ ...prev, timeSlotId: mockTimeSlots[0]._id }));
     }
 
-    return () => {
-      appointmentFieldsDataSocket.off(SocketEventsEnum.HOSPITAL_SPECIALTIES_FETCHED);
-      appointmentFieldsDataSocket.off(SocketEventsEnum.ROOM_JOINED);
-    };
   }, []);
 
   // Filter doctors by specialty
   useEffect(() => {
     if (formData.specialty) {
-      const filtered = doctors.filter(doc => doc.specialty === formData.specialty);
+      const filtered = doctors.filter(doc => doc.specialtyId === formData.specialty);
       setFilteredDoctors(filtered);
 
       // Reset doctor selection when specialty changes
@@ -211,22 +205,6 @@ export default function AppointmentForm() {
     setShowSuggestions(false);
   };
 
-
-  // Toggle chọn bác sĩ
-  const toggleDoctor = () => {
-    const newHasDoctor = !hasDoctor;
-    setHasDoctor(newHasDoctor);
-
-    if (!newHasDoctor) {
-      // reset doctor selection
-      setSelectedDoctor(null);
-      setDoctorSearchTerm('');
-      setDoctorSuggestions([]);
-      // setSelectedDoctorId('');
-      setFormData(prev => ({ ...prev, doctor: null }));
-    }
-  };
-
   // Khi user gõ search term
   const handleDoctorSearch = (value: string) => {
     setDoctorSearchTerm(value);
@@ -235,36 +213,52 @@ export default function AppointmentForm() {
       setDoctorSuggestions([]);
       return;
     }
-
-    // // Filter từ doctors dựa trên search term
-    // const suggestions = filteredDoctors.filter(doc =>
-    //   doc.name.toLowerCase().includes(value.toLowerCase())
-    // );
-    // setDoctorSuggestions(suggestions);
   };
 
   // Debounce logic for doctor
-  useEffect(() => {
-    if (!doctorSearchTerm) {
-      setDoctorSuggestions([]);
-      return;
-    }
-    console.log('🔍 Searching for doctors with term:', doctorSearchTerm);
-    const timeout = setTimeout(() => {
-      const suggestions = filteredDoctors.filter(doc =>
-        doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
-      );
-      setDoctorSuggestions(suggestions);
-    }, 300); // delay 300ms
+  // useEffect(() => {
+  //   if (!doctorSearchTerm) {
+  //     setDoctorSuggestions([]);
+  //     return;
+  //   }
+  //   console.log('🔍 Searching for doctors with term:', doctorSearchTerm);
+  //   const timeout = setTimeout(() => {
+  //     const suggestions = filteredDoctors.filter(doc =>
+  //       doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
+  //     );
+  //     setDoctorSuggestions(suggestions);
+  //   }, 300); // delay 300ms
 
-    return () => clearTimeout(timeout);
-  }, [doctorSearchTerm, filteredDoctors]);
+  //   return () => clearTimeout(timeout);
+  // }, [doctorSearchTerm, filteredDoctors]);
+  // Gọi API khi search term hoặc chuyên khoa thay đổi
+    useEffect(() => {
+      if (!doctorSearchTerm && !selectedSpecialty) {
+        setDoctorSuggestions([]);
+        return;
+      }
+
+      const timeout = setTimeout(async () => {
+        try {
+          const res = await getDoctorBySpecialty({
+            specialtyId: selectedSpecialty?._id || "",
+            keyword: doctorSearchTerm || "",
+          });
+
+          setDoctorSuggestions(res?.data || []);
+        } catch (err) {
+          console.error("Error fetching doctors:", err);
+        }
+      }, 300); // debounce 300ms
+
+      return () => clearTimeout(timeout);
+    }, [doctorSearchTerm, selectedSpecialty]);
 
   // Khi chọn một bác sĩ từ suggestion
   const handleDoctorSelect = (doc: Doctor) => {
     setSelectedDoctor(doc);
     setDoctorSearchTerm(doc.name);
-    setDoctorSuggestions([]);
+    //setDoctorSuggestions([]);
     // setSelectedDoctorId(doc.id);
 
     // Update formData
@@ -316,9 +310,24 @@ export default function AppointmentForm() {
 
     if (!value) {
       setSpecialtySuggestions([]);
+      setSelectedSpecialty(null);
       return;
     }
   }
+
+  const handleSpecialtyBlur = () => {
+    if (!selectedSpecialty || selectedSpecialty.name !== specialtySearchTerm) {
+      setSelectedSpecialty(null);
+      setFormData(prev => ({ ...prev, specialty: null }));
+    }
+  };
+
+  const handleDoctorBlur = () => {
+    if (!selectedDoctor || selectedDoctor.name !== doctorSearchTerm) {
+      setSelectedDoctor(null);
+      setFormData(prev => ({ ...prev, doctor: null }));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -362,6 +371,7 @@ export default function AppointmentForm() {
                         handleSpecialtySearch(e.target.value);
                         setShowSuggestions(true);
                       }}
+                      onBlur={handleSpecialtyBlur}
                       onFocus={() => setShowSuggestions(true)}
                       placeholder="Nhập để tìm chuyên khoa..."
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -389,39 +399,38 @@ export default function AppointmentForm() {
             {/* Thông tin bác sĩ */}
             <div className="bg-purple-50 p-5 rounded-xl">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-purple-900">👨‍⚕️ Thông tin bác sĩ</h3>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={hasDoctor}
-                    onChange={toggleDoctor}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-gray-700">Chọn bác sĩ cụ thể</span>
-                </label>
+                <h3 className="text-lg font-semibold text-purple-900">👨‍⚕️ Thông tin bác sĩ (Nếu để trống, tiếp tân sẽ chọn giúp bạn!)</h3>
               </div>
 
-              {hasDoctor ? (
+              
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
                   <input
                     type="text"
                     value={doctorSearchTerm}
+                    onFocus={() => setIsFocused(true)}
+                      onBlur={() => { 
+                        setTimeout(() => setIsFocused(false), 150);
+                        handleDoctorBlur();
+                      }}
                     onChange={(e) => handleDoctorSearch(e.target.value)}
                     placeholder="Gõ tên bác sĩ..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
 
                   {/* Suggestion dropdown */}
-                  {doctorSuggestions.length > 0 && (
+                  {doctorSuggestions.length > 0 && isFocused && (
                     <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
                       {doctorSuggestions.map((doc) => (
                         <li
                           key={doc.id}
                           className="px-4 py-2 cursor-pointer hover:bg-purple-100"
-                          onClick={() => handleDoctorSelect(doc)}
+                          onClick={() => {handleDoctorSelect(doc);
+                                          setIsFocused(false); 
+                                          }
+                          }
                         >
-                          {doc.name} - {doc.specialty}
+                          {doc.name}
                         </li>
                       ))}
                     </ul>
@@ -430,22 +439,8 @@ export default function AppointmentForm() {
                   {doctorSuggestions.length === 0 && doctorSearchTerm && (
                     <p className="text-sm text-amber-600 mt-2">⚠️ Không tìm thấy bác sĩ phù hợp</p>
                   )}
-
-                  {/* Selected doctor info */}
-                  {selectedDoctor && (
-                    <div className="mt-3 p-3 bg-purple-100 rounded-lg text-sm space-y-1">
-                      <p className="text-gray-700"><strong>ID:</strong> {selectedDoctor.id}</p>
-                      <p className="text-gray-700"><strong>Họ tên:</strong> {selectedDoctor.name}</p>
-                      <p className="text-gray-700"><strong>Email:</strong> {selectedDoctor.email}</p>
-                    </div>
-                  )}
                 </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">👤 Không chọn bác sĩ cụ thể (doctor = null)</p>
-                  <p className="text-xs mt-1">Hệ thống sẽ tự động phân bổ bác sĩ</p>
-                </div>
-              )}
+             
             </div>
 
             {/* Thông tin lịch hẹn */}
