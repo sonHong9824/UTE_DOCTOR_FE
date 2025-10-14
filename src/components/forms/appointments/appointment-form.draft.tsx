@@ -1,7 +1,11 @@
 
+import { getAppointmentFieldsData } from '@/apis/appointment/appointment.api';
 import { DatePicker } from '@/components/ui/date-picker';
+import { SocketEventsEnum } from '@/enum/socket-events.enum';
+import { createAppointmentSocket, createFetchDataFieldsAppointmentSocket } from '@/services/socket/socket-client';
 import { useState, useEffect } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
+import { email } from 'zod';
 
 type DoctorDto = {
   id: string;
@@ -90,11 +94,16 @@ const mockDoctors: Doctor[] = [
 
 export default function AppointmentForm() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [specialties, setSpecialties] = useState<{_id: string, name: string, descripton: string}[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
   const [hasDoctor, setHasDoctor] = useState(false);
-  
+
+  // Lazy search states
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
+  const [doctorSuggestions, setDoctorSuggestions] = useState<Doctor[]>([]); // suggestions list
+  const [selectedDoctor, setSelectedDoctor] = useState<DoctorDto | null>(null); // doctor object đã chọn
+
   const [formData, setFormData] = useState<AppointmentBookingDto>({
     date: new Date(),
     hospitalName: 'Bệnh viện Đa khoa Tâm Đức',
@@ -111,26 +120,56 @@ export default function AppointmentForm() {
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  // Load mock data
   useEffect(() => {
-    // Load data (trong thực tế sẽ fetch từ API)
     setTimeSlots(mockTimeSlots);
-    setSpecialties(mockSpecialties);
+    // setSpecialties(mockSpecialties);
     setDoctors(mockDoctors);
-    
+
+    const appointmentFieldsDataSocket = createFetchDataFieldsAppointmentSocket();
+    appointmentFieldsDataSocket.on(
+      SocketEventsEnum.HOSPITAL_SPECIALTIES_FETCHED,
+      (data: any) => {
+        console.log("🏥 Received specialties from server:", data);
+        // Cập nhật state cho form
+          if (data.specialties && data.specialties.length > 0) {
+            setSpecialties(data.specialties);
+            setFormData(prev => ({ ...prev, specialty: data.specialties[0] }));
+      }
+      }
+    );
+    appointmentFieldsDataSocket.once(SocketEventsEnum.ROOM_JOINED, (data: any) => {
+      console.log("✅ Joined room successfully:", data);
+      getAppointmentFieldsData(localStorage.getItem('email')!.toString()); // Call HTTP to init connection
+    });
+
+    appointmentFieldsDataSocket.emit(SocketEventsEnum.JOIN_ROOM, { email: localStorage.getItem('email') || 'guest' });
+
+
     if (mockTimeSlots.length > 0) {
       setFormData(prev => ({ ...prev, timeSlotId: mockTimeSlots[0]._id }));
     }
-    if (mockSpecialties.length > 0) {
-      setFormData(prev => ({ ...prev, specialty: mockSpecialties[0] }));
-    }
+    // if (mockSpecialties.length > 0) {
+    //   setFormData(prev => ({ ...prev, specialty: mockSpecialties[0] }));
+    // }
+
+    return () => {
+      appointmentFieldsDataSocket.off(SocketEventsEnum.HOSPITAL_SPECIALTIES_FETCHED);
+      appointmentFieldsDataSocket.off(SocketEventsEnum.ROOM_JOINED);
+    };
   }, []);
 
+  // Filter doctors by specialty
   useEffect(() => {
-    // Filter doctors by specialty
     if (formData.specialty) {
       const filtered = doctors.filter(doc => doc.specialty === formData.specialty);
       setFilteredDoctors(filtered);
-      setSelectedDoctorId(''); // Reset doctor selection when specialty changes
+
+      // Reset doctor selection when specialty changes
+      setSelectedDoctorId('');
+      setDoctorSearchTerm('');
+      setDoctorSuggestions([]);
+      setSelectedDoctor(null);
       setFormData(prev => ({ ...prev, doctor: null }));
       setHasDoctor(false);
     } else {
@@ -142,30 +181,70 @@ export default function AppointmentForm() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Toggle chọn bác sĩ
   const toggleDoctor = () => {
     const newHasDoctor = !hasDoctor;
     setHasDoctor(newHasDoctor);
-    
+
     if (!newHasDoctor) {
-      setFormData(prev => ({ ...prev, doctor: null }));
+      // reset doctor selection
+      setSelectedDoctor(null);
+      setDoctorSearchTerm('');
+      setDoctorSuggestions([]);
       setSelectedDoctorId('');
+      setFormData(prev => ({ ...prev, doctor: null }));
     }
   };
 
-  const handleDoctorSelect = (doctorId: string) => {
-    setSelectedDoctorId(doctorId);
-    const selectedDoc = doctors.find(d => d.id === doctorId);
-    
-    if (selectedDoc) {
-      setFormData(prev => ({
-        ...prev,
-        doctor: {
-          id: selectedDoc.id,
-          name: selectedDoc.name,
-          email: selectedDoc.email
-        }
-      }));
+  // Khi user gõ search term
+  const handleDoctorSearch = (value: string) => {
+    setDoctorSearchTerm(value);
+
+    if (!value) {
+      setDoctorSuggestions([]);
+      return;
     }
+
+    // // Filter từ doctors dựa trên search term
+    // const suggestions = filteredDoctors.filter(doc =>
+    //   doc.name.toLowerCase().includes(value.toLowerCase())
+    // );
+    // setDoctorSuggestions(suggestions);
+  };
+
+  // Debounce logic
+  useEffect(() => {
+    if (!doctorSearchTerm) {
+      setDoctorSuggestions([]);
+      return;
+    }
+    console.log('🔍 Searching for doctors with term:', doctorSearchTerm);
+    const timeout = setTimeout(() => {
+      const suggestions = filteredDoctors.filter(doc =>
+        doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
+      );
+      setDoctorSuggestions(suggestions);
+    }, 300); // delay 300ms
+
+    return () => clearTimeout(timeout);
+  }, [doctorSearchTerm, filteredDoctors]);
+
+  // Khi chọn một bác sĩ từ suggestion
+  const handleDoctorSelect = (doc: Doctor) => {
+    setSelectedDoctor(doc);
+    setDoctorSearchTerm(doc.name);
+    setDoctorSuggestions([]);
+    setSelectedDoctorId(doc.id);
+
+    // Update formData
+    setFormData(prev => ({
+      ...prev,
+      doctor: {
+        id: doc.id,
+        name: doc.name,
+        email: doc.email
+      }
+    }));
   };
 
   const handleSubmit = async () => {
@@ -175,7 +254,6 @@ export default function AppointmentForm() {
     console.log('📤 Submitting appointment:', formData);
 
     try {
-      // Thay YOUR_API_ENDPOINT bằng endpoint thực của bạn
       const res = await fetch('YOUR_API_ENDPOINT', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,9 +276,7 @@ export default function AppointmentForm() {
     alert('✅ JSON copied to clipboard!');
   };
 
-  const getTimeSlotDisplay = (slot: TimeSlot) => {
-    return `${slot.label} (${slot.start} - ${slot.end})`;
-  };
+  const getTimeSlotDisplay = (slot: TimeSlot) => `${slot.label} (${slot.start} - ${slot.end})`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -217,7 +293,7 @@ export default function AppointmentForm() {
           </div>
 
           <div className="space-y-6">
-            {/* Thông tin bệnh viện */}
+            {/* Thông tin bệnh viện */} 
             <div className="bg-blue-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-blue-900 mb-4">🏥 Thông tin bệnh viện</h3>
               
@@ -226,6 +302,7 @@ export default function AppointmentForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tên Bệnh viện *</label>
                   <input
                     value={formData.hospitalName}
+                    disabled={true}
                     onChange={(e) => handleChange('hospitalName', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -240,13 +317,75 @@ export default function AppointmentForm() {
                   >
                     <option value="">-- Chọn chuyên khoa --</option>
                     {specialties.map(spec => (
-                      <option key={spec} value={spec}>
-                        {spec}
+                      <option key={spec._id} value={spec.name}>
+                        {spec.name}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
+            </div>
+
+            {/* Thông tin bác sĩ */}
+            <div className="bg-purple-50 p-5 rounded-xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-purple-900">👨‍⚕️ Thông tin bác sĩ</h3>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hasDoctor}
+                    onChange={toggleDoctor}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-gray-700">Chọn bác sĩ cụ thể</span>
+                </label>
+              </div>
+
+              {hasDoctor ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
+                  <input
+                    type="text"
+                    value={doctorSearchTerm}
+                    onChange={(e) => handleDoctorSearch(e.target.value)}
+                    placeholder="Gõ tên bác sĩ..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+
+                  {/* Suggestion dropdown */}
+                  {doctorSuggestions.length > 0 && (
+                    <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
+                      {doctorSuggestions.map((doc) => (
+                        <li
+                          key={doc.id}
+                          className="px-4 py-2 cursor-pointer hover:bg-purple-100"
+                          onClick={() => handleDoctorSelect(doc)}
+                        >
+                          {doc.name} - {doc.specialty}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {doctorSuggestions.length === 0 && doctorSearchTerm && (
+                    <p className="text-sm text-amber-600 mt-2">⚠️ Không tìm thấy bác sĩ phù hợp</p>
+                  )}
+
+                  {/* Selected doctor info */}
+                  {selectedDoctor && (
+                    <div className="mt-3 p-3 bg-purple-100 rounded-lg text-sm space-y-1">
+                      <p className="text-gray-700"><strong>ID:</strong> {selectedDoctor.id}</p>
+                      <p className="text-gray-700"><strong>Họ tên:</strong> {selectedDoctor.name}</p>
+                      <p className="text-gray-700"><strong>Email:</strong> {selectedDoctor.email}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">👤 Không chọn bác sĩ cụ thể (doctor = null)</p>
+                  <p className="text-xs mt-1">Hệ thống sẽ tự động phân bổ bác sĩ</p>
+                </div>
+              )}
             </div>
 
             {/* Thông tin lịch hẹn */}
@@ -307,56 +446,6 @@ export default function AppointmentForm() {
                   </select>
                 </div>
               </div>
-            </div>
-
-
-            {/* Thông tin bác sĩ */}
-            <div className="bg-purple-50 p-5 rounded-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-purple-900">👨‍⚕️ Thông tin bác sĩ</h3>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={hasDoctor}
-                    onChange={toggleDoctor}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-gray-700">Chọn bác sĩ cụ thể</span>
-                </label>
-              </div>
-              
-              {hasDoctor ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chọn Bác Sĩ *</label>
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => handleDoctorSelect(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="">-- Chọn bác sĩ --</option>
-                    {filteredDoctors.map(doc => (
-                      <option key={doc.id} value={doc.id}>
-                        {doc.name} - {doc.specialty}
-                      </option>
-                    ))}
-                  </select>
-                  {filteredDoctors.length === 0 && formData.specialty && (
-                    <p className="text-sm text-amber-600 mt-2">⚠️ Không có bác sĩ nào cho chuyên khoa này</p>
-                  )}
-                  {formData.doctor && (
-                    <div className="mt-3 p-3 bg-purple-100 rounded-lg text-sm space-y-1">
-                      <p className="text-gray-700"><strong>ID:</strong> {formData.doctor.id}</p>
-                      <p className="text-gray-700"><strong>Họ tên:</strong> {formData.doctor.name}</p>
-                      <p className="text-gray-700"><strong>Email:</strong> {formData.doctor.email}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">👤 Không chọn bác sĩ cụ thể (doctor = null)</p>
-                  <p className="text-xs mt-1">Hệ thống sẽ tự động phân bổ bác sĩ</p>
-                </div>
-              )}
             </div>
 
             {/* Thông tin thanh toán */}

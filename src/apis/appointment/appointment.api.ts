@@ -12,3 +12,15 @@ export const bookAppointment = async(form: any) =>
         console.error("Failed to book appointment: " + e);
     }
 }
+
+export const getAppointmentFieldsData = async (email: string) => {
+  try {
+    const res = await axiosClient.get<ApiResponse<any>>('/appointment/fields-data', {
+      params: { email } 
+    });
+    console.log('[Axios] Get booking appointment fields data', res);
+    return res;
+  } catch (e) {
+    console.error("Failed to fetch field data", e);
+  }
+};
