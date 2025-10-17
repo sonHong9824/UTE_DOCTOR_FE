@@ -11,7 +11,7 @@ import {
   Calendar, ChevronRight, Filter, MoreVertical, CalendarCheck, 
   ArrowRight, ClipboardList, Loader2
 } from "lucide-react";
-import { getShiftsByDoctorMonth, deleteShiftById } from "@/apis/doctor/shift.api";
+import { getShiftsByDoctorMonth, deleteShiftById, registerShift } from "@/apis/doctor/shift.api";
 import { toast } from "sonner";
 
 // Types
@@ -237,8 +237,13 @@ export default function SchedulePage() {
     if (!date) return;
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
+
+    const result = await registerShift({
+      doctorId: doctorId,
+      date: date,
+      shift: shift,
+    });
     
-    // TODO: Call API to create shift
     setSlots((prev) => [
       ...prev,
       { 
