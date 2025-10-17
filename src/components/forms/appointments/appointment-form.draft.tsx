@@ -1,11 +1,8 @@
-
 import { getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
+import { gettimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
-import { SocketEventsEnum } from '@/enum/socket-events.enum';
-import { createFetchDataFieldsAppointmentSocket } from '@/services/socket/socket-client';
 import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
-import { set } from 'zod';
 
 type DoctorDto = {
   id: string;
@@ -40,56 +37,16 @@ type AppointmentBookingDto = {
 };
 
 // Mock data từ MongoDB
-const mockTimeSlots: TimeSlot[] = [
-  { _id: "67890abc001", start: "07:30", end: "08:30", label: "Ca sáng 1" },
-  { _id: "67890abc002", start: "08:30", end: "09:30", label: "Ca sáng 2" },
-  { _id: "67890abc003", start: "09:30", end: "10:30", label: "Ca sáng 3" },
-  { _id: "67890abc004", start: "10:30", end: "11:30", label: "Ca sáng 4" },
-  { _id: "67890abc005", start: "13:30", end: "14:30", label: "Ca trưa 1" },
-  { _id: "67890abc006", start: "14:30", end: "15:30", label: "Ca trưa 2" },
-  { _id: "67890abc007", start: "18:00", end: "19:00", label: "Ca ngoài giờ 1" },
-  { _id: "67890abc008", start: "19:00", end: "20:00", label: "Ca ngoài giờ 2" },
-  { _id: "67890abc009", start: "20:00", end: "21:00", label: "Ca ngoài giờ 3" }
-];
-
-const mockSpecialties = [
-  "Tim mạch",
-  "Thần kinh",
-  "Nội tiết",
-  "Tiêu hóa",
-  "Hô hấp",
-  "Thận - Tiết niệu",
-  "Da liễu",
-  "Mắt",
-  "Tai Mũi Họng",
-  "Răng Hàm Mặt",
-  "Sản phụ khoa",
-  "Nhi khoa",
-  "Chấn thương chỉnh hình",
-  "Phẫu thuật tổng hợp"
-];
-
-// const mockDoctors: Doctor[] = [
-//   { id: "DOC001", name: "BS. Nguyễn Văn An", email: "nvan@hospital.com", specialty: "Trung tâm tim mạch" },
-//   { id: "DOC002", name: "BS. Trần Thị Bình", email: "ttbinh@hospital.com", specialty: "Tim mạch" },
-//   { id: "DOC003", name: "BS. Lê Minh Cường", email: "lmcuong@hospital.com", specialty: "Thần kinh" },
-//   { id: "DOC004", name: "BS. Phạm Thu Dung", email: "ptdung@hospital.com", specialty: "Thần kinh" },
-//   { id: "DOC005", name: "BS. Hoàng Văn Em", email: "hvem@hospital.com", specialty: "Nội tiết" },
-//   { id: "DOC006", name: "BS. Võ Thị Phượng", email: "vtphuong@hospital.com", specialty: "Nội tiết" },
-//   { id: "DOC007", name: "BS. Đặng Quốc Gia", email: "dqgia@hospital.com", specialty: "Tiêu hóa" },
-//   { id: "DOC008", name: "BS. Ngô Thị Hằng", email: "nthang@hospital.com", specialty: "Tiêu hóa" },
-//   { id: "DOC009", name: "BS. Bùi Văn Hùng", email: "bvhung@hospital.com", specialty: "Hô hấp" },
-//   { id: "DOC010", name: "BS. Lý Thị Kim", email: "ltkim@hospital.com", specialty: "Hô hấp" },
-//   { id: "DOC011", name: "BS. Trương Văn Long", email: "tvlong@hospital.com", specialty: "Thận - Tiết niệu" },
-//   { id: "DOC012", name: "BS. Đinh Thị Mai", email: "dtmai@hospital.com", specialty: "Da liễu" },
-//   { id: "DOC013", name: "BS. Dương Văn Nam", email: "dvnam@hospital.com", specialty: "Mắt" },
-//   { id: "DOC014", name: "BS. Phan Thị Oanh", email: "ptoanh@hospital.com", specialty: "Tai Mũi Họng" },
-//   { id: "DOC015", name: "BS. Huỳnh Văn Phúc", email: "hvphuc@hospital.com", specialty: "Răng Hàm Mặt" },
-//   { id: "DOC016", name: "BS. Mai Thị Quỳnh", email: "mtquynh@hospital.com", specialty: "Sản phụ khoa" },
-//   { id: "DOC017", name: "BS. Lưu Văn Sơn", email: "lvson@hospital.com", specialty: "Nhi khoa" },
-//   { id: "DOC018", name: "BS. Tô Thị Tâm", email: "tttam@hospital.com", specialty: "Nhi khoa" },
-//   { id: "DOC019", name: "BS. Cao Văn Tùng", email: "cvtung@hospital.com", specialty: "Chấn thương chỉnh hình" },
-//   { id: "DOC020", name: "BS. Đỗ Thị Uyên", email: "dtuyen@hospital.com", specialty: "Phẫu thuật tổng hợp" }
+// const mockTimeSlots: TimeSlot[] = [
+//   { _id: "67890abc001", start: "07:30", end: "08:30", label: "Ca sáng 1" },
+//   { _id: "67890abc002", start: "08:30", end: "09:30", label: "Ca sáng 2" },
+//   { _id: "67890abc003", start: "09:30", end: "10:30", label: "Ca sáng 3" },
+//   { _id: "67890abc004", start: "10:30", end: "11:30", label: "Ca sáng 4" },
+//   { _id: "67890abc005", start: "13:30", end: "14:30", label: "Ca trưa 1" },
+//   { _id: "67890abc006", start: "14:30", end: "15:30", label: "Ca trưa 2" },
+//   { _id: "67890abc007", start: "18:00", end: "19:00", label: "Ca ngoài giờ 1" },
+//   { _id: "67890abc008", start: "19:00", end: "20:00", label: "Ca ngoài giờ 2" },
+//   { _id: "67890abc009", start: "20:00", end: "21:00", label: "Ca ngoài giờ 3" }
 // ];
 
 export default function AppointmentForm() {
@@ -130,32 +87,33 @@ export default function AppointmentForm() {
 
   // Load mock data
   useEffect(() => {
-    setTimeSlots(mockTimeSlots);
-    
-    //setDoctors(mockDoctors);
+  const fetchData = async () => {
+    try {
+      const timeSlotRes = await gettimeslot();
+      if (timeSlotRes?.data) {
+        setTimeSlots(timeSlotRes.data);
 
-    const fetchChuyenKhoa = async () => {
-      const email = localStorage.getItem('email');
-      if (!email) {
-        console.warn("⚠️ No email found in localStorage");
-        return;
+        // Gán mặc định slot đầu tiên
+        if (timeSlotRes.data.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            timeSlotId: timeSlotRes.data[0]._id,
+          }));
+        }
       }
-
-      try {
-        const res = await getSpecialties(email);
-        console.log(res);
-        setSpecialties(res!.data);
-      } catch (err) {
-        console.error("Failed to fetch specialties:", err);
-      }
-    };
-    fetchChuyenKhoa();
-    
-    if (mockTimeSlots.length > 0) {
-      setFormData(prev => ({ ...prev, timeSlotId: mockTimeSlots[0]._id }));
+    } catch (err) {
+      console.error("Failed to load timeslots:", err);
     }
 
-  }, []);
+    const email = localStorage.getItem("email");
+    if (email) {
+      const res = await getSpecialties(email);
+      setSpecialties(res!.data);
+    }
+  };
+
+  fetchData();
+}, []);
 
   // Filter doctors by specialty
   useEffect(() => {
