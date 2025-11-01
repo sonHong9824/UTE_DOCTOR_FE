@@ -1,4 +1,4 @@
-import { getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
+import { bookAppointment, getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
 import { gettimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { useEffect, useState } from 'react';
@@ -237,15 +237,9 @@ export default function AppointmentForm() {
     console.log('📤 Submitting appointment:', formData);
 
     try {
-      const res = await fetch('YOUR_API_ENDPOINT', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await res.json();
-      setResponse({ success: res.ok, data });
-      console.log('✅ Response:', data);
+      const res = await bookAppointment(formData);
+      setResponse({ success: res?.code, res: res });
+      console.log('✅ Response:', res?.message);
     } catch (error: any) {
       setResponse({ success: false, error: error.message });
       console.error('❌ Error:', error);
