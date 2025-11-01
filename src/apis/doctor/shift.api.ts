@@ -37,7 +37,20 @@ export const registerShift = async (
 
   const res = await axiosClient.post(`/shift/register`, data);
 
-  console.log("📥 Received response:", res.data);
+  console.log("Received response:", res.data);
+
+  return res.data;
+};
+
+export const cancelShiftById = async (
+  shiftId: string,
+  reason: string
+): Promise<{ code: number; message: string }> => {
+  console.log("Sending cancel shift request:", { shiftId, reason });
+
+  const res = await axiosClient.put(`/shift/cancel/${shiftId}`, { reason });
+
+  console.log("Received cancel response:", res.data);
 
   return res.data;
 };
