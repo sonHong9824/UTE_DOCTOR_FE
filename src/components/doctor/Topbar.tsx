@@ -46,10 +46,10 @@ export default function Topbar() {
   ];
 
   return (
-    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm z-30 sticky top-0">
-      <div className="h-full px-4 md:px-6 flex items-center justify-between">
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm z-30 sticky top-0 flex items-center">
+      <div className="h-full px-4 md:px-6 flex items-center justify-between w-full">
         {/* Left section - Mobile menu button & Search */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-">
           <Button
             variant="ghost"
             size="icon"

@@ -1,11 +1,11 @@
 import axiosClient from "@/lib/axiosClient";
 import { ApiResponse } from "@/types/apiDTO";
-import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
+import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 
-export const GetUserProfile = async(form: {email: string}) =>
+export const GetPatientProfile = async(form: {email: string}) =>
 {   
     try {
-        const res = await axiosClient.get<ApiResponse<UserProfileDTO>>("/users/by-email", 
+        const res = await axiosClient.get<ApiResponse<PatientProfileDto>>("/patients/me", 
             { params: { email: form.email } });
         return res.data;
     }

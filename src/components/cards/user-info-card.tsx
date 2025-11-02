@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
-import { UserProfileDTO } from "@/types/userDTO/userProfile.dto";
+import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { JSX } from "react";
 import {
   FaBirthdayCake,
@@ -19,7 +19,7 @@ import {
 } from "react-icons/fa";
 
 interface UserInfoCardProps {
-  user: UserProfileDTO;
+  user: AccountProfileDTO;
 }
 
 interface Field {
