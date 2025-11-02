@@ -36,5 +36,5 @@ export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword:
     catch (e) {
         console.error("Failed to fetch doctors by specialty", e);
     }
-    
-}
+
+};
