@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResponseCode } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
-import { authSocket, socketClient } from "@/services/socket/socket-client";
+import { authSocket } from "@/services/socket/socket-client";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { z } from "zod";
+import { useState } from "react";
+import { email, z } from "zod";
 const registerSchema = z
   .object({
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
@@ -84,7 +84,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
 
 
     // 👉 Bước 2: join room
-    authSocket.emitSafe(SocketEventsEnum.REGISTER_JOIN_ROOM, { userEmail: form.email });
+    authSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: form.email });
     console.log("Init socket for register user email: ", form.email);
 
     // 👉 Bước 3: đăng ký listener 1 lần
