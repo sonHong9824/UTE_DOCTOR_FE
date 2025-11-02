@@ -36,19 +36,6 @@ type AppointmentBookingDto = {
   patientEmail: string;
 };
 
-// Mock data từ MongoDB
-// const mockTimeSlots: TimeSlot[] = [
-//   { _id: "67890abc001", start: "07:30", end: "08:30", label: "Ca sáng 1" },
-//   { _id: "67890abc002", start: "08:30", end: "09:30", label: "Ca sáng 2" },
-//   { _id: "67890abc003", start: "09:30", end: "10:30", label: "Ca sáng 3" },
-//   { _id: "67890abc004", start: "10:30", end: "11:30", label: "Ca sáng 4" },
-//   { _id: "67890abc005", start: "13:30", end: "14:30", label: "Ca trưa 1" },
-//   { _id: "67890abc006", start: "14:30", end: "15:30", label: "Ca trưa 2" },
-//   { _id: "67890abc007", start: "18:00", end: "19:00", label: "Ca ngoài giờ 1" },
-//   { _id: "67890abc008", start: "19:00", end: "20:00", label: "Ca ngoài giờ 2" },
-//   { _id: "67890abc009", start: "20:00", end: "21:00", label: "Ca ngoài giờ 3" }
-// ];
-
 export default function AppointmentForm() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   
@@ -173,22 +160,6 @@ export default function AppointmentForm() {
     }
   };
 
-  // Debounce logic for doctor
-  // useEffect(() => {
-  //   if (!doctorSearchTerm) {
-  //     setDoctorSuggestions([]);
-  //     return;
-  //   }
-  //   console.log('🔍 Searching for doctors with term:', doctorSearchTerm);
-  //   const timeout = setTimeout(() => {
-  //     const suggestions = filteredDoctors.filter(doc =>
-  //       doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
-  //     );
-  //     setDoctorSuggestions(suggestions);
-  //   }, 300); // delay 300ms
-
-  //   return () => clearTimeout(timeout);
-  // }, [doctorSearchTerm, filteredDoctors]);
   // Gọi API khi search term hoặc chuyên khoa thay đổi
     useEffect(() => {
       if (!doctorSearchTerm && !selectedSpecialty) {
