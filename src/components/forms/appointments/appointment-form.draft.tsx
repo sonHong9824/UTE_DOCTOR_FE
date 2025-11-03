@@ -32,6 +32,7 @@ type AppointmentBookingDto = {
   paymentMethod: string;
   amount?: number;
   patientEmail: string;
+  patientId: string;
 };
 
 export default function AppointmentForm() {
@@ -63,7 +64,8 @@ export default function AppointmentForm() {
     serviceType: 'KHAM_DICH_VU',
     paymentMethod: 'ONLINE',
     amount: 100000,
-    patientEmail: 'td13052004@gmail.com'
+    patientEmail: 'td13052004@gmail.com',
+    patientId: localStorage.getItem("id") || ""
   });
 
   // const [selectedDoctorId, setSelectedDoctorId] = useState('');
