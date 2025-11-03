@@ -1,6 +1,10 @@
-import { bookAppointment, getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
-import { gettimeslot } from '@/apis/timeslot/timeslot.api';
+import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
+import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
+import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
+import { DataResponse } from '@/types/apiDTO';
+import { TimeSlotDto } from '@/types/timeslot.dto';
+import { get } from 'http';
 import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -10,12 +14,6 @@ type DoctorDto = {
   email: string;
 };
 
-type TimeSlot = {
-  _id: string;
-  start: string;
-  end: string;
-  label: string;
-};
 
 type Doctor = {
   id: string;
@@ -37,7 +35,7 @@ type AppointmentBookingDto = {
 };
 
 export default function AppointmentForm() {
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [timeSlots, setTimeSlots] = useState<TimeSlotDto[]>([]);
   
   // Lazy search states for doctor
   const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
@@ -76,7 +74,7 @@ export default function AppointmentForm() {
   useEffect(() => {
   const fetchData = async () => {
     try {
-      const timeSlotRes = await gettimeslot();
+      const timeSlotRes = await getTimeslot();
       if (timeSlotRes?.data) {
         setTimeSlots(timeSlotRes.data);
 
@@ -187,9 +185,8 @@ export default function AppointmentForm() {
   const handleDoctorSelect = (doc: Doctor) => {
     setSelectedDoctor(doc);
     setDoctorSearchTerm(doc.name);
-    //setDoctorSuggestions([]);
-    // setSelectedDoctorId(doc.id);
 
+   
     // Update formData
     setFormData(prev => ({
       ...prev,
@@ -199,6 +196,8 @@ export default function AppointmentForm() {
         email: doc.email
       }
     }));
+
+    // fetchTimeSlots(); // fetch timeslots for selected doctor
   };
 
   const handleSubmit = async () => {
@@ -224,7 +223,7 @@ export default function AppointmentForm() {
     alert('✅ JSON copied to clipboard!');
   };
 
-  const getTimeSlotDisplay = (slot: TimeSlot) => `${slot.label} (${slot.start} - ${slot.end})`;
+  const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
   function handleSpecialtySearch(value: string): void {
     console.log("Keyword: ", value)
@@ -251,6 +250,78 @@ export default function AppointmentForm() {
       setFormData(prev => ({ ...prev, doctor: null }));
     }
   };
+
+  useEffect(() => {
+    // Kiểm tra khi có thay đổi ở bác sĩ
+    if (formData.doctor) {
+      console.log('🏥 Bác sĩ đã được chọn:', {
+        name: formData.doctor.name,
+        id: formData.doctor.id,
+        email: formData.doctor.email
+      });
+    }
+
+    // Kiểm tra khi có thay đổi ở ngày
+    if (formData.date) {
+      console.log('📅 Ngày được chọn:', formData.date.toLocaleDateString());
+    }
+
+    // Kiểm tra khi có thay đổi ở timeslot
+    if (formData.timeSlotId) {
+      const selectedSlot = timeSlots.find(slot => slot._id === formData.timeSlotId);
+      if (selectedSlot) {
+        console.log('⏰ Khung giờ được chọn:', {
+          id: selectedSlot._id,
+          time: `${selectedSlot.start} - ${selectedSlot.end}`,
+          label: selectedSlot.label
+        });
+      }
+    }
+
+    // Kiểm tra tính hợp lệ của lịch hẹn
+    const isValidAppointment = formData.date && formData.timeSlotId;
+    if (isValidAppointment) {
+      console.log('✅ Thông tin lịch hẹn hợp lệ');
+    }
+
+  }, [formData.doctor, formData.date, formData.timeSlotId, timeSlots]);
+
+  const fetchTimeSlots = async () => {
+    console.log(
+      "Fetching timeslots for doctorId:",
+      formData.doctor?.id,
+      "on date:",
+      formData.date
+    );
+
+    try {
+      let res: DataResponse<TimeSlotDto[]> | undefined;
+
+      if (formData.doctor?.id) {
+        // Nếu đã chọn bác sĩ, lấy theo doctorId + date
+        res = await getTimeSlotsByDoctorAndDate({
+          doctorId: formData.doctor.id,
+          date: formData.date.toISOString().split('T')[0],
+          status: TimeSlotStatusEnum.AVAILABLE, // default là available
+        });
+      } else {
+        // Nếu chưa chọn bác sĩ, lấy toàn bộ timeslot
+        res = await getTimeslot();
+      }
+
+      console.log("Fetched timeslots:", res);
+      setTimeSlots(res?.data || []);
+    } catch (error) {
+      console.error("Error fetching timeslots:", error);
+      setTimeSlots([]);
+    }
+  };
+
+  // useEffect lắng nghe doctor thay đổi
+  useEffect(() => {
+    fetchTimeSlots();
+  }, [formData.doctor, formData.date]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -376,18 +447,18 @@ export default function AppointmentForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
                     value={formData.date ?? undefined}
-                    onChange={(date) =>
-                    setFormData((prev) => {
-                      if (!date) {
-                        alert("Vui lòng chọn ngày hợp lệ!");
-                        return prev;
-                      }
-                      return { ...prev, date };
-                    })
-                  }
+                    onChange={(date) => {
+                      setFormData((prev) => {
+                        if (!date) {
+                          alert("Vui lòng chọn ngày hợp lệ!");
+                          return prev;
+                        }
+                        return { ...prev, date };
+                      });
+                      //fetchTimeSlots(); // luôn gọi, BE tự handle
+                    }}
                     limitDays={30}
                   />
-                  
                 </div>
 
                 {/* Chọn khung giờ khám */}
