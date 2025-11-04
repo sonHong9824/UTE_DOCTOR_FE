@@ -4,7 +4,6 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
-import { get } from 'http';
 import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -25,7 +24,7 @@ type Doctor = {
 type AppointmentBookingDto = {
   hospitalName: string;
   specialty: string | null;
-  date: Date;
+  date: string;
   timeSlotId: string;
   doctor: DoctorDto | null;
   serviceType: string;
@@ -56,7 +55,7 @@ export default function AppointmentForm() {
 
 
   const [formData, setFormData] = useState<AppointmentBookingDto>({
-    date: new Date(),
+    date: new Date().toISOString().split('T')[0],
     hospitalName: 'Bệnh viện Đa khoa Tâm Đức',
     specialty: '',
     timeSlotId: '',
@@ -84,7 +83,7 @@ export default function AppointmentForm() {
         if (timeSlotRes.data.length > 0) {
           setFormData(prev => ({
             ...prev,
-            timeSlotId: timeSlotRes.data[0]._id,
+            timeSlotId: timeSlotRes.data[0].id,
           }));
         }
       }
@@ -265,15 +264,15 @@ export default function AppointmentForm() {
 
     // Kiểm tra khi có thay đổi ở ngày
     if (formData.date) {
-      console.log('📅 Ngày được chọn:', formData.date.toLocaleDateString());
+      console.log('📅 Ngày được chọn:', formData.date);
     }
 
     // Kiểm tra khi có thay đổi ở timeslot
     if (formData.timeSlotId) {
-      const selectedSlot = timeSlots.find(slot => slot._id === formData.timeSlotId);
+      const selectedSlot = timeSlots.find(slot => slot.id === formData.timeSlotId);
       if (selectedSlot) {
         console.log('⏰ Khung giờ được chọn:', {
-          id: selectedSlot._id,
+          id: selectedSlot.id,
           time: `${selectedSlot.start} - ${selectedSlot.end}`,
           label: selectedSlot.label
         });
@@ -300,10 +299,11 @@ export default function AppointmentForm() {
       let res: DataResponse<TimeSlotDto[]> | undefined;
 
       if (formData.doctor?.id) {
+        console.log("formData.date (raw):", formData.date);
         // Nếu đã chọn bác sĩ, lấy theo doctorId + date
         res = await getTimeSlotsByDoctorAndDate({
           doctorId: formData.doctor.id,
-          date: formData.date.toISOString().split('T')[0],
+          date: formData.date,
           status: TimeSlotStatusEnum.AVAILABLE, // default là available
         });
       } else {
@@ -448,16 +448,14 @@ export default function AppointmentForm() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
-                    value={formData.date ?? undefined}
+                    value={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
                     onChange={(date) => {
-                      setFormData((prev) => {
-                        if (!date) {
-                          alert("Vui lòng chọn ngày hợp lệ!");
-                          return prev;
-                        }
-                        return { ...prev, date };
-                      });
-                      //fetchTimeSlots(); // luôn gọi, BE tự handle
+                      if (!date) {
+                        alert("Vui lòng chọn ngày hợp lệ!");
+                        return;
+                      }
+                      const localDate = date.toLocaleDateString('en-CA'); // ✅ chuẩn local
+                      setFormData(prev => ({ ...prev, date: localDate }));
                     }}
                     limitDays={30}
                   />
@@ -473,7 +471,7 @@ export default function AppointmentForm() {
                   >
                     <option value="">-- Chọn khung giờ --</option>
                     {timeSlots.map(slot => (
-                      <option key={slot._id} value={slot._id}>
+                      <option key={slot.id} value={slot.id}>
                         {getTimeSlotDisplay(slot)}
                       </option>
                     ))}

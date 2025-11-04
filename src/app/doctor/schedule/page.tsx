@@ -1,37 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
+import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
+  CalendarCheck,
   CalendarDays,
+  ChevronRight,
+  ClipboardList,
   Clock,
+  Filter,
+  Loader2,
+  MoreVertical,
   Plus,
   Users,
-  AlertTriangle,
-  Calendar,
-  ChevronRight,
-  Filter,
-  MoreVertical,
-  CalendarCheck,
-  ArrowRight,
-  ClipboardList,
-  Loader2,
 } from "lucide-react";
-import { getShiftsByDoctorMonth, deleteShiftById, registerShift, cancelShiftById } from "@/apis/doctor/shift.api";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
 
 // Types
 interface ShiftData {
@@ -131,7 +131,8 @@ function enumerateMonthDays(year: number, month: number): string[] {
 
 // Component
 export default function SchedulePage() {
-  const doctorId = "68ec9bbb97af2916bddd47fa";
+  // const doctorId = "68ec9bbb97af2916bddd47fa"; 
+  const doctorId = "68ed269b59e0a4da8a1d9bd1"; 
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(todayStr);
