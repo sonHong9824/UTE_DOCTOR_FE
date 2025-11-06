@@ -1,6 +1,7 @@
 import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
 import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
+import { ResponseCode } from '@/enum/response-code.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
@@ -32,6 +33,9 @@ type AppointmentBookingDto = {
   amount?: number;
   patientEmail: string;
   patientId: string;
+
+  // Thêm trường lý do khám
+  reasonForAppointment: string;
 };
 
 export default function AppointmentForm() {
@@ -64,12 +68,19 @@ export default function AppointmentForm() {
     paymentMethod: 'ONLINE',
     amount: 100000,
     patientEmail: 'td13052004@gmail.com',
-    patientId: localStorage.getItem("id") || ""
+    patientId: localStorage.getItem("id") || "",
+
+    // default empty reason
+    reasonForAppointment: '',
   });
 
   // const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+
+  // Thêm state cho modal thành công
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   // Load mock data
   useEffect(() => {
@@ -211,6 +222,19 @@ export default function AppointmentForm() {
       const res = await bookAppointment(formData);
       setResponse({ success: res?.code, res: res });
       console.log('✅ Response:', res?.message);
+
+      // Nếu API trả về thành công -> hiện modal
+      const isOk = !!res && (res.code === ResponseCode.SUCCESS);
+      if (isOk) {
+        setSuccessMessage(res?.message || 'Đặt lịch thành công');
+        setShowSuccessModal(true);
+
+        // Tự động reload sau 2s (để người dùng kịp thấy modal)
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          window.location.reload();
+        }, 2000);
+      }
     } catch (error: any) {
       setResponse({ success: false, error: error.message });
       console.error('❌ Error:', error);
@@ -494,6 +518,18 @@ export default function AppointmentForm() {
                     <option value="KHAM_TONG_QUAT">Khám tổng quát</option>
                   </select>
                 </div>
+
+                {/* Lý do khám */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lý do khám *</label>
+                  <textarea
+                    value={formData.reasonForAppointment}
+                    onChange={(e) => handleChange('reasonForAppointment', e.target.value)}
+                    placeholder="Mô tả ngắn về lý do khám (ví dụ: đau đầu, kiểm tra định kỳ...)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
+                    rows={3}
+                  />
+                </div>
               </div>
             </div>
 
@@ -551,6 +587,24 @@ export default function AppointmentForm() {
             <div className={`mt-6 p-4 rounded-xl ${response.success ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300'}`}>
               <h3 className="font-semibold mb-2">{response.success ? '✅ Success' : '❌ Error'}</h3>
               <pre className="text-sm overflow-auto">{JSON.stringify(response.data || response.error, null, 2)}</pre>
+            </div>
+          )}
+
+          {/* Success modal */}
+          {showSuccessModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg">
+                <h3 className="text-lg font-semibold mb-2">✅ Thành công</h3>
+                <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { setShowSuccessModal(false); window.location.reload(); }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
