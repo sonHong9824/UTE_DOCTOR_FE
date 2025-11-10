@@ -2,7 +2,9 @@ import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDo
 import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ResponseCode } from '@/enum/response-code.enum';
+import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
+import { createPaymentVnPaySocket } from '@/services/socket/socket-client';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
 import { useEffect, useState } from 'react';
@@ -219,22 +221,27 @@ export default function AppointmentForm() {
     console.log('📤 Submitting appointment:', formData);
 
     try {
-      const res = await bookAppointment(formData);
-      setResponse({ success: res?.code, res: res });
-      console.log('✅ Response:', res?.message);
+   
+      // Socket connection for payment
+      const paymentSocket = createPaymentVnPaySocket();
+    
+      paymentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
+        console.log('[Socket] Joined payment room:', data);
+        bookAppointment(formData);
+      });
 
-      // Nếu API trả về thành công -> hiện modal
-      const isOk = !!res && (res.code === ResponseCode.SUCCESS);
-      if (isOk) {
-        setSuccessMessage(res?.message || 'Đặt lịch thành công');
-        setShowSuccessModal(true);
+      paymentSocket.on<{ appointmentId: string; paymentUrl: string }>(
+        SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED,
+        (data) => {
+          console.log('[Socket] Received VnPay URL:', data.paymentUrl);
+          window.open(data.paymentUrl, '_blank');
+          paymentSocket.disconnect();
+        }
+      );
 
-        // Tự động reload sau 2s (để người dùng kịp thấy modal)
-        setTimeout(() => {
-          setShowSuccessModal(false);
-          window.location.reload();
-        }, 2000);
-      }
+      paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: formData.patientEmail });
+      console.log("Emitted join room for email:", formData.patientEmail);
+
     } catch (error: any) {
       setResponse({ success: false, error: error.message });
       console.error('❌ Error:', error);

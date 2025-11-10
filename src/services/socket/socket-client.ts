@@ -77,3 +77,4 @@ export const createPatientProfileSocket = () => new SocketClient(BASE_API, "/pat
 export const createAppointmentSocket = () => new SocketClient(BASE_API, "/appointment"); // Lazy initialization
 export const createFetchDataFieldsAppointmentSocket = () => new SocketClient(BASE_API, "/appointment/fields-data"); // Lazy initialization  (redundant?)
 export const createShiftSocket = () => new SocketClient(BASE_API, "/shift"); // Lazy initialization
+export const createPaymentVnPaySocket = () => new SocketClient(BASE_API, "/payment/vnpay");
