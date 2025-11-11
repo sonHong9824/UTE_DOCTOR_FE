@@ -2,11 +2,16 @@
 "use client";
 
 import { cn } from "@/lib/utils"; // hàm merge className (bạn có thể tự viết)
-import { createContext, ReactNode, useContext, useState } from "react";
+import { createContext, ReactNode, useContext, useState, useEffect } from "react";
 
 interface TabsProps {
   children: ReactNode;
   defaultValue?: string;
+  /** Controlled value */
+  value?: string;
+  /** Controlled change handler */
+  onValueChange?: (value: string) => void;
+  className?: string;
 }
 
 interface TabsContextType {
@@ -16,11 +21,23 @@ interface TabsContextType {
 
 const TabsContext = createContext<TabsContextType | null>(null);
 
-export function Tabs({ children, defaultValue }: TabsProps) {
-  const [active, setActive] = useState(defaultValue || "");
+export function Tabs({ children, defaultValue, value, onValueChange, className }: TabsProps) {
+  const [active, setActive] = useState<string>(value ?? defaultValue ?? "");
+
+  // if used as controlled component, update internal state when value changes
+  useEffect(() => {
+    if (typeof value !== "undefined" && value !== active) setActive(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const setActiveAndNotify = (v: string) => {
+    setActive(v);
+    onValueChange?.(v);
+  };
+
   return (
-    <TabsContext.Provider value={{ active, setActive }}>
-      <div className="w-full">{children}</div>
+    <TabsContext.Provider value={{ active, setActive: setActiveAndNotify }}>
+      <div className={cn("w-full", className)}>{children}</div>
     </TabsContext.Provider>
   );
 }
