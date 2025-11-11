@@ -211,13 +211,6 @@ export default function PatientsPage() {
                         <ArrowUpDown className="h-3 w-3" />
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Giới tính</th>
-                      <th 
-                        className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 flex items-center gap-1" 
-                        onClick={() => toggleSort("lastVisit")}
-                      >
-                        Lần khám gần nhất
-                        <ArrowUpDown className="h-3 w-3" />
-                      </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Chẩn đoán</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Hành động</th>
                     </tr>
@@ -282,7 +275,6 @@ export default function PatientsPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Họ tên</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tuổi</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Giới tính</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Lần khám gần nhất</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Chẩn đoán</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Hành động</th>
                     </tr>

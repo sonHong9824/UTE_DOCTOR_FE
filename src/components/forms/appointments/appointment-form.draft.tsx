@@ -427,7 +427,7 @@ export default function AppointmentForm() {
                     onChange={(e) => handleChange('timeSlotId', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
-                    <option value="">-- Chọn khung giờ --</option>
+                    <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
                     {timeSlots.map(slot => (
                       <option key={slot._id} value={slot._id}>
                         {getTimeSlotDisplay(slot)}
@@ -447,9 +447,9 @@ export default function AppointmentForm() {
                     onChange={(e) => handleChange('serviceType', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
-                    <option value="KHAM_DICH_VU">Khám dịch vụ</option>
-                    <option value="KHAM_BHYT">Khám BHYT</option>
-                    <option value="KHAM_TONG_QUAT">Khám tổng quát</option>
+                    <option key="KHAM_DICH_VU" value="KHAM_DICH_VU">Khám dịch vụ</option>
+                    <option key="KHAM_BHYT" value="KHAM_BHYT">Khám BHYT</option>
+                    <option key="KHAM_TONG_QUAT" value="KHAM_TONG_QUAT">Khám tổng quát</option>
                   </select>
                 </div>
               </div>
@@ -467,8 +467,8 @@ export default function AppointmentForm() {
                     onChange={(e) => handleChange('paymentMethod', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option value="ONLINE">💳 Thanh toán online</option>
-                    <option value="OFFLINE">💵 Thanh toán tại bệnh viện</option>
+                    <option key="ONLINE" value="ONLINE">💳 Thanh toán online</option>
+                    <option key="OFFLINE" value="OFFLINE">💵 Thanh toán tại bệnh viện</option>
                   </select>
                 </div>
 

@@ -133,7 +133,8 @@ function enumerateMonthDays(year: number, month: number): string[] {
 export default function SchedulePage() {
   const doctorId = "68ec9bbb97af2916bddd47fa";
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Use local date (YYYY-MM-DD) to avoid UTC off-by-one issues
+  const todayStr = formatDateLocal(new Date());
   const [date, setDate] = useState(todayStr);
   const [shift, setShift] = useState<ShiftKey>("morning");
   const [location, setLocation] = useState("");
@@ -252,7 +253,7 @@ export default function SchedulePage() {
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
-      const dateStr = d.toISOString().slice(0, 10);
+      const dateStr = formatDateLocal(d);
       const dayLabel = viDays[d.getDay()];
       result[dayLabel] = allSlots.filter((s) => s.date === dateStr);
     }
@@ -460,11 +461,11 @@ export default function SchedulePage() {
         <div className="flex flex-wrap items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
+              {/* <Button variant="outline" size="sm" className="h-9">
                 <Filter className="mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">Lọc</span>
                 <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
+              </Button> */}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem>Tất cả ca trực</DropdownMenuItem>
@@ -474,10 +475,10 @@ export default function SchedulePage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="outline" size="sm" className="h-9">
+          {/* <Button variant="outline" size="sm" className="h-9">
             <CalendarDays className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Xem lịch</span>
-          </Button>
+          </Button> */}
 
           <Button size="sm" onClick={() => setOpen(true)} className="h-9">
             <Plus className="mr-2 h-4 w-4" />
@@ -487,7 +488,7 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ca trực hôm nay</CardTitle>
@@ -495,13 +496,13 @@ export default function SchedulePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{todayList.length}</div>
-            <p className="text-xs text-muted-foreground">{todayList.filter((s) => s.completed).length} ca đã hoàn thành</p>
+            {/* <p className="text-xs text-muted-foreground">{todayList.filter((s) => s.completed).length} ca đã hoàn thành</p> */}
           </CardContent>
           <CardFooter className="pt-0">
-            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+            {/* <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
               Xem chi tiết
               <ArrowRight className="ml-1 h-3 w-3" />
-            </Button>
+            </Button> */}
           </CardFooter>
         </Card>
 
@@ -515,14 +516,14 @@ export default function SchedulePage() {
             <p className="text-xs text-muted-foreground">{monthData?.statistics.hasClient || 0} ca có lịch hẹn</p>
           </CardContent>
           <CardFooter className="pt-0">
-            <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
+            {/* <Button variant="ghost" size="sm" className="h-8 px-2 text-xs">
               Xem chi tiết
               <ArrowRight className="ml-1 h-3 w-3" />
-            </Button>
+            </Button> */}
           </CardFooter>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        {/* <Card className="border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bệnh nhân đã khám</CardTitle>
             <Users className="h-4 w-4 text-green-500" />
@@ -539,13 +540,12 @@ export default function SchedulePage() {
               <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
           </CardFooter>
-        </Card>
+        </Card> */}
       </div>
 
       <Tabs defaultValue="month">
         <TabsList className="mb-4">
           <TabsTrigger value="day" className="flex items-center gap-2"><Clock className="h-4 w-4" /> Theo ngày</TabsTrigger>
-          <TabsTrigger value="week" className="flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Theo tuần</TabsTrigger>
           <TabsTrigger value="month" className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Theo tháng</TabsTrigger>
         </TabsList>
 
@@ -556,7 +556,7 @@ export default function SchedulePage() {
                 <CardTitle>Lịch làm việc hôm nay</CardTitle>
                 <CardDescription>{formatDate(todayStr)} - {getDayLabel(todayStr)}</CardDescription>
               </div>
-              <Button variant="outline" size="sm"><CalendarCheck className="mr-2 h-4 w-4" /> Đánh dấu hoàn thành</Button>
+              {/* <Button variant="outline" size="sm"><CalendarCheck className="mr-2 h-4 w-4" /> Đánh dấu hoàn thành</Button> */}
             </CardHeader>
             <CardContent>
               {todayList.length === 0 ? (
@@ -601,7 +601,7 @@ export default function SchedulePage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>Xem chi tiết</DropdownMenuItem>
-                            <DropdownMenuItem>Đánh dấu hoàn thành</DropdownMenuItem>
+                            {/* <DropdownMenuItem>Đánh dấu hoàn thành</DropdownMenuItem> */}
                             <DropdownMenuItem className="text-destructive">Hủy lịch</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -612,55 +612,6 @@ export default function SchedulePage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="week">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {viDays.map((label) => (
-              <Card key={label}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{label}</CardTitle>
-                  <CardDescription>{(weekGroups[label] || []).length} ca trực</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {(weekGroups[label] || []).length === 0 ? (
-                    <div className="text-center py-8">
-                      <CalendarDays className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-20" />
-                      <p className="text-sm text-muted-foreground">Không có lịch</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {(weekGroups[label] || []).map((slot, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                          <div className="text-center">
-                            <p className="text-xs font-semibold">{slot.start}</p>
-                            <p className="text-xs text-muted-foreground">-</p>
-                            <p className="text-xs font-semibold">{slot.end}</p>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium truncate">{slot.location || "Phòng khám"}</p>
-                              {slot.status === "canceled" ? (
-                                <Badge variant="destructive" className="text-xs">Đã hủy</Badge>
-                              ) : slot.hasClient ? (
-                                <Badge variant={slot.completed ? "success" : "warning"} className="text-xs">
-                                  {slot.completed ? "Đã khám" : "Có lịch"}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            {slot.notes && <p className="text-xs text-muted-foreground truncate">{slot.notes}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="pt-0">
-                  <Button variant="ghost" size="sm" className="w-full text-xs"><Plus className="mr-1 h-3 w-3" /> Thêm ca trực</Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
         </TabsContent>
 
         <TabsContent value="month">
@@ -698,9 +649,9 @@ export default function SchedulePage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => { setOpen(true); setDialogMode("register_month"); }}>
+                {/* <Button variant="outline" size="sm" onClick={() => { setOpen(true); setDialogMode("register_month"); }}>
                   <Plus className="mr-2 h-4 w-4" /> Đăng ký tháng
-                </Button>
+                </Button> */}
                 <Button variant="outline" size="sm"><CalendarCheck className="mr-2 h-4 w-4" /> Xuất lịch</Button>
               </div>
             </CardHeader>

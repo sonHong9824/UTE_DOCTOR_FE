@@ -38,3 +38,16 @@ export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword:
     }
 
 };
+
+export const getTodayAppointments = async (doctorId: string) => {
+  try {
+    const res = await axiosClient.get<ApiResponse<any[]>>("/appointment/today", {
+      params: { doctorId }
+    });
+    console.log('[Axios] Get today appointments:', res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch today's appointments:", e);
+  }
+};
+
