@@ -51,3 +51,26 @@ export const getTodayAppointments = async (doctorId: string) => {
   }
 };
 
+export const completeAppointment = async (data: {
+  appointmentId: string;
+  diagnosis: string;
+  note?: string;
+  prescriptions: Array<{
+    medicineId: string;
+    name: string;
+    quantity: number;
+  }>;
+}) => {
+  try {
+    const res = await axiosClient.patch<ApiResponse<{
+      appointmentId: string;
+      patientId: string;
+    }>>("/appointment/complete", data);
+    console.log('[Axios] Complete appointment:', res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to complete appointment:", e);
+    throw e;
+  }
+};
+

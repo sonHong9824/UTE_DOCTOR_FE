@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getTodayAppointments } from "@/apis/appointment/appointment.api";
+import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
 
@@ -63,6 +64,11 @@ export default function PatientsPage() {
   const [treatment, setTreatment] = useState("");
   const [notes, setNotes] = useState("");
   const [medications, setMedications] = useState("");
+  // medication form states
+  const [drugQuery, setDrugQuery] = useState("");
+  const [drugQty, setDrugQty] = useState<number>(1);
+  const [medList, setMedList] = useState<Array<{ name: string; qty: number }>>([]);
+  const [medCatalog, setMedCatalog] = useState<Medicine[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -223,6 +229,23 @@ export default function PatientsPage() {
   };
 
   useEffect(() => {
+    // fetch medicines catalog
+    (async () => {
+      try {
+        const res = await getMedicines();
+        // API may return either a raw array or an ApiResponse wrapper { code, message, data }
+        let items: Medicine[] = [];
+        if (Array.isArray(res)) items = res as Medicine[];
+        else if (Array.isArray((res as any)?.data)) items = (res as any).data;
+        else if (Array.isArray((res as any)?.items)) items = (res as any).items;
+        else items = [];
+        setMedCatalog(items);
+      } catch (err) {
+        console.error("Failed to load medicines", err);
+        setMedCatalog([]);
+      }
+    })();
+
     const fetch = async () => {
       try {
         setApptLoading(true);
@@ -306,7 +329,7 @@ export default function PatientsPage() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Quản lý bệnh nhân</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Theo dõi và quản lý thông tin bệnh nhân</p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-9 px-3 text-sm">
@@ -324,14 +347,14 @@ export default function PatientsPage() {
             <Plus className="w-4 h-4 mr-2" />
             Thêm bệnh nhân
           </Button>
-        </div>
+        </div> */}
       </div>
       
       {/* merged: appointments will be shown in the Pending tab below */}
 
       {/* Search and Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+        {/* <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 dark:text-gray-400" />
           <Input
             className="pl-10 pr-4"
@@ -339,7 +362,7 @@ export default function PatientsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-        </div>
+        </div> */}
         <div className="flex items-center gap-6">
           <Card className="border-none shadow-none bg-transparent">
             <CardContent className="p-3 flex items-center gap-3">
@@ -520,49 +543,96 @@ export default function PatientsPage() {
       </Tabs>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">Hoàn thành khám bệnh</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left: Diagnosis + Notes */}
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Chẩn đoán chính</label>
-                <Textarea 
-                  placeholder="Nhập chẩn đoán chính..." 
-                  value={diagnosis} 
+                <Textarea
+                  placeholder="Nhập chẩn đoán chính..."
+                  value={diagnosis}
                   onChange={(e) => setDiagnosis(e.target.value)}
-                  className="min-h-24"
+                  className="min-h-36"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Phác đồ điều trị</label>
-                <Textarea 
-                  placeholder="Mô tả phác đồ điều trị chi tiết..." 
-                  value={treatment} 
-                  onChange={(e) => setTreatment(e.target.value)}
-                  className="min-h-32"
+                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Ghi chú bổ sung</label>
+                <Textarea
+                  placeholder="Ghi chú thêm về tình trạng bệnh nhân..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="min-h-36"
                 />
               </div>
             </div>
+
+            {/* Right: Medication selector */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Đơn thuốc</label>
-                <Textarea 
-                  placeholder="Danh sách thuốc và liều lượng..." 
-                  value={medications} 
-                  onChange={(e) => setMedications(e.target.value)}
-                  className="min-h-24"
-                />
+                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Tìm thuốc</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nhập tên thuốc..."
+                    value={drugQuery}
+                    onChange={(e) => setDrugQuery(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={drugQty}
+                    onChange={(e) => setDrugQty(Number(e.target.value))}
+                    className="w-24"
+                  />
+                  <Button onClick={() => {
+                    const name = drugQuery.trim();
+                    if (!name) return;
+                    const qty = Number(drugQty) > 0 ? Number(drugQty) : 1;
+                    setMedList((prev) => [...prev, { name, qty }]);
+                    setDrugQuery("");
+                    setDrugQty(1);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" /> Thêm
+                  </Button>
+                </div>
+
+                {/* suggestions */}
+                {drugQuery && (
+                  <div className="mt-2 border rounded-md bg-white dark:bg-gray-900 p-2 max-h-64 overflow-auto">
+                    {medCatalog
+                      .filter((m) => m.name.toLowerCase().includes(drugQuery.toLowerCase()))
+                      .slice(0, 8)
+                      .map((m) => (
+                        <div key={m._id} className="py-1 px-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer" onClick={() => setDrugQuery(m.name)}>
+                          <div className="font-medium">{m.name}</div>
+                          {m.packaging && <div className="text-xs text-muted-foreground">{m.packaging}</div>}
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Ghi chú bổ sung</label>
-                <Textarea 
-                  placeholder="Ghi chú thêm về tình trạng bệnh nhân..." 
-                  value={notes} 
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="min-h-32"
-                />
+                <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Danh sách thuốc</label>
+                <div className="max-h-96 overflow-auto space-y-2 pr-2">
+                  {medList.length === 0 && <div className="text-sm text-muted-foreground">Chưa có thuốc nào được thêm</div>}
+                  {medList.map((m, idx) => (
+                    <div key={`${m.name}-${idx}`} className="flex items-center justify-between gap-3 border rounded p-2">
+                      <div>
+                        <div className="font-medium">{m.name}</div>
+                        <div className="text-xs text-muted-foreground">Số lượng: {m.qty}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setMedList((prev) => prev.filter((_, i) => i !== idx))}>Xóa</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -570,7 +640,7 @@ export default function PatientsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={submitCompletion} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
+            <Button onClick={() => { console.log('Med list', medList); submitCompletion(); }} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Lưu và hoàn thành
             </Button>

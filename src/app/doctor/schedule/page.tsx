@@ -376,7 +376,7 @@ export default function SchedulePage() {
     try {
       setLoading(true);
       const res = await deleteShiftById(found._id);
-      if (res?.code === "SUCCESS" || res?.code === 200) {
+  if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
         toast.success(res.message || "Đã hủy ca");
         setSlots((prev) => prev.filter((s) => s._id !== found._id));
         setMonthData((prev) =>
@@ -412,7 +412,7 @@ export default function SchedulePage() {
     setCancelling(true);
     try {
       const res = await cancelShiftById(shiftId, reason);
-      if (res?.code === "SUCCESS" || res?.code === 200) {
+  if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
         toast.success(res.message || "Đã hủy ca và gửi email thông báo");
         setSlots((prev) => prev.filter((s) => s._id !== shiftId));
         setMonthData((prev) =>
