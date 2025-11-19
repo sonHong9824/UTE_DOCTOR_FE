@@ -1,10 +1,10 @@
 import axiosClient from "@/lib/axiosClient";
-import { ApiResponse } from "@/types/apiDTO";
+import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 
-export const gettimeslot = async () => {
+export const getTimeslot = async () => {
   try {
-        const res = await axiosClient.get<ApiResponse<TimeSlotDto[]>>("/timeslot");
+        const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>("/timeslot");
         console.log("[Axios] ✅ Get all timeslots", res);
         return res.data;
     }

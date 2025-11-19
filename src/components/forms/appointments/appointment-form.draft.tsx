@@ -1,6 +1,12 @@
-import { bookAppointment, getDoctorBySpecialty, getSpecialties } from '@/apis/appointment/appointment.api';
-import { gettimeslot } from '@/apis/timeslot/timeslot.api';
+import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
+import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
+import { ResponseCode } from '@/enum/response-code.enum';
+import { SocketEventsEnum } from '@/enum/socket-events.enum';
+import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
+import { createPaymentVnPaySocket } from '@/services/socket/socket-client';
+import { DataResponse } from '@/types/apiDTO';
+import { TimeSlotDto } from '@/types/timeslot.dto';
 import { useEffect, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -10,12 +16,6 @@ type DoctorDto = {
   email: string;
 };
 
-type TimeSlot = {
-  _id: string;
-  start: string;
-  end: string;
-  label: string;
-};
 
 type Doctor = {
   id: string;
@@ -27,30 +27,21 @@ type Doctor = {
 type AppointmentBookingDto = {
   hospitalName: string;
   specialty: string | null;
-  date: Date;
+  date: string;
   timeSlotId: string;
   doctor: DoctorDto | null;
   serviceType: string;
   paymentMethod: string;
   amount?: number;
   patientEmail: string;
+  patientId: string;
+
+  // Thêm trường lý do khám
+  reasonForAppointment: string;
 };
 
-// Mock data từ MongoDB
-// const mockTimeSlots: TimeSlot[] = [
-//   { _id: "67890abc001", start: "07:30", end: "08:30", label: "Ca sáng 1" },
-//   { _id: "67890abc002", start: "08:30", end: "09:30", label: "Ca sáng 2" },
-//   { _id: "67890abc003", start: "09:30", end: "10:30", label: "Ca sáng 3" },
-//   { _id: "67890abc004", start: "10:30", end: "11:30", label: "Ca sáng 4" },
-//   { _id: "67890abc005", start: "13:30", end: "14:30", label: "Ca trưa 1" },
-//   { _id: "67890abc006", start: "14:30", end: "15:30", label: "Ca trưa 2" },
-//   { _id: "67890abc007", start: "18:00", end: "19:00", label: "Ca ngoài giờ 1" },
-//   { _id: "67890abc008", start: "19:00", end: "20:00", label: "Ca ngoài giờ 2" },
-//   { _id: "67890abc009", start: "20:00", end: "21:00", label: "Ca ngoài giờ 3" }
-// ];
-
 export default function AppointmentForm() {
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [timeSlots, setTimeSlots] = useState<TimeSlotDto[]>([]);
   
   // Lazy search states for doctor
   const [doctorSearchTerm, setDoctorSearchTerm] = useState(""); // input text
@@ -70,7 +61,7 @@ export default function AppointmentForm() {
 
 
   const [formData, setFormData] = useState<AppointmentBookingDto>({
-    date: new Date(),
+    date: new Date().toISOString().split('T')[0],
     hospitalName: 'Bệnh viện Đa khoa Tâm Đức',
     specialty: '',
     timeSlotId: '',
@@ -78,18 +69,26 @@ export default function AppointmentForm() {
     serviceType: 'KHAM_DICH_VU',
     paymentMethod: 'ONLINE',
     amount: 100000,
-    patientEmail: 'td13052004@gmail.com'
+    patientEmail: 'td13052004@gmail.com',
+    patientId: localStorage.getItem("id") || "",
+
+    // default empty reason
+    reasonForAppointment: '',
   });
 
   // const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [response, setResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  // Thêm state cho modal thành công
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+
   // Load mock data
   useEffect(() => {
   const fetchData = async () => {
     try {
-      const timeSlotRes = await gettimeslot();
+      const timeSlotRes = await getTimeslot();
       if (timeSlotRes?.data) {
         setTimeSlots(timeSlotRes.data);
 
@@ -97,7 +96,7 @@ export default function AppointmentForm() {
         if (timeSlotRes.data.length > 0) {
           setFormData(prev => ({
             ...prev,
-            timeSlotId: timeSlotRes.data[0]._id,
+            timeSlotId: timeSlotRes.data[0].id,
           }));
         }
       }
@@ -173,22 +172,6 @@ export default function AppointmentForm() {
     }
   };
 
-  // Debounce logic for doctor
-  // useEffect(() => {
-  //   if (!doctorSearchTerm) {
-  //     setDoctorSuggestions([]);
-  //     return;
-  //   }
-  //   console.log('🔍 Searching for doctors with term:', doctorSearchTerm);
-  //   const timeout = setTimeout(() => {
-  //     const suggestions = filteredDoctors.filter(doc =>
-  //       doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
-  //     );
-  //     setDoctorSuggestions(suggestions);
-  //   }, 300); // delay 300ms
-
-  //   return () => clearTimeout(timeout);
-  // }, [doctorSearchTerm, filteredDoctors]);
   // Gọi API khi search term hoặc chuyên khoa thay đổi
     useEffect(() => {
       if (!doctorSearchTerm && !selectedSpecialty) {
@@ -216,9 +199,8 @@ export default function AppointmentForm() {
   const handleDoctorSelect = (doc: Doctor) => {
     setSelectedDoctor(doc);
     setDoctorSearchTerm(doc.name);
-    //setDoctorSuggestions([]);
-    // setSelectedDoctorId(doc.id);
 
+   
     // Update formData
     setFormData(prev => ({
       ...prev,
@@ -228,6 +210,8 @@ export default function AppointmentForm() {
         email: doc.email
       }
     }));
+
+    // fetchTimeSlots(); // fetch timeslots for selected doctor
   };
 
   const handleSubmit = async () => {
@@ -237,9 +221,27 @@ export default function AppointmentForm() {
     console.log('📤 Submitting appointment:', formData);
 
     try {
-      const res = await bookAppointment(formData);
-      setResponse({ success: res?.code, res: res });
-      console.log('✅ Response:', res?.message);
+   
+      // Socket connection for payment
+      const paymentSocket = createPaymentVnPaySocket();
+    
+      paymentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
+        console.log('[Socket] Joined payment room:', data);
+        bookAppointment(formData);
+      });
+
+      paymentSocket.on<{ appointmentId: string; paymentUrl: string }>(
+        SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED,
+        (data) => {
+          console.log('[Socket] Received VnPay URL:', data.paymentUrl);
+          window.open(data.paymentUrl, '_blank');
+          paymentSocket.disconnect();
+        }
+      );
+
+      paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: formData.patientEmail });
+      console.log("Emitted join room for email:", formData.patientEmail);
+
     } catch (error: any) {
       setResponse({ success: false, error: error.message });
       console.error('❌ Error:', error);
@@ -253,7 +255,7 @@ export default function AppointmentForm() {
     alert('✅ JSON copied to clipboard!');
   };
 
-  const getTimeSlotDisplay = (slot: TimeSlot) => `${slot.label} (${slot.start} - ${slot.end})`;
+  const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
   function handleSpecialtySearch(value: string): void {
     console.log("Keyword: ", value)
@@ -280,6 +282,79 @@ export default function AppointmentForm() {
       setFormData(prev => ({ ...prev, doctor: null }));
     }
   };
+
+  useEffect(() => {
+    // Kiểm tra khi có thay đổi ở bác sĩ
+    if (formData.doctor) {
+      console.log('🏥 Bác sĩ đã được chọn:', {
+        name: formData.doctor.name,
+        id: formData.doctor.id,
+        email: formData.doctor.email
+      });
+    }
+
+    // Kiểm tra khi có thay đổi ở ngày
+    if (formData.date) {
+      console.log('📅 Ngày được chọn:', formData.date);
+    }
+
+    // Kiểm tra khi có thay đổi ở timeslot
+    if (formData.timeSlotId) {
+      const selectedSlot = timeSlots.find(slot => slot.id === formData.timeSlotId);
+      if (selectedSlot) {
+        console.log('⏰ Khung giờ được chọn:', {
+          id: selectedSlot.id,
+          time: `${selectedSlot.start} - ${selectedSlot.end}`,
+          label: selectedSlot.label
+        });
+      }
+    }
+
+    // Kiểm tra tính hợp lệ của lịch hẹn
+    const isValidAppointment = formData.date && formData.timeSlotId;
+    if (isValidAppointment) {
+      console.log('✅ Thông tin lịch hẹn hợp lệ');
+    }
+
+  }, [formData.doctor, formData.date, formData.timeSlotId, timeSlots]);
+
+  const fetchTimeSlots = async () => {
+    console.log(
+      "Fetching timeslots for doctorId:",
+      formData.doctor?.id,
+      "on date:",
+      formData.date
+    );
+
+    try {
+      let res: DataResponse<TimeSlotDto[]> | undefined;
+
+      if (formData.doctor?.id) {
+        console.log("formData.date (raw):", formData.date);
+        // Nếu đã chọn bác sĩ, lấy theo doctorId + date
+        res = await getTimeSlotsByDoctorAndDate({
+          doctorId: formData.doctor.id,
+          date: formData.date,
+          status: TimeSlotStatusEnum.AVAILABLE, // default là available
+        });
+      } else {
+        // Nếu chưa chọn bác sĩ, lấy toàn bộ timeslot
+        res = await getTimeslot();
+      }
+
+      console.log("Fetched timeslots:", res);
+      setTimeSlots(res?.data || []);
+    } catch (error) {
+      console.error("Error fetching timeslots:", error);
+      setTimeSlots([]);
+    }
+  };
+
+  // useEffect lắng nghe doctor thay đổi
+  useEffect(() => {
+    fetchTimeSlots();
+  }, [formData.doctor, formData.date]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -404,19 +479,17 @@ export default function AppointmentForm() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
-                    value={formData.date ?? undefined}
-                    onChange={(date) =>
-                    setFormData((prev) => {
+                    value={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
+                    onChange={(date) => {
                       if (!date) {
                         alert("Vui lòng chọn ngày hợp lệ!");
-                        return prev;
+                        return;
                       }
-                      return { ...prev, date };
-                    })
-                  }
+                      const localDate = date.toLocaleDateString('en-CA'); // ✅ chuẩn local
+                      setFormData(prev => ({ ...prev, date: localDate }));
+                    }}
                     limitDays={30}
                   />
-                  
                 </div>
 
                 {/* Chọn khung giờ khám */}
@@ -429,7 +502,7 @@ export default function AppointmentForm() {
                   >
                     <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
                     {timeSlots.map(slot => (
-                      <option key={slot._id} value={slot._id}>
+                      <option key={slot.id} value={slot.id}>
                         {getTimeSlotDisplay(slot)}
                       </option>
                     ))}
@@ -451,6 +524,18 @@ export default function AppointmentForm() {
                     <option key="KHAM_BHYT" value="KHAM_BHYT">Khám BHYT</option>
                     <option key="KHAM_TONG_QUAT" value="KHAM_TONG_QUAT">Khám tổng quát</option>
                   </select>
+                </div>
+
+                {/* Lý do khám */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Lý do khám *</label>
+                  <textarea
+                    value={formData.reasonForAppointment}
+                    onChange={(e) => handleChange('reasonForAppointment', e.target.value)}
+                    placeholder="Mô tả ngắn về lý do khám (ví dụ: đau đầu, kiểm tra định kỳ...)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
+                    rows={3}
+                  />
                 </div>
               </div>
             </div>
@@ -509,6 +594,24 @@ export default function AppointmentForm() {
             <div className={`mt-6 p-4 rounded-xl ${response.success ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300'}`}>
               <h3 className="font-semibold mb-2">{response.success ? '✅ Success' : '❌ Error'}</h3>
               <pre className="text-sm overflow-auto">{JSON.stringify(response.data || response.error, null, 2)}</pre>
+            </div>
+          )}
+
+          {/* Success modal */}
+          {showSuccessModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg">
+                <h3 className="text-lg font-semibold mb-2">✅ Thành công</h3>
+                <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { setShowSuccessModal(false); window.location.reload(); }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                  >
+                    OK
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

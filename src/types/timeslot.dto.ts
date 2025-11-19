@@ -1,5 +1,5 @@
 export interface TimeSlotDto {
-  _id: string;
+  id: string;
   start: string;
   end: string;
   label: string;
