@@ -2,7 +2,7 @@
 
 
 import React, { useEffect, useState } from "react";
-import { Menu } from "lucide-react";
+import { Menu, User } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import Link from "next/link";
 
@@ -41,6 +41,9 @@ const Navbar = () => {
               <span className="font-semibold">
                 Xin chào, {email ? email.slice(0, 2).toUpperCase() : ""}
               </span>
+              <Link href="/user/my-profile" aria-label="Hồ sơ bệnh nhân" className="text-foreground hover:text-blue-600 transition">
+                <User className="w-5 h-5" />
+              </Link>
               <button
                 onClick={() => {
                   localStorage.removeItem("email");

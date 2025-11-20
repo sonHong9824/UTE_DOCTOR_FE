@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { getTodayAppointments } from "@/apis/appointment/appointment.api";
+import { getTodayAppointments, completeAppointment } from "@/apis/appointment/appointment.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
@@ -67,7 +67,10 @@ export default function PatientsPage() {
   // medication form states
   const [drugQuery, setDrugQuery] = useState("");
   const [drugQty, setDrugQty] = useState<number>(1);
-  const [medList, setMedList] = useState<Array<{ name: string; qty: number }>>([]);
+  const [drugNoteOption, setDrugNoteOption] = useState<string>("");
+  const [drugNoteCustom, setDrugNoteCustom] = useState<string>("");
+  const [drugNoteInput, setDrugNoteInput] = useState<string>("");
+  const [medList, setMedList] = useState<Array<{ medicineId?: string; name: string; qty: number; note?: string }>>([]);
   const [medCatalog, setMedCatalog] = useState<Medicine[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
   const [apptLoading, setApptLoading] = useState(false);
@@ -575,31 +578,61 @@ export default function PatientsPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Tìm thuốc</label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nhập tên thuốc..."
-                    value={drugQuery}
-                    onChange={(e) => setDrugQuery(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    type="number"
-                    min={1}
-                    value={drugQty}
-                    onChange={(e) => setDrugQty(Number(e.target.value))}
-                    className="w-24"
-                  />
-                  <Button onClick={() => {
-                    const name = drugQuery.trim();
-                    if (!name) return;
-                    const qty = Number(drugQty) > 0 ? Number(drugQty) : 1;
-                    setMedList((prev) => [...prev, { name, qty }]);
-                    setDrugQuery("");
-                    setDrugQty(1);
-                  }}>
-                    <Plus className="w-4 h-4 mr-2" /> Thêm
-                  </Button>
-                </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nhập tên thuốc..."
+                      value={drugQuery}
+                      onChange={(e) => setDrugQuery(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={drugQty}
+                      onChange={(e) => setDrugQty(Number(e.target.value))}
+                      className="w-24"
+                    />
+                    <Button onClick={() => {
+                      const name = drugQuery.trim();
+                      if (!name) return;
+                      const qty = Number(drugQty) > 0 ? Number(drugQty) : 1;
+                      // try to find medicine id from catalog
+                      const found = medCatalog.find((m) => m.name.toLowerCase() === name.toLowerCase());
+                      const medicineId = found?._id;
+                      // note comes from the editable input (can be populated from presets)
+                      const note = drugNoteInput.trim() || undefined;
+
+                      setMedList((prev) => [...prev, { medicineId, name, qty, note }]);
+                      setDrugQuery("");
+                      setDrugQty(1);
+                      setDrugNoteOption("");
+                      setDrugNoteCustom("");
+                      setDrugNoteInput("");
+                    }}>
+                      <Plus className="w-4 h-4 mr-2" /> Thêm
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <select className="w-40 px-2 rounded border" value={drugNoteOption} onChange={(e) => {
+                      const v = e.target.value;
+                      setDrugNoteOption(v);
+                      if (v && v !== 'other') setDrugNoteInput(v);
+                      else if (v === 'other') setDrugNoteInput('');
+                      else setDrugNoteInput('');
+                    }}>
+                      <option value="">Ghi chú thuốc</option>
+                      <option value="Ngày uống 3 lần, mỗi lần 1 viên">3 lần, lần 1 viên</option>
+                      <option value="Ngày uống 2 lần, mỗi lần 1 viên (sáng, chiều)">2 lần, lần 1 viên</option>
+                      <option value="Trước khi ăn 30 phút, mỗi lần 1 viên">Sớm 30 phút, lần 1 viên</option>
+                      {/* <option value="Sau ăn">Sau ăn</option>
+                      <option value="Trước ăn">Trước ăn</option> */}
+                      <option value="other">Khác...</option>
+                    </select>
+
+                    <div className="flex-1">
+                      <Input placeholder="Ghi chú thuốc (có thể chọn hoặc nhập)..." value={drugNoteInput} onChange={(e) => setDrugNoteInput(e.target.value)} />
+                    </div>
+                  </div>
 
                 {/* suggestions */}
                 {drugQuery && (
@@ -620,12 +653,12 @@ export default function PatientsPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">Danh sách thuốc</label>
                 <div className="max-h-96 overflow-auto space-y-2 pr-2">
-                  {medList.length === 0 && <div className="text-sm text-muted-foreground">Chưa có thuốc nào được thêm</div>}
+                    {medList.length === 0 && <div className="text-sm text-muted-foreground">Chưa có thuốc nào được thêm</div>}
                   {medList.map((m, idx) => (
                     <div key={`${m.name}-${idx}`} className="flex items-center justify-between gap-3 border rounded p-2">
                       <div>
                         <div className="font-medium">{m.name}</div>
-                        <div className="text-xs text-muted-foreground">Số lượng: {m.qty}</div>
+                        <div className="text-xs text-muted-foreground">Số lượng: {m.qty}{m.note ? ` • ${m.note}` : ''}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => setMedList((prev) => prev.filter((_, i) => i !== idx))}>Xóa</Button>
@@ -640,7 +673,26 @@ export default function PatientsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={() => { console.log('Med list', medList); submitCompletion(); }} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
+            <Button onClick={async () => { console.log('Med list', medList);
+                // Build prescriptions for API
+                const prescriptions = medList.map((m) => ({ medicineId: m.medicineId || '', name: m.name, quantity: Number(m.qty || 1), note: m.note }));
+                // appointmentId: try selectedAppt first
+                const apptId = selectedAppt?._id || (todayAppointments.find(a => a.patient && (a.patient._id === selectedId || a.patient.id === selectedId))?._id);
+                if (apptId) {
+                  try {
+                    await completeAppointment({ appointmentId: apptId, diagnosis, note: notes, prescriptions });
+                    // local updates
+                    const todayStr = formatDateLocal(new Date());
+                    setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: todayStr } : p)));
+                    setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
+                  } catch (e) {
+                    console.error('Failed completing appointment', e);
+                  }
+                } else {
+                  // fallback: just update local state
+                  submitCompletion();
+                }
+              }} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Lưu và hoàn thành
             </Button>

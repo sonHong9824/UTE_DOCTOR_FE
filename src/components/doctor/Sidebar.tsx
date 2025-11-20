@@ -14,7 +14,7 @@ const menuItems = [
   { name: "Tổng quan", icon: LayoutDashboard, path: "/doctor", badge: { count: 3, color: "bg-blue-500" } },
   { name: "Bệnh nhân", icon: Users, path: "/doctor/patients" },
   { name: "Lịch làm việc", icon: Calendar, path: "/doctor/schedule", badge: { count: 5, color: "bg-amber-500" } },
-  { name: "Hồ sơ y tế", icon: ClipboardList, path: "/doctor/records" },
+  { name: "Lịch sử khám", icon: ClipboardList, path: "/doctor/records" },
   { name: "Đơn thuốc", icon: Stethoscope, path: "/doctor/prescriptions" },
   { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages", badge: { count: 2, color: "bg-rose-500" } },
   { name: "Cài đặt", icon: Settings, path: "/doctor/settings" },

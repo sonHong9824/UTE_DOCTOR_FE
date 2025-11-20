@@ -61,6 +61,7 @@ export const completeAppointment = async (data: {
     medicineId: string;
     name: string;
     quantity: number;
+    note?: string;
   }>;
 }) => {
   try {
