@@ -17,18 +17,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertTriangle,
-  ArrowRight,
   Calendar,
   CalendarCheck,
   CalendarDays,
-  ChevronRight,
   ClipboardList,
   Clock,
-  Filter,
   Loader2,
   MoreVertical,
-  Plus,
-  Users,
+  Plus
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -131,8 +127,8 @@ function enumerateMonthDays(year: number, month: number): string[] {
 
 // Component
 export default function SchedulePage() {
-  const doctorId = "68ec9bbb97af2916bddd47fa"; 
-  // const doctorId = "68ed269b59e0a4da8a1d9bd1"; 
+  //const doctorId = "68ec9bbb97af2916bddd47fa"; 
+  const doctorId = "68ed269b59e0a4da8a1d9bd1"; 
 
   // Use local date (YYYY-MM-DD) to avoid UTC off-by-one issues
   const todayStr = formatDateLocal(new Date());
