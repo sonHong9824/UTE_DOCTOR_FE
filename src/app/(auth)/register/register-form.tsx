@@ -11,7 +11,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { email, z } from "zod";
+import { z } from "zod";
 const registerSchema = z
   .object({
     // fullName: z.string().min(2, "Họ và tên phải có ít nhất 2 ký tự"),
@@ -94,6 +94,7 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
       if (data.code === ResponseCode.SUCCESS) {
         alert(`Đăng ký thành công: ${data.message}`);
         if (onSuccess) onSuccess(data.code, form.email);
+        authSocket.disconnect();
       } else {
         alert(`Đăng ký thất bại: ${data.message}`);
       }
