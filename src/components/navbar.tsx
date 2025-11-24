@@ -1,20 +1,31 @@
 "use client";
 
 
-import React, { useEffect, useState } from "react";
-import { Menu, User } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { Notification } from "@/types/notification.dto";
+import { Menu, User } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import NotificationBell from "./notification/notification-bell";
 
 
 const Navbar = () => {
   const [email, setEmail] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   useEffect(() => {
     const storeEmail = localStorage.getItem("email");
     if (storeEmail) {
       setEmail(storeEmail);
+        // getNotificationsByEmail(storeEmail, { page: 1, limit: 10 })
+        // .then((res) => {
+        //   if (res?.code === ResponseCode.SUCCESS && res.data?.data) {
+        //     setNotifications(res.data.data); // mảng notifications
+        //   }
+        // })
+        // .catch((err) => console.error("Failed to load notifications", err));
     }
   }, []);
+
   return (
     <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md sticky top-0">
       <div className="max-w-screen-2xl h-full mx-auto px-4 flex items-center justify-between">
@@ -44,6 +55,7 @@ const Navbar = () => {
               <Link href="/user/my-profile" aria-label="Hồ sơ bệnh nhân" className="text-foreground hover:text-blue-600 transition">
                 <User className="w-5 h-5" />
               </Link>
+              <NotificationBell email={email} />
               <button
                 onClick={() => {
                   localStorage.removeItem("email");

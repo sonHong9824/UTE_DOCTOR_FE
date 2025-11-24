@@ -1,7 +1,6 @@
 import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
 import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { DatePicker } from '@/components/ui/date-picker';
-import { ResponseCode } from '@/enum/response-code.enum';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
 import { createPaymentVnPaySocket } from '@/services/socket/socket-client';
@@ -221,7 +220,8 @@ export default function AppointmentForm() {
     console.log('📤 Submitting appointment:', formData);
 
     try {
-   
+      
+      let paymentWindow : any = null;
       // Socket connection for payment
       const paymentSocket = createPaymentVnPaySocket();
     
@@ -234,10 +234,26 @@ export default function AppointmentForm() {
         SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED,
         (data) => {
           console.log('[Socket] Received VnPay URL:', data.paymentUrl);
-          window.open(data.paymentUrl, '_blank');
-          paymentSocket.disconnect();
+          paymentWindow = window.open(data.paymentUrl, '_blank');
+          // paymentSocket.disconnect();
         }
       );
+
+      paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, (data) => {
+        console.log('[Socket] Appointment booking success:', data);
+
+        setSuccessMessage('Lịch hẹn của bạn đã được đặt thành công!');
+        setShowSuccessModal(true);
+        setResponse({ success: true, data });
+
+        // Đóng popup thanh toán
+        if (paymentWindow && !paymentWindow.closed) {
+          paymentWindow.close();
+        }
+
+        // Disconnect sau khi xử lý xong
+        paymentSocket.disconnect();
+      });
 
       paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: formData.patientEmail });
       console.log("Emitted join room for email:", formData.patientEmail);
