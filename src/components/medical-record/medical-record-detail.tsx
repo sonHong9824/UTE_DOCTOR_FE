@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { generatePrescriptionPdf, PrescriptionItemDto, CreatePrescriptionPdfDto } from "@/apis/medicine/medicine.api";
+import { getPatientByAccount } from "@/apis/patient/patient.api";
+import { useEffect } from "react";
+import QRCode from 'react-qr-code';
 
 
 // Custom TabsTrigger styled
@@ -30,6 +35,7 @@ interface MedicalRecordDetailProps {
 }
 
 export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDetailProps) {
+  const router = useRouter();
   const record = {
     medicalHistory: medicalRecord?.medicalHistory || [],
     drugAllergies: medicalRecord?.drugAllergies || [],
@@ -42,6 +48,95 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   } as any;
 
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<any>(null);
+
+  // Resolve patientId from common places or via account lookup
+  const resolvePatientId = async (selRec?: any) => {
+    const candidates: Array<string | undefined | null> = [
+      (medicalRecord as any)?.patientId,
+      (medicalRecord as any)?.patient?._id,
+      (medicalRecord as any)?.profileId?._id,
+      selRec?.patientId,
+      selRec?.patient?._id,
+      selRec?.appointment?.patient?._id,
+      selRec?.apptId,
+      selRec?._id,
+    ];
+
+    for (const c of candidates) {
+      if (c) return String(c);
+    }
+
+    if (typeof window !== 'undefined') {
+      const possibleKeys = ['id', 'accountId', 'userId', 'patientId'];
+      for (const k of possibleKeys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          try {
+            const resp = await getPatientByAccount(v);
+            if (resp && resp.data && resp.data._id) return resp.data._id;
+          } catch (err) {
+            console.debug('resolvePatientId: lookup failed for', k, v, err);
+          }
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // When modal opens (selectedRecord set) and current user is PATIENT, generate PDF automatically
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      if (!selectedRecord) return;
+      if (typeof window === 'undefined') return;
+      if (localStorage.getItem('role') !== 'PATIENT') return;
+
+      setPdfLoading(true);
+      setPdfError(null);
+      setPdfUrl(null);
+
+      try {
+        const patientId = await resolvePatientId(selectedRecord);
+        if (!patientId) {
+          setPdfError(new Error('Không tìm thấy patientId'));
+          console.debug('generate PDF aborted: no patientId');
+          return;
+        }
+
+        const prescriptions: PrescriptionItemDto[] = Array.isArray(selectedRecord.prescriptions)
+          ? selectedRecord.prescriptions.map((p: any) => ({ medicineId: p.medicineId || p._id || '', name: p.name || p.title || 'Thuốc', quantity: Number(p.quantity || p.qty || 1), note: p.note || undefined }))
+          : [];
+
+        const dto: CreatePrescriptionPdfDto = {
+          diagnosis: selectedRecord.diagnosis || selectedRecord.name || '',
+          prescriptions,
+          note: selectedRecord.note || undefined,
+          dateRecord: selectedRecord.dateRecord ? new Date(selectedRecord.dateRecord) : new Date(),
+          patientName: (medicalRecord as any)?.patient?.name || (medicalRecord as any)?.patientName || undefined,
+          patientAge: (medicalRecord as any)?.patient?.age || (medicalRecord as any)?.patientAge || undefined,
+          doctorName: localStorage.getItem('name') || undefined,
+        };
+
+        const res = await generatePrescriptionPdf(patientId, dto);
+        if (!mounted) return;
+        const url = res?.data?.url || null;
+        setPdfUrl(url);
+        console.log('generatePrescriptionPdf response', res);
+      } catch (err) {
+        console.error('Failed to generate prescription PDF', err);
+        setPdfError(err);
+      } finally {
+        if (mounted) setPdfLoading(false);
+      }
+    };
+
+    run();
+    return () => { mounted = false; };
+  }, [selectedRecord]);
 
   return (
     <div className="flex flex-col max-h-[80vh] overflow-hidden rounded-lg">
@@ -233,6 +328,37 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
                     )
                   ))}
                 </div>
+                {/* If current user is a PATIENT, show appointment details and create prescription actions */}
+                {typeof window !== 'undefined' && localStorage.getItem('role') === 'PATIENT' && (
+                  <div className="mt-4 flex items-center gap-3">
+                    <Button variant="outline" onClick={() => {
+                      const apptId = selectedRecord.appointmentId || selectedRecord.apptId || selectedRecord._id;
+                      if (apptId) {
+                        router.push(`/appointments/${apptId}`);
+                      } else {
+                        alert('Không tìm thấy thông tin lịch hẹn liên quan.');
+                      }
+                    }}>Xem chi tiết appointment</Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={() => {
+                          if (pdfUrl) window.open(pdfUrl, "_blank");
+                          else if (pdfLoading) console.debug('PDF is being generated');
+                          else alert('Đang chuẩn bị đơn thuốc...');
+                        }}
+                        disabled={pdfLoading || !pdfUrl}
+                      >
+                        {pdfLoading ? 'Đang tạo...' : 'Xem đơn thuốc'}
+                      </Button>
+
+                      {pdfUrl && (
+                        <div className="p-1 bg-white rounded shadow-sm">
+                          <QRCode value={pdfUrl} size={64} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

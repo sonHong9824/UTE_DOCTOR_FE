@@ -43,7 +43,7 @@ export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword:
 
 export const getTodayAppointments = async (doctorId: string) => {
   try {
-    const res = await axiosClient.get<ApiResponse<any[]>>("/appointment/today", {
+    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/today", {
       params: { doctorId }
     });
     console.log('[Axios] Get today appointments:', res.data);
@@ -65,7 +65,7 @@ export const completeAppointment = async (data: {
   }>;
 }) => {
   try {
-    const res = await axiosClient.patch<ApiResponse<{
+    const res = await axiosClient.patch<DataResponse<{
       appointmentId: string;
       patientId: string;
     }>>("/appointment/complete", data);
