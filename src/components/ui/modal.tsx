@@ -6,9 +6,11 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  // Optional className to customize inner dialog (width, padding, etc.)
+  className?: string;
 }
 
-export function Modal({ open, onClose, children }: ModalProps) {
+export function Modal({ open, onClose, children, className }: ModalProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -19,7 +21,8 @@ export function Modal({ open, onClose, children }: ModalProps) {
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6"
+            // allow overriding the dialog classes; fall back to sensible defaults
+            className={className ?? 'bg-white rounded-xl shadow-lg max-w-lg w-full p-6'}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}

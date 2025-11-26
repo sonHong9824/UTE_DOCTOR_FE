@@ -93,3 +93,16 @@ export const getTimeSlotsByDoctorAndDate = async (params: { doctorId: string; da
     console.error("❌ Failed to fetch timeslots by doctor & date", e);
   }
 };
+
+export const getAppointmentById = async (id: string) => {
+  try {
+    const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
+    console.log("[Axios] Get appointment by id:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch appointment by id:", e);
+  }
+};
+
+
+
