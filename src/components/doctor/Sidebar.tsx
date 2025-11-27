@@ -11,12 +11,12 @@ import { cn } from "@/lib/utils";
 import { getProfileById, ProfileResponseDto } from "@/apis/doctor/profile.api";
 
 const menuItems = [
-  { name: "Tổng quan", icon: LayoutDashboard, path: "/doctor", badge: { count: 3, color: "bg-blue-500" } },
+  { name: "Tổng quan", icon: LayoutDashboard, path: "/doctor", },
   { name: "Bệnh nhân", icon: Users, path: "/doctor/patients" },
-  { name: "Lịch làm việc", icon: Calendar, path: "/doctor/schedule", badge: { count: 5, color: "bg-amber-500" } },
+  { name: "Lịch làm việc", icon: Calendar, path: "/doctor/schedule",},
   { name: "Lịch sử khám", icon: ClipboardList, path: "/doctor/records" },
   { name: "Đơn thuốc", icon: Stethoscope, path: "/doctor/prescriptions" },
-  { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages", badge: { count: 2, color: "bg-rose-500" } },
+  { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages",},
   { name: "Cài đặt", icon: Settings, path: "/doctor/settings" },
 ];
 
@@ -101,7 +101,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                     <span className="font-medium text-sm">{item.name}</span>
                   </div>
 
-                  {item.badge && (
+                  {/* {item.badge && (
                     <span
                       className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium text-white",
@@ -110,11 +110,11 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                     >
                       {item.badge.count}
                     </span>
-                  )}
+                  )} */}
                 </>
               )}
 
-              {collapsed && item.badge && (
+              {/* {collapsed && item.badge && (
                 <span
                   className={cn(
                     "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium text-white",
@@ -123,7 +123,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                 >
                   {item.badge.count}
                 </span>
-              )}
+              )} */}
             </Link>
           );
         })}

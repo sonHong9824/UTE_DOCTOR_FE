@@ -12,6 +12,8 @@ import { generatePrescriptionPdf, PrescriptionItemDto, CreatePrescriptionPdfDto 
 import { getAppointmentById } from "@/apis/appointment/appointment.api";
 import { getPatientByAccount, getPatientProfile } from "@/apis/patient/patient.api";
 import { getDoctorById } from "@/apis/doctor/profile.api";
+import { createReview, getReviewByAppointmentAndPatient } from "@/apis/review/review.api";
+import { toast } from "sonner";
 import { useEffect } from "react";
 import QRCode from 'react-qr-code';
 
@@ -60,6 +62,8 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   const [ratingStars, setRatingStars] = useState<number>(0);
   const [ratingNote, setRatingNote] = useState<string>('');
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingContext, setRatingContext] = useState<any | null>(null);
+  const [existingReview, setExistingReview] = useState<any | null>(null);
   const [doctorName, setDoctorName] = useState<string | null>(null);
   const [patientName, setPatientName] = useState<string | null>(null);
 
@@ -84,6 +88,26 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
     if (s.includes('pending') || s.includes('waiting')) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
     if (s.includes('cancel') || s.includes('canceled') || s.includes('rejected')) return 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200';
     return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+  };
+
+  // Helpers for rendering review colors and stars
+  const getReviewColorClasses = (rating: number | undefined) => {
+    const r = Number(rating ?? 0);
+    if (r >= 8) return { bg: 'bg-gradient-to-r from-emerald-50 to-emerald-100', badge: 'bg-emerald-500' };
+    if (r >= 5) return { bg: 'bg-gradient-to-r from-yellow-50 to-yellow-100', badge: 'bg-yellow-500' };
+    return { bg: 'bg-gradient-to-r from-rose-50 to-rose-100', badge: 'bg-rose-500' };
+  };
+
+  const renderStars = (rating: number | undefined) => {
+    const r = Number(rating ?? 0);
+    const filled = Math.round(Math.min(Math.max(r, 0), 10));
+    return (
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <span key={i} className={`${i < filled ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'} text-lg`}>{i < filled ? '★' : '☆'}</span>
+        ))}
+      </div>
+    );
   };
 
   // Resolve patientId from common places or via account lookup
@@ -223,25 +247,69 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
     return () => { mounted = false; };
   }, [selectedRecord]);
 
-  // Handler to submit rating (placeholder: logs payload; replace with API call)
+  // Handler to submit rating using API
   const handleSubmitRating = async () => {
-    if (!apptData) return alert('Không có thông tin cuộc hẹn để đánh giá');
+    if (!ratingContext) {
+      toast.error('Không có thông tin cuộc hẹn để đánh giá');
+      return;
+    }
+
+    if (!ratingStars || ratingStars <= 0) {
+      toast.error('Vui lòng chọn mức đánh giá');
+      return;
+    }
+
     setRatingSubmitting(true);
     try {
+      // Ensure we have patientId; attempt to resolve as fallback
+      let patientId = ratingContext.patientId;
+      if (!patientId) {
+        const resolved = await resolvePatientId(selectedRecord ?? undefined);
+        patientId = resolved ?? undefined;
+      }
+
       const payload = {
-        appointmentId: apptData._id,
-        doctorId: apptData.doctorId?._id ?? apptData.doctorId,
+        doctorId: ratingContext.doctorId,
+        patientId,
         rating: ratingStars,
-        note: ratingNote,
+        comment: ratingNote || undefined,
+        appointmentId: ratingContext.appointmentId,
       };
 
       console.debug('Submitting rating payload:', payload);
-      // TODO: call real API here. For now, show confirmation and close modal.
-      alert('Cảm ơn đánh giá của bạn');
+      const res = await createReview(payload);
+      // createReview may return undefined on network/error
+      if (!res) {
+        toast.error('Gửi đánh giá thất bại. Vui lòng thử lại');
+        return;
+      }
+
+      // If API returns a message or code, surface success accordingly
+      const message = (res as any)?.message ?? 'Cảm ơn đánh giá của bạn';
+      const code = (res as any)?.code ?? undefined;
+      if (typeof code === 'string' && code.toUpperCase() === 'SUCCESS') {
+        toast.success(String(message));
+      } else if (code === 'SUCCESS' || code === 200) {
+        toast.success(String(message));
+      } else {
+        toast.error(String(message));
+      }
+      // Set the created review into state (API returns the created review under res.data)
+      try {
+        const created = (res as any)?.data ?? null;
+        if (created) setExistingReview(created);
+      } catch (e) {
+        console.debug('Could not set created review into state', e);
+      }
       setRatingModalOpen(false);
-    } catch (err) {
+      setRatingContext(null);
+      // Optionally clear the form
+      setRatingStars(0);
+      setRatingNote('');
+    } catch (err: any) {
       console.error('Failed to submit rating', err);
-      alert('Gửi đánh giá thất bại');
+      const msg = err?.response?.data?.message ?? err?.message ?? 'Gửi đánh giá thất bại';
+      toast.error(String(msg));
     } finally {
       setRatingSubmitting(false);
     }
@@ -301,6 +369,33 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
         } else {
           if (mounted) setPatientName(extractPatientName(apptData?.patientId) ?? apptData.patientName ?? null);
         }
+
+        // Fetch existing review for this appointment + patient (if available)
+        try {
+          const rawPatientForReview = apptData.patientId ?? apptData.patient ?? null;
+          const patientIdForReview = rawPatientForReview && typeof rawPatientForReview === 'object' ? (rawPatientForReview._id ?? rawPatientForReview) : rawPatientForReview;
+          const appointmentIdForReview = apptData._id ?? apptData.appointmentId ?? null;
+          if (appointmentIdForReview && patientIdForReview) {
+            const reviewResp = await getReviewByAppointmentAndPatient(String(appointmentIdForReview), String(patientIdForReview));
+            let reviewData: any = null;
+            if (reviewResp == null) {
+              reviewData = null;
+            } else if (Object.prototype.hasOwnProperty.call(reviewResp, 'data')) {
+              // explicit wrapper: reviewResp.data may be null -> means no review
+              reviewData = (reviewResp as any).data;
+            } else {
+              // raw object returned
+              reviewData = reviewResp;
+            }
+            if (mounted) setExistingReview(reviewData);
+            console.debug('Fetched existing review:', reviewData);
+          } else {
+            if (mounted) setExistingReview(null);
+          }
+        } catch (err) {
+          console.debug('Failed to fetch existing review', err);
+          if (mounted) setExistingReview(null);
+        }
       } catch (err) {
         console.error('Failed to resolve doctor/patient names', err);
       }
@@ -319,7 +414,13 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
     const prePatient = patientName ?? apptData?.patientId?.profileId?.name ?? apptData?.patientId?.name ?? apptData?.patientName ?? null;
     setDoctorName(preDoctor);
     setPatientName(prePatient);
-    // close appointment modal if open and clear loaded appointment
+    // capture needed ids (appointmentId, doctorId, patientId) before clearing apptData
+    if (apptData) {
+      const resolvedDoctorId = (apptData.doctorId && typeof apptData.doctorId === 'object') ? (apptData.doctorId._id ?? apptData.doctorId) : apptData.doctorId;
+      const resolvedPatientId = (apptData.patientId && typeof apptData.patientId === 'object') ? (apptData.patientId._id ?? apptData.patientId) : apptData.patientId;
+      setRatingContext({ appointmentId: apptData._id, doctorId: resolvedDoctorId, patientId: resolvedPatientId });
+    }
+    // close appointment modal if open and clear loaded appointment (we keep ratingContext)
     setApptModalOpen(false);
     setApptData(null);
     setRatingModalOpen(true);
@@ -586,8 +687,10 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             <div className="flex items-center gap-3">
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>{apptData?.appointmentStatus ?? 'UNKNOWN'}</span>
               <div className="flex items-center gap-2">
-                {/* <Button size="sm" variant="ghost" onClick={() => { setApptModalOpen(false); setApptData(null); }}>Đóng</Button> */}
-                <Button size="sm" onClick={openRatingForm} disabled={!apptData}>Đánh giá buổi hẹn</Button>
+                {/* Hide rating button if an existing review is present */}
+                {!existingReview && (
+                  <Button size="sm" onClick={openRatingForm} disabled={!apptData}>Đánh giá buổi khám</Button>
+                )}
               </div>
             </div>
           </div>
@@ -629,6 +732,35 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
                       </div>
                     )}
 
+                    {/* Existing review display: shown below doctor/patient info but keep rating button in header */}
+                    {existingReview && (
+                      (() => {
+                        const rc = getReviewColorClasses(existingReview.rating);
+                        return (
+                          <div className={`mt-4 p-4 rounded-lg shadow-lg ${rc.bg} border dark:border-gray-700`}>
+                            <div className="flex items-start gap-4">
+                              {/* <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white ${rc.badge} shadow-inner text-lg font-bold`}>{existingReview.rating ?? '-'}</div> */}
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-sm font-medium">Đã đánh giá</div>
+                                    <div className="mt-1 flex items-center gap-3">
+                                      <div className="text-xl font-semibold">{existingReview.rating ?? '-'}/10</div>
+                                      <div className="flex items-center">{renderStars(existingReview.rating)}</div>
+                                    </div>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">{existingReview.createdAt ? new Date(existingReview.createdAt).toLocaleString('vi-VN') : ''}</div>
+                                </div>
+                                {existingReview.comment && (
+                                  <blockquote className="mt-3 text-sm text-gray-800 dark:text-gray-200 italic border-l-4 border-primary/20 pl-3">{existingReview.comment}</blockquote>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+
                     {/* Prescriptions or notes */}
                     {Array.isArray(apptData.prescriptions) && apptData.prescriptions.length > 0 && (
                       <div className="mt-4">
@@ -662,12 +794,12 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
                     {apptData.doctorId?.profileId?.email && <div className="text-xs text-muted-foreground">Email: {apptData.doctorId.profileId.email}</div>}
 
                     <div className="border-t my-3" />
-
                     <div className="text-xs text-muted-foreground">Bệnh nhân</div>
                     <div className="font-medium">{patientName ?? extractPatientName(apptData?.patientId) ?? apptData.patientName ?? '-'}</div>
                     {apptData.patientId?.profileId?.phone && <div className="text-xs text-muted-foreground">SĐT: {apptData.patientId.profileId.phone}</div>}
                     {apptData.patientId?.profileId?.email && <div className="text-xs text-muted-foreground">Email: {apptData.patientId.profileId.email}</div>}
                     <div className="border-t my-3" />
+
                     {apptData.createdAt && <div className="text-xs text-muted-foreground">Tạo lúc: {new Date(apptData.createdAt).toLocaleString('vi-VN')}</div>}
                   </CardContent>
                 </Card>
@@ -682,7 +814,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
       {/* Rating modal */}
       <Modal open={ratingModalOpen} onClose={() => setRatingModalOpen(false)}>
         <div className="space-y-3 text-base max-w-lg">
-          <div className="text-lg font-semibold">Đánh giá buổi hẹn</div>
+          <div className="text-lg font-semibold">Đánh giá buổi khám</div>
           <div className="text-sm text-muted-foreground">Bác sĩ: {doctorName ?? extractDoctorName(apptData?.doctorId) ?? apptData?.doctorName ?? '-'}</div>
 
           <div>

@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getTodayAppointments, completeAppointment } from "@/apis/appointment/appointment.api";
+import { toast } from "sonner";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
@@ -674,19 +675,51 @@ export default function PatientsPage() {
               Hủy
             </Button>
             <Button onClick={async () => { console.log('Med list', medList);
-                // Build prescriptions for API
-                const prescriptions = medList.map((m) => ({ medicineId: m.medicineId || '', name: m.name, quantity: Number(m.qty || 1), note: m.note }));
+                // Client-side validation
+                if (!diagnosis || diagnosis.trim() === "") {
+                  toast.error("Vui lòng nhập chẩn đoán chính");
+                  return;
+                }
+
+                // Ensure each prescription has a non-empty note string (server validation requires this)
+                for (let i = 0; i < medList.length; i++) {
+                  const it = medList[i];
+                  if (typeof it.note !== 'string' || it.note.trim() === '') {
+                    toast.error(`Vui lòng nhập ghi chú cho thuốc thứ ${i + 1}`);
+                    return;
+                  }
+                  if (!it.name || String(it.name).trim() === '') {
+                    toast.error(`Tên thuốc ở mục ${i + 1} không được để trống`);
+                    return;
+                  }
+                  if (!Number(it.qty) || Number(it.qty) <= 0) {
+                    toast.error(`Số lượng thuốc ở mục ${i + 1} phải lớn hơn 0`);
+                    return;
+                  }
+                }
+
+                // Build prescriptions for API (omit empty medicineId)
+                const prescriptions = medList.map((m) => {
+                  const base: any = { name: m.name, quantity: Number(m.qty || 1), note: String(m.note || '') };
+                  if (m.medicineId) base.medicineId = m.medicineId;
+                  return base;
+                });
+
                 // appointmentId: try selectedAppt first
                 const apptId = selectedAppt?._id || (todayAppointments.find(a => a.patient && (a.patient._id === selectedId || a.patient.id === selectedId))?._id);
                 if (apptId) {
                   try {
-                    await completeAppointment({ appointmentId: apptId, diagnosis, note: notes, prescriptions });
+                    const payload = { appointmentId: apptId, diagnosis, note: notes, prescriptions };
+                    console.log('Completing appointment payload:', payload);
+                    await completeAppointment(payload);
                     // local updates
                     const todayStr = formatDateLocal(new Date());
                     setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: todayStr } : p)));
                     setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
                   } catch (e) {
                     console.error('Failed completing appointment', e);
+                    const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi hoàn thành lịch hẹn';
+                    toast.error(msg);
                   }
                 } else {
                   // fallback: just update local state

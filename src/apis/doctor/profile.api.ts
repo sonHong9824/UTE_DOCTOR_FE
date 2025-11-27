@@ -33,3 +33,14 @@ export const getDoctorById = async (id: string) => {
   }
 };
 
+export const getDoctorByAccountId = async (accountId: string) => {
+  try {
+    const res = await axiosClient.get<DataResponse<any>>(`/doctors/account/${accountId}`);
+    console.log("[Axios] Get doctor by accountId:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch doctor by accountId:", e);
+  }
+};
+
+

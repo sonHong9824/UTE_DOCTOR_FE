@@ -69,7 +69,7 @@ export default function Topbar() {
           </div>
         </div>
 
-        {/* Center section - Quick Stats */}
+        {/* Center section - Quick Stats
         <div className="hidden lg:flex items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
@@ -100,7 +100,7 @@ export default function Topbar() {
               <p className="text-sm font-semibold text-gray-900 dark:text-white">7 ca khám</p>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Right section - Actions */}
         <div className="flex items-center gap-1 md:gap-2">
