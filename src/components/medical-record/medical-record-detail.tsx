@@ -1,18 +1,17 @@
 "use client";
 
+import { getAppointmentById, getAppointmentByPatientEmail } from "@/apis/appointment/appointment.api";
+import { getDoctorById } from "@/apis/doctor/profile.api";
+import { CreatePrescriptionPdfDto, generatePrescriptionPdf, PrescriptionItemDto } from "@/apis/medicine/medicine.api";
+import { getPatientByAccount, getPatientProfile } from "@/apis/patient/patient.api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { generatePrescriptionPdf, PrescriptionItemDto, CreatePrescriptionPdfDto } from "@/apis/medicine/medicine.api";
-import { getAppointmentById } from "@/apis/appointment/appointment.api";
-import { getPatientByAccount, getPatientProfile } from "@/apis/patient/patient.api";
-import { getDoctorById } from "@/apis/doctor/profile.api";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import QRCode from 'react-qr-code';
 
 
@@ -62,6 +61,22 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [doctorName, setDoctorName] = useState<string | null>(null);
   const [patientName, setPatientName] = useState<string | null>(null);
+  const [appointments, setAppointments] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadAppointments() {
+      try {
+        const email = localStorage.getItem('email');
+        const res = await getAppointmentByPatientEmail(email || '');
+        setAppointments(res?.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadAppointments();
+  }, [record.email]);
+
 
   // Helpers to extract display names from doctor or patient objects (handle wrapper shapes)
   const extractDoctorName = (obj: any): string | null => {
@@ -326,7 +341,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   };
 
   return (
-    <div className="flex flex-col max-h-[80vh] overflow-hidden rounded-lg">
+    <div className="flex flex-col max-h-full overflow-hidden rounded-lg">
       {/* Top summary: vitals */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3 p-4 bg-transparent">
         <Card className="p-4">
@@ -368,13 +383,20 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             <TabsTrigger value="foodAllergies" className="px-3 py-2 rounded">Dị ứng thức ăn <Badge variant="gray" className="ml-2">{record.foodAllergies.length}</Badge></TabsTrigger>
             <TabsTrigger value="bloodPressure" className="px-3 py-2 rounded">Huyết áp <Badge variant="gray" className="ml-2">{record.bloodPressure.length}</Badge></TabsTrigger>
             <TabsTrigger value="heartRate" className="px-3 py-2 rounded">Nhịp tim <Badge variant="gray" className="ml-2">{record.heartRate.length}</Badge></TabsTrigger>
+            <TabsTrigger value="appointments" className="px-3 py-2 rounded">
+                Cuộc hẹn 
+                <Badge variant="gray" className="ml-2">
+                  {appointments.length}
+                </Badge>
+              </TabsTrigger>
+
           </TabsList>
         </div>
 
         {/* Scrollable tab content area */}
-        <div className="overflow-auto px-6 py-4 flex-1">
+       <div className="flex flex-col flex-1 overflow-hidden px-6 pt-4">
           <TabsContent value="medicalHistory">
-            <div className="max-h-[50vh] overflow-auto pr-2 pb-40">
+            <div className="max-h-[80vh] overflow-auto pr-2 pb-6">
               {record.medicalHistory.length === 0 ? (
                 <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
               ) : (
@@ -485,6 +507,65 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="appointments">
+            <div className="h-full max-h-[50vh] overflow-auto pr-2 space-y-3">
+              {appointments.length === 0 ? (
+                <p className="italic text-muted-foreground text-center py-8 text-lg">
+                  Chưa có dữ liệu
+                </p>
+              ) : (
+                appointments.map((appt: any) => (
+                  <Card key={appt._id} className="p-4">
+                    <CardContent>
+                      <div className="flex flex-col gap-2">
+                        
+                        {/* Ngày khám */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Ngày khám:</span>
+                          <span className="text-muted-foreground">
+                            {new Date(appt.date).toLocaleString("vi-VN")}
+                          </span>
+                        </div>
+
+                        {/* Bác sĩ */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Bác sĩ:</span>
+                          <span>{appt.doctorId ?? "-"}</span>
+                        </div>
+
+                        {/* Loại dịch vụ */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Dịch vụ:</span>
+                          <span>{appt.serviceType}</span>
+                        </div>
+
+                        {/* Tình trạng */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Trạng thái:</span>
+                          <span>{appt.appointmentStatus}</span>
+                        </div>
+
+                        {/* Lý do khám */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Lý do:</span>
+                          <span>{appt.reasonForAppointment ?? "-"}</span>
+                        </div>
+
+                        {/* Tiền khám */}
+                        <div className="flex justify-between">
+                          <span className="font-medium">Phí khám:</span>
+                          <span>{appt.consultationFee?.toLocaleString()} đ</span>
+                        </div>
+
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
         </div>
       </Tabs>
 

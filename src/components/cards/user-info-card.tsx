@@ -44,7 +44,7 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
   const fieldsBlock3: Field[] = [
     { label: "Date of Birth", value: user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN") : "Unknown", icon: <FaBirthdayCake className="w-5 h-5 text-pink-500" /> },
     { label: "Address", value: user.address || "Unknown", icon: <FaMapMarkerAlt className="w-5 h-5 text-yellow-500" /> },
-    { label: "Status", value: user.status || AccountStatusEnum.INACTIVE, icon: <FaCheckCircle className="w-5 h-5 text-teal-500" />, isStatus: true },
+    { label: "Status", value: user.status || AccountStatusEnum.ACTIVE, icon: <FaCheckCircle className="w-5 h-5 text-teal-500" />, isStatus: true },
 
   ];
 

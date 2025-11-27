@@ -104,5 +104,17 @@ export const getAppointmentById = async (id: string) => {
   }
 };
 
+export const getAppointmentByPatientEmail = async (email: string) => {
+  try {
+    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/patient", {
+      params: { email }
+    });
+    console.log("[Axios] Get appointments by patient email:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch appointments by patient email:", e);
+  }
+};
+
 
 
