@@ -69,7 +69,7 @@ export default function AppointmentForm() {
     paymentMethod: 'ONLINE',
     amount: 100000,
     patientEmail: 'td13052004@gmail.com',
-    patientId: localStorage.getItem("id") || "",
+    patientId: localStorage.getItem("patientId") || "",
 
     // default empty reason
     reasonForAppointment: '',

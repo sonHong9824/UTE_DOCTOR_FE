@@ -1,6 +1,7 @@
 "use client";
 
 import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
+import { getDoctorByAccountId } from "@/apis/doctor/profile.api";
 import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 // Types
 interface ShiftData {
@@ -127,8 +129,7 @@ function enumerateMonthDays(year: number, month: number): string[] {
 
 // Component
 export default function SchedulePage() {
-  //const doctorId = "68ec9bbb97af2916bddd47fa"; 
-  const doctorId = "68ed269b59e0a4da8a1d9bd1"; 
+  const [doctorId, setDoctorId] = useState<string | null>(null);
 
   // Use local date (YYYY-MM-DD) to avoid UTC off-by-one issues
   const todayStr = formatDateLocal(new Date());
@@ -209,6 +210,7 @@ export default function SchedulePage() {
 
   const fetchShifts = async () => {
     try {
+      if (!doctorId) return;
       setLoading(true);
       const response = await getShiftsByDoctorMonth(doctorId, now.getMonth() + 1, now.getFullYear());
       if (response.code === "SUCCESS") {
@@ -234,7 +236,39 @@ export default function SchedulePage() {
 
   useEffect(() => {
     fetchShifts();
-  }, [now]);
+  }, [now, doctorId]);
+
+  // Initialize doctorId from localStorage (account id -> doctor id)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const init = async () => {
+      try {
+        const stored = localStorage.getItem("doctorId");
+        if (stored) {
+          setDoctorId(stored);
+          return;
+        }
+
+        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
+        if (!accountId) return;
+
+        const res = await getDoctorByAccountId(accountId);
+        const doc = res?.data;
+        const did = doc?._id || doc?.id || null;
+        if (did) {
+          setDoctorId(did);
+          try {
+            localStorage.setItem("doctorId", did);
+          } catch (e) {
+            // ignore
+          }
+        }
+      } catch (err) {
+        console.error("Failed to init doctorId:", err);
+      }
+    };
+    init();
+  }, []);
 
   const todayList = useMemo(() => {
     return allSlots
@@ -259,29 +293,70 @@ export default function SchedulePage() {
 
   const addSlot = async () => {
     if (!date) return;
+    // ensure we have a doctor id -- try to resolve at submit time if not present
+    let did = doctorId;
+    if (!did && typeof window !== "undefined") {
+      const stored = localStorage.getItem("doctorId");
+      if (stored) did = stored;
+      else {
+        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
+        if (accountId) {
+          try {
+            const res = await getDoctorByAccountId(accountId);
+            const doc = res?.data;
+            const resolved = doc?._id || doc?.id || null;
+            if (resolved) {
+              did = resolved;
+              setDoctorId(resolved);
+              try { localStorage.setItem("doctorId", resolved); } catch (e) {}
+            }
+          } catch (e) {
+            console.error("Failed resolving doctorId in addSlot:", e);
+          }
+        }
+      }
+    }
+    if (!did) {
+      toast.error("Không tìm thấy doctorId");
+      return;
+    }
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
-    await registerShift({ doctorId, date, shift });
-    setSlots((prev) => [
-      ...prev,
-      {
-        date,
-        shiftKey: shift,
-        start: s.start,
-        end: s.end,
-        location,
-        notes,
-        hasClient: false,
-        completed: false,
-        canceled: false,
-        status: "available",
-      },
-    ]);
-    setOpen(false);
-    setDate(todayStr);
-    setShift("morning");
-    setLocation("");
-    setNotes("");
+    try {
+      const res = await registerShift({ doctorId: did, date, shift });
+      if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
+        const payload: any = res as any;
+        const newShift = payload?.data?.shift || payload?.shift || payload?.data || null;
+        const slotToAdd = {
+          _id: newShift?._id,
+          date: newShift?.date ?? date,
+          shiftKey: (newShift?.shift as ShiftKey) ?? shift,
+          start: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.start ?? s.start,
+          end: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.end ?? s.end,
+          location,
+          notes,
+          hasClient: false,
+          completed: false,
+          canceled: newShift?.status === "canceled",
+          status: (newShift?.status as Slot["status"]) ?? "available",
+        } as Slot;
+
+        setSlots((prev) => [...prev, slotToAdd]);
+        toast.success(res?.message || "Đăng ký ca thành công");
+        // refresh month data to keep server state in sync
+        await fetchShifts();
+        setOpen(false);
+        setDate(todayStr);
+        setShift("morning");
+        setLocation("");
+        setNotes("");
+      } else {
+        toast.error(res?.message || "Đăng ký thất bại");
+      }
+    } catch (err) {
+      console.error("registerShift error", err);
+      toast.error("Lỗi khi đăng ký ca");
+    }
   };
 
   function getShiftState(dateStr: string, key: ShiftKey): "none" | "registered" | "hasClient" | "completed" | "canceled" {
@@ -439,6 +514,77 @@ export default function SchedulePage() {
     }
   }
 
+  // Export current month schedule to Excel
+  async function exportSchedule() {
+    if (!doctorId) {
+      toast.error("Không tìm thấy doctorId");
+      return;
+    }
+    setLoading(true);
+    try {
+      const resp = await getShiftsByDoctorMonth(doctorId, now.getMonth() + 1, now.getFullYear());
+      if (String(resp?.code) !== "SUCCESS") {
+        toast.error(resp?.message || "Không có dữ liệu để xuất");
+        return;
+      }
+      const data = normalizeMonthData(resp.data);
+      if (!data || !data.shifts || data.shifts.length === 0) {
+        toast.error("Không có ca nào trong tháng để xuất");
+        return;
+      }
+
+      // Export every day in the month; include three columns for each shift (morning/afternoon/extra)
+      const days = enumerateMonthDays(data.year, data.month);
+      const shiftsByDate: Record<string, ShiftData[]> = (data.shifts || []).reduce((acc, s) => {
+        acc[s.date] = acc[s.date] || [];
+        acc[s.date].push(s);
+        return acc;
+      }, {} as Record<string, ShiftData[]>);
+
+      const rows = days.map((date) => {
+        const items = shiftsByDate[date] || [];
+        const morning = items.find((x) => x.shift === "morning");
+        const afternoon = items.find((x) => x.shift === "afternoon");
+        const extra = items.find((x) => x.shift === "extra");
+
+        const mDef = SHIFTS.find((x) => x.key === "morning");
+        const aDef = SHIFTS.find((x) => x.key === "afternoon");
+        const eDef = SHIFTS.find((x) => x.key === "extra");
+
+        return {
+          "Ngày": date,
+          "Thứ": getDayLabel(date),
+
+          "Ca sáng - (7h30-11h30))": morning?.status ?? "Chưa đăng ký",
+
+          "Ca chiều - (13h30-17h30))": afternoon?.status ?? "Chưa đăng ký",
+
+          "Ngoài giờ - (18h-21h))": extra?.status ?? "Chưa đăng ký",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // Set column widths (wch = characters width)
+      ws["!cols"] = [
+        { wch: 14 }, // Ngày
+        { wch: 12 }, // Thứ
+        { wch: 30 }, // Ca sáng
+        { wch: 30 }, // Ca chiều
+        { wch: 30 }, // Ngoài giờ
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Lich");
+      const filename = `lich-${doctorId}-${data.month}-${data.year}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      toast.success("Đã xuất lịch");
+    } catch (err) {
+      console.error("exportSchedule error", err);
+      toast.error("Lỗi khi xuất lịch");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleMonthChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newMonth = Number(e.target.value);
     setNow(new Date(now.getFullYear(), newMonth - 1, 1));
@@ -589,7 +735,7 @@ export default function SchedulePage() {
                         </div>
                       </div>
 
-                      {slot.status === "canceled" ? (
+                      {/* {slot.status === "canceled" ? (
                         <div className="text-xs text-muted-foreground px-3">Không thể thao tác</div>
                       ) : (
                         <DropdownMenu>
@@ -598,11 +744,11 @@ export default function SchedulePage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>Xem chi tiết</DropdownMenuItem>
-                            {/* <DropdownMenuItem>Đánh dấu hoàn thành</DropdownMenuItem> */}
+                            <DropdownMenuItem>Đánh dấu hoàn thành</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive">Hủy lịch</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      )}
+                      )} */}
                     </div>
                   ))}
                 </div>
@@ -646,10 +792,10 @@ export default function SchedulePage() {
               </div>
 
               <div className="flex items-center gap-2">
-                {/* <Button variant="outline" size="sm" onClick={() => { setOpen(true); setDialogMode("register_month"); }}>
-                  <Plus className="mr-2 h-4 w-4" /> Đăng ký tháng
-                </Button> */}
-                <Button variant="outline" size="sm"><CalendarCheck className="mr-2 h-4 w-4" /> Xuất lịch</Button>
+                            {/* <Button variant="outline" size="sm" onClick={() => { setOpen(true); setDialogMode("register_month"); }}>
+                              <Plus className="mr-2 h-4 w-4" /> Đăng ký tháng
+                            </Button> */}
+                            <Button variant="outline" size="sm" onClick={() => exportSchedule()}><CalendarCheck className="mr-2 h-4 w-4" /> Xuất lịch</Button>
               </div>
             </CardHeader>
 

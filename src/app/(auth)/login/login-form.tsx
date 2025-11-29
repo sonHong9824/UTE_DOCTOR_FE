@@ -42,6 +42,9 @@ export default function LoginForm() {
       localStorage.setItem("refreshToken", res.data.refreshToken);
       localStorage.setItem("role", res.data.role);
       localStorage.setItem("id", res.data.id);
+      localStorage.setItem("patientId", res.data.patientId || "");
+      localStorage.setItem("doctorId", res.data.doctorId || "");
+      localStorage.setItem("profileId", res.data.profileId || "");
 
       console.log("Login successful:", res);
 
