@@ -28,3 +28,13 @@ export const UpdateUserProfile = async(userData: Partial<AccountProfileDTO>) =>
         throw e;
     }
 }   
+
+export const ChangePassword = async(form: { currentPassword: string; newPassword: string }) => {
+    try {
+        const res = await axiosClient.put<DataResponse<null>>("/users/password", form);
+        return res.data;
+    } catch (e) {
+        console.error("Failed to change password:", e);
+        throw e;
+    }
+}

@@ -4,6 +4,7 @@ import AppointmentForm from "../forms/appointments/appointment-form.draft";
 import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
+import ChangePasswordForm from "../forms/account/change-password-form";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 
 interface UserContentProps {
@@ -26,7 +27,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
       {activeTab === "password" && (
         <Card className="w-full md:w-3/4 px-6 py-4 border border-gray-300 shadow-md">
           <CardTitle className="text-2xl mb-4">Đổi mật khẩu</CardTitle>
-          {/* Form đổi mật khẩu */}
+          <ChangePasswordForm />
         </Card>
       )}
 
