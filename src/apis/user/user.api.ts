@@ -1,6 +1,7 @@
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
+import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 
 export const GetPatientProfile = async(form: {email: string}) =>
 {   
@@ -12,5 +13,18 @@ export const GetPatientProfile = async(form: {email: string}) =>
     catch (e)
     {
         console.error("Failed to get User Profile: " + e);
+    }
+}
+
+export const UpdateUserProfile = async(userData: Partial<AccountProfileDTO>) =>
+{
+    try {
+        const res = await axiosClient.put<DataResponse<AccountProfileDTO>>("/users/profile", userData);
+        return res.data;
+    }
+    catch (e)
+    {
+        console.error("Failed to update User Profile: " + e);
+        throw e;
     }
 }   

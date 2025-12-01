@@ -12,3 +12,13 @@ export const register = async (form: { email: string; password: string}) => {
   const res = await axiosClient.post<DataResponse<RegisterResponse>>("/auth/register", form);
   return res.data;
 }
+
+export const refreshAccessToken = async (refreshToken: string) => {
+  try {
+    const res = await axiosClient.post<DataResponse<LoginResponse>>("/auth/refresh", { refreshToken });
+    return res.data;
+  } catch (error) {
+    console.error("Failed to refresh token:", error);
+    throw error;
+  }
+};

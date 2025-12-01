@@ -5,6 +5,9 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
 import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
+import EditUserInfoModal from "@/components/cards/edit-user-info-modal";
+import { UpdateUserProfile } from "@/apis/user/user.api";
+import { useState } from "react";
 import { JSX } from "react";
 import {
   FaBirthdayCake,
@@ -20,6 +23,7 @@ import {
 
 interface UserInfoCardProps {
   user: AccountProfileDTO;
+  onUserUpdated?: (updatedUser: AccountProfileDTO) => void;
 }
 
 interface Field {
@@ -29,7 +33,20 @@ interface Field {
   isStatus?: boolean; // optional, chỉ dùng cho trường Status
 }
 
-export default function UserInfoCard({ user }: UserInfoCardProps) {
+export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps) {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const handleSaveUserInfo = async (updatedData: Partial<AccountProfileDTO>) => {
+    try {
+      const response = await UpdateUserProfile(updatedData);
+      if (response?.data) {
+        onUserUpdated?.(response.data);
+      }
+    } catch (error) {
+      console.error("Error updating user info:", error);
+      throw error;
+    }
+  };
   const fieldsBlock1: Field[] = [
     { label: "Name", value: user.name || "Unknown", icon: <FaUser className="w-5 h-5 text-blue-500" /> },
     { label: "Gender", value: user.gender || GenderEnum.OTHER, icon: <FaVenusMars className="w-5 h-5 text-purple-500" /> },
@@ -64,7 +81,8 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
     ));
 
   return (
-    <div className="grid grid-cols-2 grid-rows-3 gap-6">
+    <>
+      <div className="grid grid-cols-2 grid-rows-3 gap-6">
       {/* Góc phần tư 1: Avatar */}
       <div className="flex justify-center items-start">
         <img
@@ -105,16 +123,23 @@ export default function UserInfoCard({ user }: UserInfoCardProps) {
       <div className="mt-6 flex justify-center col-span-2">
         <Button
           className="flex items-center gap-2 px-6 py-2 rounded-lg shadow-md bg-blue-500 text-white hover:bg-blue-600 hover:shadow-lg transition-all duration-200"
-          onClick={() => alert("Edit information")}
+          onClick={() => setIsEditModalOpen(true)}
         >
           <FaEdit className="w-4 h-4" />
           Edit Information
         </Button>
       </div>
 
-
     
 
-    </div>
+      </div>
+
+      <EditUserInfoModal
+        open={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        user={user}
+        onSave={handleSaveUserInfo}
+      />
+    </>
   );
 }

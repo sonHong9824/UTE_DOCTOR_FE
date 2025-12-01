@@ -7,6 +7,25 @@ const axiosClient = axios.create({
   },
 });
 
+// Flag để tránh gọi refresh token nhiều lần cùng lúc
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: any) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token || "");
+    }
+  });
+
+  failedQueue = [];
+};
+
 axiosClient.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("accessToken");
@@ -25,8 +44,76 @@ axiosClient.interceptors.response.use(
       const { status, data } = error.response;
 
       if (status === 401) {
-        console.error("Unauthorized — maybe expired token?");
-        // 👉 TODO: refresh token hoặc redirect login
+        const originalRequest = error.config;
+
+        // Tránh refresh token cho chính request refresh token
+        if (originalRequest.url === "/auth/refresh") {
+          console.error("Refresh token expired or invalid, redirecting to login");
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            window.location.href = "/login";
+          }
+          return Promise.reject(error);
+        }
+
+        // Nếu đang refresh, thêm request vào queue
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              return axiosClient(originalRequest);
+            })
+            .catch((err) => Promise.reject(err));
+        }
+
+        // Bắt đầu refresh
+        isRefreshing = true;
+
+        try {
+          if (typeof window !== "undefined") {
+            const refreshToken = localStorage.getItem("refreshToken");
+            if (!refreshToken) {
+              throw new Error("No refresh token available");
+            }
+
+            // Gọi endpoint refresh (tạo client mới để tránh interceptor)
+            const response = await axios.post<{
+              data: { accessToken: string; refreshToken: string };
+            }>(
+              `${process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api"}/auth/refresh`,
+              { refreshToken }
+            );
+
+            const newAccessToken = response.data.data.accessToken;
+            const newRefreshToken = response.data.data.refreshToken;
+
+            localStorage.setItem("accessToken", newAccessToken);
+            localStorage.setItem("refreshToken", newRefreshToken);
+
+            axiosClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+            processQueue(null, newAccessToken);
+            return axiosClient(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error("Failed to refresh token:", refreshError);
+          processQueue(refreshError, null);
+
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            alert("Session hết hạn, vui lòng đăng nhập lại.");
+            window.location.replace("/login");
+          }
+
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
       } else if (status === 403) {
         console.warn("Forbidden:", data?.message || "No permission");
       } else if (status >= 500) {
