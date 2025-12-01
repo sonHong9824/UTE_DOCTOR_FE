@@ -1,14 +1,14 @@
 "use client";
 
+import { UpdateUserProfile, UpdateUserProfileWithFile } from "@/apis/user/user.api";
+import EditUserInfoModal from "@/components/cards/edit-user-info-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
 import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
-import EditUserInfoModal from "@/components/cards/edit-user-info-modal";
-import { UpdateUserProfile } from "@/apis/user/user.api";
-import { useState } from "react";
-import { JSX } from "react";
+import { useRouter } from "next/navigation";
+import { JSX, useState } from "react";
 import {
   FaBirthdayCake,
   FaCalendarAlt,
@@ -34,13 +34,25 @@ interface Field {
 }
 
 export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps) {
+  const router = useRouter();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const handleSaveUserInfo = async (updatedData: Partial<AccountProfileDTO>) => {
+  const handleSaveUserInfo = async (updatedData: Partial<AccountProfileDTO>, avatarFile?: File) => {
     try {
-      const response = await UpdateUserProfile(updatedData);
+      let response = null;
+      if (avatarFile) {
+        response = await UpdateUserProfileWithFile(updatedData, avatarFile);
+      } else {
+        response = await UpdateUserProfile(updatedData);
+      }
       if (response?.data) {
         onUserUpdated?.(response.data);
+        window.location.reload();
+        try {
+          router.refresh();
+        } catch (e) {
+          window.location.reload();
+        }
       }
     } catch (error) {
       console.error("Error updating user info:", error);
