@@ -28,13 +28,14 @@ export default function LoginForm() {
     e.preventDefault();
     console.log("Login data:", form);
     
-    const res = await login(form);
-    console.log("Login response:", res);
-    if (res.code != rc.SUCCESS) {
-      alert("Đăng nhập thất bại! Vui lòng thử lại.");
-      console.log("Login failed:", res);
-      return;
-    } else {
+    try {
+      const res = await login(form);
+      console.log("Login response:", res);
+      if (res.code != rc.SUCCESS) {
+        alert("Đăng nhập thất bại! Vui lòng thử lại.");
+        console.log("Login failed:", res);
+        return;
+      } else {
       alert("Đăng nhập thành công!");
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("email", form.email);
@@ -55,6 +56,12 @@ export default function LoginForm() {
       } else {
         router.push("/"); // home của bệnh nhân
       }
+    }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      const msg = err?.response?.data?.message || err?.message || "Lỗi khi gọi login";
+      alert(msg);
+      return;
     }
 
   };

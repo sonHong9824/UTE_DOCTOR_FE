@@ -7,6 +7,12 @@ const axiosClient = axios.create({
   },
 });
 
+// Plain axios instance without interceptors for refresh token calls
+const refreshClient = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api",
+  headers: { "Content-Type": "application/json" },
+});
+
 // Flag để tránh gọi refresh token nhiều lần cùng lúc
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -47,7 +53,8 @@ axiosClient.interceptors.response.use(
         const originalRequest = error.config;
 
         // Tránh refresh token cho chính request refresh token
-        if (originalRequest.url === "/auth/refresh") {
+        // originalRequest.url may be full or relative; check includes to be robust
+        if (originalRequest.url && originalRequest.url.includes("/auth/refresh")) {
           console.error("Refresh token expired or invalid, redirecting to login");
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
@@ -75,17 +82,17 @@ axiosClient.interceptors.response.use(
         try {
           if (typeof window !== "undefined") {
             const refreshToken = localStorage.getItem("refreshToken");
+
+            console.log("Attempting to refresh token", refreshToken);
+
             if (!refreshToken) {
               throw new Error("No refresh token available");
             }
 
-            // Gọi endpoint refresh (tạo client mới để tránh interceptor)
-            const response = await axios.post<{
+            // Gọi endpoint refresh using plain client (no interceptors)
+            const response = await refreshClient.post<{
               data: { accessToken: string; refreshToken: string };
-            }>(
-              `${process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api"}/auth/refresh`,
-              { refreshToken }
-            );
+            }>("/auth/refresh", { refreshToken });
 
             const newAccessToken = response.data.data.accessToken;
             const newRefreshToken = response.data.data.refreshToken;
