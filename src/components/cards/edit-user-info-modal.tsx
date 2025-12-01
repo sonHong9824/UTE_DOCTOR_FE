@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { GenderEnum } from "@/enum/gender.enum";
+import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { useState } from "react";
 import { FaCamera, FaSpinner } from "react-icons/fa";
 
@@ -13,7 +13,7 @@ interface EditUserInfoModalProps {
   open: boolean;
   onClose: () => void;
   user: AccountProfileDTO;
-  onSave: (updatedUser: Partial<AccountProfileDTO>) => Promise<void>;
+  onSave: (updatedUser: Partial<AccountProfileDTO>, avatarFile?: File) => Promise<void>;
 }
 
 export default function EditUserInfoModal({ open, onClose, user, onSave }: EditUserInfoModalProps) {
@@ -28,6 +28,7 @@ export default function EditUserInfoModal({ open, onClose, user, onSave }: EditU
   });
 
   const [avatarPreview, setAvatarPreview] = useState(user.avatarUrl || "");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -39,7 +40,7 @@ export default function EditUserInfoModal({ open, onClose, user, onSave }: EditU
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0] || null;
     if (file) {
       // Read file as data URL for preview
       const reader = new FileReader();
@@ -50,6 +51,7 @@ export default function EditUserInfoModal({ open, onClose, user, onSave }: EditU
           ...prev,
           avatarUrl: dataUrl,
         }));
+        setSelectedFile(file);
       };
       reader.readAsDataURL(file);
     }
@@ -62,7 +64,7 @@ export default function EditUserInfoModal({ open, onClose, user, onSave }: EditU
         ...formData,
         dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
       };
-      await onSave(dataToSave);
+      await onSave(dataToSave, selectedFile ?? undefined);
       onClose();
     } catch (error) {
       console.error("Failed to update user info:", error);
