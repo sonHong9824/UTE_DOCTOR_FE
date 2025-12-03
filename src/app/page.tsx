@@ -1,3 +1,7 @@
+"use client";
+
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Banner from "@/components/banner";
 import Footer from "@/components/footer";
 import Navbar from "@/components/navbar";
@@ -11,6 +15,22 @@ import {
 import Image from "next/image";
 
 export default function Home() {
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const role = (localStorage.getItem('role') || '').toUpperCase();
+    // If no role, stay on public homepage
+    if (!role) return;
+
+    // Redirect based on role
+    if (role === 'ADMIN') {
+      router.replace('/admin');
+    } else if (role === 'DOCTOR') {
+      router.replace('/doctor');
+    }
+  }, [router]);
+
   return (
     <main className="bg-background text-foreground">
       {/* Banner */}

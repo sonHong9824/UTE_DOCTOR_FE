@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createDoctor } from '@/apis/admin/admin.api';
+import { getSpecialties } from '@/apis/appointment/appointment.api';
 
 // InputField component - moved outside to prevent re-creation on each render
 const InputField = ({ 
@@ -40,7 +41,8 @@ const InputField = ({
   required = false,
   error,
   helper,
-  rows
+  rows,
+  readOnly = false,
 }: any) => (
   <div className="space-y-1.5">
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -52,32 +54,33 @@ const InputField = ({
           <Icon size={18} />
         </div>
       )}
-      {rows ? (
-        <Textarea
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          rows={rows}
-          className={`w-full ${Icon ? 'pl-10' : ''} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-        />
-      ) : (
-        <Input
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          type={type}
-          className={`w-full ${Icon ? 'pl-10' : ''} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-        />
-      )}
+        {rows ? (
+          <Textarea
+            name={name}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            rows={rows}
+            readOnly={readOnly}
+            className={`w-full ${Icon ? 'pl-10' : ''} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+          />
+        ) : (
+          <Input
+            name={name}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            type={type}
+            readOnly={readOnly}
+            className={`w-full ${Icon ? 'pl-10' : ''} ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+          />
+        )}
     </div>
     {error && <p className="text-xs text-red-500 flex items-center gap-1">⚠️ {error}</p>}
     {helper && !error && <p className="text-xs text-gray-500">{helper}</p>}
   </div>
 );
 
-// DoctorCreateModal component - moved outside to prevent re-creation
 const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated?: (created?: any) => void }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
@@ -85,7 +88,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
     doctorName: '',
     specialty: '',
     bio: '',
-    degree: '',
+    degree: [] as string[],
     academic: '',
     achievements: '',
     yearsOfExperience: '',
@@ -101,19 +104,98 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [specialtiesList, setSpecialtiesList] = useState<Array<{ _id: string; name: string }>>([]);
+  
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name.startsWith('profile.')) {
       const key = name.replace('profile.', '');
-      setForm((s) => ({ ...s, profile: { ...s.profile, [key]: value } }));
+      setForm((s) => {
+        const nextProfile = { ...s.profile, [key]: value };
+        const computed = buildDoctorName(nextProfile.name, s.academic, s.degree);
+        return { ...s, profile: nextProfile, doctorName: computed };
+      });
+    } else if (e.target instanceof HTMLSelectElement && e.target.multiple) {
+      const selected = Array.from(e.target.selectedOptions).map((o) => o.value);
+      setForm((s) => {
+        const computed = buildDoctorName(s.profile?.name, s.academic, selected);
+        return { ...s, [name]: selected, doctorName: computed } as any;
+      });
     } else {
-      setForm((s) => ({ ...s, [name]: value }));
+      // top-level change (could be academic)
+      setForm((s) => {
+        const nextTop: any = { ...s, [name]: value };
+        const computed = buildDoctorName(nextTop.profile?.name, nextTop.academic, nextTop.degree);
+        return { ...nextTop, doctorName: computed };
+      });
     }
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   };
+
+  // fetch specialties for select
+  React.useEffect(() => {
+    const fetch = async () => {
+      try {
+        const email = typeof window !== 'undefined' ? localStorage.getItem('email') || '' : '';
+        const res = await getSpecialties(email);
+        if (res?.data) setSpecialtiesList(res.data as any);
+      } catch (e) {
+        console.error('Failed to load specialties', e);
+      }
+    };
+    fetch();
+  }, []);
+
+  const degreeOptions = [
+    { label: 'Tiến sĩ Y học', short: 'TSYH', priority: 1 },
+    { label: 'Tiến sĩ', short: 'TS', priority: 2 },
+    { label: 'Bác sĩ CKII', short: 'BS.CKII', priority: 3 },
+    { label: 'Bác sĩ CKI', short: 'BS.CKI', priority: 4 },
+    { label: 'Thạc sĩ', short: 'ThS', priority: 5 },
+    { label: 'Bác sĩ', short: 'BS', priority: 6 },
+    { label: 'Cử nhân', short: 'CN', priority: 7 },
+    { label: 'Thầy thuốc nhân dân', short: 'TTND', priority: 8 },
+    { label: 'Thầy thuốc ưu tú', short: 'TTƯT', priority: 9 },
+  ];
+
+  const academicOptions = [
+    { label: 'Giáo sư', short: 'GS', priority: 1 },
+    { label: 'Phó giáo sư', short: 'PGS', priority: 2 },
+    { label: 'Không', short: '', priority: 999 },
+  ];
+
+  const buildDoctorName = (profileName?: string, academicLabel?: string, degreeArr?: string[]) => {
+    const name = profileName?.trim() || '';
+    const academicObj = academicOptions.find((a) => a.label === academicLabel);
+    const academicShort = academicObj && academicObj.short ? academicObj.short.trim() : '';
+
+    let degreeShort = '';
+    if (Array.isArray(degreeArr) && degreeArr.length > 0) {
+      const matched = degreeArr
+        .map((label) => degreeOptions.find((d) => d.label === label))
+        .filter(Boolean) as Array<{ label: string; short: string; priority: number }>;
+      if (matched.length > 0) {
+        matched.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+        degreeShort = matched[0]?.short ?? '';
+      }
+    }
+
+    const parts: string[] = [];
+    if (academicShort) parts.push(`${academicShort}.`);
+    if (degreeShort) parts.push(`${degreeShort} `);
+    if (name) parts.push(name);
+
+    return parts.join('').trim();
+  };
+
+  // Keep doctorName in sync whenever relevant fields change (profile.name, academic, degree)
+  React.useEffect(() => {
+    const computed = buildDoctorName(form.profile?.name, form.academic, form.degree);
+    if (computed !== form.doctorName) setForm((s) => ({ ...s, doctorName: computed }));
+  }, [form.profile?.name, form.academic, form.degree]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -135,8 +217,19 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
 
     setLoading(true);
     try {
+      // ensure degree is an array and academic is a string to match API expectations
+      const degreeArray = Array.isArray(form.degree)
+        ? form.degree
+        : form.degree
+        ? [String(form.degree)]
+        : [];
+
+      const academicStr = typeof form.academic === 'string' ? form.academic : String(form.academic ?? '');
+
       const payload = {
         ...form,
+        degree: degreeArray,
+        academic: academicStr,
         yearsOfExperience: Number(form.yearsOfExperience) || 0,
       };
 
@@ -290,41 +383,105 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
                     name="doctorName"
                     value={form.doctorName}
                     onChange={handleChange}
+                    readOnly={true}
                     placeholder="Ví dụ: BS. Nguyễn Văn A"
                     icon={User}
                     required
                     error={errors.doctorName}
-                    helper="Tên hiển thị cho hồ sơ bác sĩ"
+                    helper="(không thể chỉnh sửa)"
                   />
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Chuyên khoa <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                        <Stethoscope size={18} />
+                      </div>
+                      <select
+                        name="specialty"
+                        value={form.specialty}
+                        onChange={handleChange}
+                        className={`w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.specialty ? 'border-red-500' : ''}`}
+                      >
+                        <option value="">Chọn chuyên khoa</option>
+                        {specialtiesList.map((s) => (
+                          <option key={s._id} value={s._id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {errors.specialty && <p className="text-xs text-red-500 flex items-center gap-1">⚠️ {errors.specialty}</p>}
+                    <p className="text-xs text-gray-500">Chuyên khoa chính của bác sĩ</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Học vị</label>
+                    <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {degreeOptions.map((d) => (
+                          <label key={d.label} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              value={d.label}
+                              checked={Array.isArray(form.degree) && form.degree.includes(d.label)}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setForm((s) => {
+                                  const next = Array.isArray(s.degree) ? [...s.degree] : [];
+                                  if (checked) {
+                                    if (!next.includes(d.label)) next.push(d.label);
+                                  } else {
+                                    const idx = next.indexOf(d.label);
+                                    if (idx >= 0) next.splice(idx, 1);
+                                  }
+                                  const computed = buildDoctorName(s.profile?.name, s.academic, next);
+                                  return { ...s, degree: next, doctorName: computed };
+                                });
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <span>{d.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">Chọn học vị chính của bác sĩ</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Học hàm</label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                        <Award size={18} />
+                      </div>
+                      <select
+                        name="academic"
+                        value={form.academic}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Chọn học hàm (không bắt buộc)</option>
+                        {academicOptions.map((a) => (
+                          <option key={a.label} value={a.label}>{a.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-500">Chọn học hàm nếu có</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InputField
-                    label="Chuyên khoa"
-                    name="specialty"
-                    value={form.specialty}
+                    label="Số năm kinh nghiệm"
+                    name="yearsOfExperience"
+                    value={form.yearsOfExperience}
                     onChange={handleChange}
-                    placeholder="Ví dụ: Tim mạch, Nội khoa..."
-                    icon={Stethoscope}
-                    required
-                    error={errors.specialty}
-                    helper="Chuyên khoa chính của bác sĩ"
+                    type="number"
+                    icon={Calendar}
+                    placeholder="Ví dụ: 5"
+                    helper="Nhập số năm kinh nghiệm của bác sĩ"
                   />
                 </div>
-                <InputField
-                  label="Học vị"
-                  name="degree"
-                  value={form.degree}
-                  onChange={handleChange}
-                  placeholder="Bác sĩ CKI, Thạc sĩ"
-                  icon={Award}
-                  helper="Nhập nhiều học vị cách nhau bằng dấu phẩy"
-                />
-                <InputField
-                  label="Học hàm"
-                  name="academic"
-                  value={form.academic}
-                  onChange={handleChange}
-                  placeholder="Tiến sĩ, Phó giáo sư..."
-                  icon={Award}
-                />
+
                 <InputField
                   label="Thành tựu & Giải thưởng"
                   name="achievements"

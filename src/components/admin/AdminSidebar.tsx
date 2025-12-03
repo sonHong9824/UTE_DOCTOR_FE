@@ -13,10 +13,12 @@ import {
   LogOut,
   ChevronRight,
 } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import axiosClient from '@/lib/axiosClient';
+import { toast } from 'sonner';
 
 const menuItems = [
   { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
@@ -33,9 +35,29 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const isCollapsed = !!collapsed;
 
   const handleToggle = () => setCollapsed?.(!isCollapsed);
+
+  const handleLogout = () => {
+    if (typeof window === 'undefined') return;
+    // keys to clear
+    const keys = ['accessToken', 'refreshToken', 'email', 'id', 'accountId', 'userId', 'role', 'name', 'doctorId', 'patientId'];
+    keys.forEach((k) => localStorage.removeItem(k));
+
+    // clear axios default auth header
+    try {
+      if (axiosClient && axiosClient.defaults && axiosClient.defaults.headers) {
+        if (axiosClient.defaults.headers.common) delete axiosClient.defaults.headers.common.Authorization;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    toast.success('Đã đăng xuất');
+    router.push('/login');
+  };
 
   return (
     <aside
@@ -116,24 +138,14 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
         ) : (
           <>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-indigo-100 dark:from-indigo-900/30 dark:to-indigo-900/20">
-              <div className="relative">
-                <Image
-                  src="/assets/bs/bs-Minh.jpg"
-                  alt="Admin"
-                  width={48}
-                  height={48}
-                  className="rounded-full object-cover ring-2 ring-indigo-500"
-                />
-                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
-              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">Quản trị viên</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">admin@example.com</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">admin@gmail.com</p>
               </div>
             </div>
 
             <div className="mt-3 space-y-1">
-              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
                 <LogOut className="w-4 h-4" />
                 <span className="text-sm">Đăng xuất</span>
               </button>
