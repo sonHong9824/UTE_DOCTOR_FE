@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +23,16 @@ import {
   Trash2,
   Eye,
   FileText,
-  Camera
+  Camera,
+  Pencil,
+  Star,
+  Briefcase,
+  GraduationCap,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createDoctor } from '@/apis/admin/admin.api';
+import { createDoctor, getDoctorsAdmin, updateAccountStatus } from '@/apis/admin/admin.api';
+import { getDoctorById } from '@/apis/doctor/profile.api';
 import { getSpecialties } from '@/apis/appointment/appointment.api';
 
 // InputField component - moved outside to prevent re-creation on each render
@@ -569,126 +575,119 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
   );
 };
 
-// Mock data
-const mockDoctors = [
-  {
-    id: 1,
-    doctorName: 'BS. Nguyễn Văn Anh',
-    specialty: 'Tim mạch',
-    degree: 'Bác sĩ CKI',
-    yearsOfExperience: 15,
-    profile: {
-      name: 'Nguyễn Văn Anh',
-      email: 'nva@hospital.com',
-      phone: '0901234567',
-      address: 'Hà Nội',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1'
-    },
-    status: 'active',
-    joinDate: '2020-01-15'
-  },
-  {
-    id: 2,
-    doctorName: 'BS. Trần Thị Bình',
-    specialty: 'Nội khoa',
-    degree: 'Thạc sĩ',
-    yearsOfExperience: 12,
-    profile: {
-      name: 'Trần Thị Bình',
-      email: 'ttb@hospital.com',
-      phone: '0907654321',
-      address: 'TP. Hồ Chí Minh',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=2'
-    },
-    status: 'active',
-    joinDate: '2021-03-20'
-  },
-  {
-    id: 3,
-    doctorName: 'BS. Lê Minh Chiến',
-    specialty: 'Ngoại khoa',
-    degree: 'Tiến sĩ',
-    yearsOfExperience: 20,
-    profile: {
-      name: 'Lê Minh Chiến',
-      email: 'lmc@hospital.com',
-      phone: '0903456789',
-      address: 'Đà Nẵng',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=3'
-    },
-    status: 'active',
-    joinDate: '2018-06-10'
-  },
-  {
-    id: 4,
-    doctorName: 'BS. Phạm Thu Dung',
-    specialty: 'Nhi khoa',
-    degree: 'Bác sĩ CKI',
-    yearsOfExperience: 8,
-    profile: {
-      name: 'Phạm Thu Dung',
-      email: 'ptd@hospital.com',
-      phone: '0908765432',
-      address: 'Hải Phòng',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=4'
-    },
-    status: 'active',
-    joinDate: '2022-09-05'
-  }
-];
 
 export default function AdminDoctorsPage() {
   const [openCreate, setOpenCreate] = useState(false);
-  const [doctors, setDoctors] = useState(mockDoctors);
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(5);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [total, setTotal] = useState<number>(0);
+  const [loadingList, setLoadingList] = useState<boolean>(false);
+  const [specialtiesFromApi, setSpecialtiesFromApi] = useState<Array<{ _id: string; name: string }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [openView, setOpenView] = useState(false);
+  const [viewDoctor, setViewDoctor] = useState<any | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
 
-  // Get unique specialties
-  const specialties = ['all', ...new Set(doctors.map(d => d.specialty))];
+  const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set());
 
-  // Filter doctors
-  const filteredDoctors = doctors.filter(doctor => {
-    const matchesSearch = 
-      doctor.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doctor.profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doctor.specialty.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesSpecialty = selectedSpecialty === 'all' || doctor.specialty === selectedSpecialty;
-    
-    return matchesSearch && matchesSpecialty;
-  });
-
-  const stats = [
-    {
-      label: 'Tổng số bác sĩ',
-      value: doctors.length,
-      icon: Users,
-      color: 'bg-blue-500',
-      trend: '+12%'
-    },
-    {
-      label: 'Chuyên khoa',
-      value: new Set(doctors.map(d => d.specialty)).size,
-      icon: Stethoscope,
-      color: 'bg-green-500',
-      trend: '+3'
-    },
-    {
-      label: 'Bác sĩ mới tháng này',
-      value: 4,
-      icon: Calendar,
-      color: 'bg-purple-500',
-      trend: '+33%'
-    },
-    {
-      label: 'Trung bình kinh nghiệm',
-      value: Math.round(doctors.reduce((acc, d) => acc + d.yearsOfExperience, 0) / doctors.length) + ' năm',
-      icon: Award,
-      color: 'bg-orange-500',
-      trend: '15.2 năm'
+  const handleToggleAccount = async (doctor: any) => {
+    if (!doctor?.account?._id) {
+      toast.error('Tài khoản chưa được tạo cho bác sĩ này');
+      return;
     }
-  ];
+
+    const targetStatus = doctor.accountStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const confirmMsg = targetStatus === 'ACTIVE' ? 'Xác nhận kích hoạt tài khoản?' : 'Xác nhận huỷ kích hoạt tài khoản?';
+    if (!window.confirm(confirmMsg)) return;
+
+    // mark loading
+    setActivatingIds((s) => new Set(s).add(doctor.id));
+    try {
+      const res = await updateAccountStatus(doctor.account._id, targetStatus);
+      const updated = res?.data ?? null;
+      // Update UI based on result (fall back to targetStatus)
+      setDoctors((prev) => prev.map((d) => (d.id === doctor.id ? { ...d, accountStatus: updated?.status ?? targetStatus, account: { ...d.account, status: updated?.status ?? targetStatus } } : d)));
+      toast.success(`Cập nhật trạng thái tài khoản: ${(updated?.status ?? targetStatus)}`);
+    } catch (err) {
+      console.error('Failed to update account status', err);
+      toast.error('Không thể cập nhật trạng thái tài khoản');
+    } finally {
+      setActivatingIds((s) => {
+        const next = new Set(s);
+        next.delete(doctor.id);
+        return next;
+      });
+    }
+  };
+
+  // Fetch doctors from admin API and map to UI shape
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      setLoadingList(true);
+      try {
+        const params: any = { page, limit };
+        if (selectedSpecialty && selectedSpecialty !== 'all') params.specialtyId = selectedSpecialty;
+        if (searchQuery && searchQuery.trim()) params.name = searchQuery.trim();
+
+        const res = await getDoctorsAdmin(params);
+        const docs = res?.data?.doctors ?? [];
+        const pagination = res?.data?.pagination ?? {};
+        const mapped = (docs as any[]).map((d) => ({
+          id: d._id,
+          doctorName: d.doctorName ?? '',
+          specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
+          specialtyId: d.chuyenKhoaId?._id ?? '',
+          degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
+          degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
+          academic: d.academic ?? '',
+          bio: d.bio ?? '',
+          achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
+          yearsOfExperience: Number(d.yearsOfExperience) || 0,
+          profile: d.profileId ?? {},
+          account: d.accountId ?? null,
+          accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
+          raw: d,
+        }));
+        setDoctors(mapped);
+        setTotal(Number(pagination.total) || 0);
+        setTotalPages(Number(pagination.totalPages) || 1);
+      } catch (err) {
+        console.error('Failed to fetch doctors admin', err);
+      } finally {
+        setLoadingList(false);
+      }
+    };
+    fetchDoctors();
+  }, [page, limit, selectedSpecialty, searchQuery]);
+
+  // Load specialties from API for the filter (merge with any specialties present in fetched doctors)
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      try {
+        const email = typeof window !== 'undefined' ? localStorage.getItem('email') || '' : '';
+        const res = await getSpecialties(email);
+        const items = res?.data ?? [];
+        setSpecialtiesFromApi(items);
+      } catch (err) {
+        console.error('Failed to fetch specialties for filter', err);
+      }
+    };
+    fetchSpecialties();
+  }, []);
+
+  // When filter inputs change, reset to first page so server returns correct page 1 results
+  useEffect(() => {
+    setPage(1);
+  }, [selectedSpecialty, searchQuery]);
+  // Use API-provided specialties for the filter (value = _id). Keep 'all' as default.
+
+  // We fetch filtered data from the server when `searchQuery` or `selectedSpecialty` change,
+  // so `filteredDoctors` is just the fetched `doctors` list.
+  const filteredDoctors = doctors;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -715,35 +714,6 @@ export default function AdminDoctorsPage() {
           </Button>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                        {stat.label}
-                      </p>
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                        {stat.value}
-                      </p>
-                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        {stat.trend}
-                      </p>
-                    </div>
-                    <div className={`${stat.color} w-12 h-12 rounded-lg flex items-center justify-center text-white`}>
-                      <Icon size={24} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
         {/* Filters */}
         <Card>
           <CardContent className="p-6">
@@ -752,7 +722,7 @@ export default function AdminDoctorsPage() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <Input
-                  placeholder="Tìm kiếm theo tên bác sĩ, chuyên khoa..."
+                  placeholder="Tìm kiếm theo tên bác sĩ"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -767,10 +737,9 @@ export default function AdminDoctorsPage() {
                   onChange={(e) => setSelectedSpecialty(e.target.value)}
                   className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {specialties.map(specialty => (
-                    <option key={specialty} value={specialty}>
-                      {specialty === 'all' ? 'Tất cả chuyên khoa' : specialty}
-                    </option>
+                  <option key="all" value="all">Tất cả chuyên khoa</option>
+                  {specialtiesFromApi.map((s) => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
                   ))}
                 </select>
               </div>
@@ -810,6 +779,38 @@ export default function AdminDoctorsPage() {
         </Card>
 
         {/* Doctors Grid/List */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {loadingList ? 'Đang tải danh sách...' : `Hiển thị trang ${page} / ${totalPages} — ${total} bác sĩ`}
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={limit}
+              onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}
+              className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm"
+            >
+              <option value={5}>5 / trang</option>
+              <option value={10}>10 / trang</option>
+              <option value={20}>20 / trang</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              ‹ Trước
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              Sau ›
+            </Button>
+          </div>
+        </div>
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDoctors.map(doctor => (
@@ -817,15 +818,21 @@ export default function AdminDoctorsPage() {
                 <CardContent className="p-6">
                   {/* Header */}
                   <div className="flex items-start gap-4 mb-4">
-                    <img
-                      src={
-                        doctor.profile?.avatarUrl ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                          doctor.doctorName ?? ''
-                        )}`
-                      }
-                      alt={doctor.doctorName}
-                      className="w-16 h-16 rounded-full border-4 border-blue-100 dark:border-blue-900"
-                    />
+                    <div>
+                      <img
+                        src={
+                          doctor.profile?.avatarUrl ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+                            doctor.doctorName ?? ''
+                          )}`
+                        }
+                        alt={doctor.doctorName}
+                        className="w-16 h-16 rounded-full border-4 border-blue-100 dark:border-blue-900"
+                      />
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${doctor.accountStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' : doctor.accountStatus === 'INACTIVE' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                        {doctor.accountStatus ?? 'UNKNOWN'}
+                      </span>
+                    </div>
+                    
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-gray-900 dark:text-white">
                         {doctor.doctorName}
@@ -863,16 +870,28 @@ export default function AdminDoctorsPage() {
                   {/* Actions */}
                   <div className="flex gap-2 pt-4 border-t">
                     <Button variant="outline" size="sm" className="flex-1">
-                      <Eye size={14} className="mr-1" />
-                      Chi tiết
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
                       <Edit size={14} className="mr-1" />
                       Sửa
                     </Button>
-                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                      <Trash2 size={14} />
-                    </Button>
+                    {(() => {
+                      const isActive = doctor.accountStatus === 'ACTIVE';
+                      const btnClass = isActive ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : 'bg-green-600 hover:bg-green-700 text-white';
+                      return (
+                        <Button variant="default" size="sm" className={`${btnClass}`} onClick={() => handleToggleAccount(doctor)} disabled={activatingIds.has(doctor.id)}>
+                          {activatingIds.has(doctor.id) ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Đang cập nhật...
+                            </span>
+                          ) : (
+                            <>
+                              <Users size={14} className="mr-1" />
+                              {isActive ? 'Inactive' : 'Active'}
+                            </>
+                          )}
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </CardContent>
               </Card>
@@ -919,6 +938,9 @@ export default function AdminDoctorsPage() {
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">
                                 {doctor.doctorName}
+                                <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${doctor.accountStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' : doctor.accountStatus === 'INACTIVE' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>
+                                  {doctor.accountStatus ?? 'UNKNOWN'}
+                                </span>
                               </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400">
                                 {doctor.degree}
@@ -945,15 +967,30 @@ export default function AdminDoctorsPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm">
+                            {/* <Button variant="ghost" size="sm">
                               <Eye size={14} />
+                            </Button> */}
+                            <Button variant="outline" size="sm" className="flex-1">
+                              <Edit size={14} className="mr-1" />
                             </Button>
-                            <Button variant="ghost" size="sm">
-                              <Edit size={14} />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                              <Trash2 size={14} />
-                            </Button>
+                            {(() => {
+                              const isActive = doctor.accountStatus === 'ACTIVE';
+                              return (
+                                <Button variant="ghost" size="sm" className={`flex items-center gap-2 ${isActive ? 'text-yellow-600 hover:text-yellow-700' : 'text-green-600 hover:text-green-700'}`} onClick={() => handleToggleAccount(doctor)} disabled={activatingIds.has(doctor.id)}>
+                                  {activatingIds.has(doctor.id) ? (
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-3 h-3 border-2 border-current rounded-full animate-spin" />
+                                      Đang...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <Users size={14} />
+                                      {isActive ? 'Inactive' : 'Active'}
+                                    </>
+                                  )}
+                                </Button>
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -994,28 +1031,44 @@ export default function AdminDoctorsPage() {
         open={openCreate}
         onOpenChange={setOpenCreate}
         onCreated={(created) => {
-          setOpenCreate(false);
-          if (!created) {
-            console.log('Doctor created, but no payload returned');
-            return;
-          }
+            setOpenCreate(false);
+            if (!created) {
+              console.log('Doctor created, but no payload returned');
+              return;
+            }
 
-          // Normalize created doctor to always include a `profile` object
-          const createdProfile = created.profile
-            ? created.profile
-            : {
-                name: created.doctorName ?? '',
-                email: created.email ?? '',
-                phone: created.phone ?? '',
-                address: created.address ?? '',
-                avatarUrl: created.avatarUrl ?? '',
-              };
+            // Server returns nested `profileId` and `chuyenKhoaId` fields.
+            // Normalize the created object to the same UI shape we use when fetching the list,
+            // so the newly created item displays immediately without needing a full reload.
+            const d: any = created;
+            const createdProfile = d.profile ?? d.profileId ?? {
+              name: d.doctorName ?? '',
+              email: d.email ?? '',
+              phone: d.phone ?? '',
+              address: d.address ?? '',
+              avatarUrl: d.avatarUrl ?? '',
+            };
 
-          const normalized = { ...created, profile: createdProfile };
+            const normalized = {
+              id: d._id ?? d.id ?? '',
+              doctorName: d.doctorName ?? '',
+              specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
+              specialtyId: d.chuyenKhoaId?._id ?? '',
+              degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
+              degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
+              academic: d.academic ?? '',
+              bio: d.bio ?? '',
+              achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
+              yearsOfExperience: Number(d.yearsOfExperience) || 0,
+              profile: createdProfile,
+              account: d.accountId ?? null,
+              accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
+              raw: d,
+            };
 
-          setDoctors((prev) => [normalized, ...prev]);
-          console.log('Doctor created successfully', normalized);
-        }}
+            setDoctors((prev) => [normalized, ...prev]);
+            console.log('Doctor created successfully', normalized);
+          }}
       />
     </div>
   );

@@ -31,5 +31,24 @@ export const createDoctor = async (form: any) => {
   }
 };
 
+export const updateAccountStatus = async (
+  accountId: string,
+  status: string
+) => {
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>(
+      `/users/${accountId}/status`,
+      { status }
+    );
+
+    console.log("[Axios] Update account status:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Failed to update account status:", error);
+    throw error;
+  }
+};
+
+
 
 
