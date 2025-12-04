@@ -29,4 +29,14 @@ export const getReviewByAppointmentAndPatient = async (
   }
 };
 
+export const getAllReviews = async () => {
+  try {
+    const res = await axiosClient.get<DataResponse<any>>("/reviews");
+    console.log("[Axios] Get all reviews:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Failed to get all reviews:", error);
+  }
+};
+
 

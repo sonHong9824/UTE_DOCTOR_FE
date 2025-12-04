@@ -31,7 +31,7 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createDoctor, getDoctorsAdmin, updateAccountStatus } from '@/apis/admin/admin.api';
+import { createDoctor, getDoctorsAdmin, updateAccountStatus, updateDoctor } from '@/apis/admin/admin.api';
 import { getDoctorById } from '@/apis/doctor/profile.api';
 import { getSpecialties } from '@/apis/appointment/appointment.api';
 
@@ -575,9 +575,338 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
   );
 };
 
+// DoctorEditModal: similar to create modal but pre-fills with `initialData` and calls updateDoctor
+const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open: boolean; onOpenChange: (v: boolean) => void; initialData?: any; onUpdated?: (updated?: any) => void }) => {
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
+  const [form, setForm] = useState<any>({
+    doctorName: '',
+    specialty: '',
+    bio: '',
+    degree: [] as string[],
+    academic: '',
+    achievements: '',
+    yearsOfExperience: '',
+    profile: {
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      gender: '',
+      dob: '',
+      avatarUrl: '',
+    },
+  });
+  
+  const degreeOptions = [
+    { label: 'Tiến sĩ Y học', short: 'TSYH', priority: 1 },
+    { label: 'Tiến sĩ', short: 'TS', priority: 2 },
+    { label: 'Bác sĩ CKII', short: 'BS.CKII', priority: 3 },
+    { label: 'Bác sĩ CKI', short: 'BS.CKI', priority: 4 },
+    { label: 'Thạc sĩ', short: 'ThS', priority: 5 },
+    { label: 'Bác sĩ', short: 'BS', priority: 6 },
+    { label: 'Cử nhân', short: 'CN', priority: 7 },
+    { label: 'Thầy thuốc nhân dân', short: 'TTND', priority: 8 },
+    { label: 'Thầy thuốc ưu tú', short: 'TTƯT', priority: 9 },
+  ];
+
+  const academicOptions = [
+    { label: 'Giáo sư', short: 'GS', priority: 1 },
+    { label: 'Phó giáo sư', short: 'PGS', priority: 2 },
+    { label: 'Không', short: '', priority: 999 },
+  ];
+
+  const buildDoctorName = (profileName?: string, academicLabel?: string, degreeArr?: string[]) => {
+    const name = profileName?.trim() || '';
+    const academicObj = academicOptions.find((a) => a.label === academicLabel);
+    const academicShort = academicObj && academicObj.short ? academicObj.short.trim() : '';
+
+    let degreeShort = '';
+    if (Array.isArray(degreeArr) && degreeArr.length > 0) {
+      const matched = degreeArr
+        .map((label) => degreeOptions.find((d) => d.label === label))
+        .filter(Boolean) as Array<{ label: string; short: string; priority: number }>;
+      if (matched.length > 0) {
+        matched.sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999));
+        degreeShort = matched[0]?.short ?? '';
+      }
+    }
+
+    const parts: string[] = [];
+    if (academicShort) parts.push(`${academicShort}.`);
+    if (degreeShort) parts.push(`${degreeShort} `);
+    if (name) parts.push(name);
+
+    return parts.join('').trim();
+  };
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [specialtiesList, setSpecialtiesList] = useState<Array<{ _id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!initialData) return;
+    // Normalize incoming initialData shape used elsewhere in the page
+    const d = initialData;
+    setForm({
+      doctorName: d.doctorName ?? '',
+      // support response shape where specialty is returned as `chuyenKhoaId` object
+      specialty: d.chuyenKhoaId?._id ?? d.specialtyId ?? d.specialty ?? '',
+      bio: d.bio ?? '',
+      degree: Array.isArray(d.degreeArray) ? d.degreeArray : Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
+      academic: d.academic ?? '',
+      achievements: Array.isArray(d.achievements) ? d.achievements.join('\n') : (d.achievements ? String(d.achievements) : ''),
+      yearsOfExperience: String(d.yearsOfExperience ?? ''),
+      profile: {
+        // support `profile` or `profileId` (object) shapes
+        name: (d.profile?.name ?? d.profileId?.name) ?? '',
+        address: (d.profile?.address ?? d.profileId?.address) ?? '',
+        phone: (d.profile?.phone ?? d.profileId?.phone) ?? '',
+        email: (d.profile?.email ?? d.profileId?.email) ?? '',
+        gender: (d.profile?.gender ?? d.profileId?.gender) ?? '',
+        dob: (d.profile?.dob ?? d.profileId?.dob) ? new Date(d.profile?.dob ?? d.profileId?.dob).toISOString().slice(0,10) : '',
+        avatarUrl: (d.profile?.avatarUrl ?? d.profileId?.avatarUrl) ?? '',
+      }
+    });
+  }, [initialData]);
+
+  // keep doctorName in sync with profile.name, academic, degree
+  useEffect(() => {
+    const computed = buildDoctorName(form.profile?.name, form.academic, form.degree);
+    if (computed !== form.doctorName) setForm((s: any) => ({ ...s, doctorName: computed }));
+  }, [form.profile?.name, form.academic, form.degree]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const email = typeof window !== 'undefined' ? localStorage.getItem('email') || '' : '';
+        const res = await getSpecialties(email);
+        if (res?.data) setSpecialtiesList(res.data as any);
+      } catch (e) {
+        console.error('Failed to load specialties', e);
+      }
+    };
+    fetch();
+  }, []);
+
+  const handleChange = (e: any) => {
+    const { name, value } = e.target;
+    if (name.startsWith('profile.')) {
+      const key = name.replace('profile.', '');
+      setForm((s: any) => ({ ...s, profile: { ...s.profile, [key]: value } }));
+    } else {
+      setForm((s: any) => ({ ...s, [name]: value }));
+    }
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  const validate = () => {
+    const newErrors: Record<string,string> = {};
+    if (!form.profile?.name?.trim()) newErrors['profile.name'] = 'Vui lòng nhập tên';
+    if (!form.profile?.email?.trim()) newErrors['profile.email'] = 'Vui lòng nhập email';
+    if (!form.specialty) newErrors['specialty'] = 'Chọn chuyên khoa';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) {
+      toast.error('Vui lòng hoàn thành thông tin bắt buộc trước khi lưu');
+      return;
+    }
+
+    if (!initialData) {
+      toast.error('Dữ liệu bác sĩ không hợp lệ - không thể cập nhật');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const degreeArray = Array.isArray(form.degree) ? form.degree : form.degree ? [String(form.degree)] : [];
+      // Payload shape expected by backend for update (as requested):
+      // achievements as a single string, specialty field (id), degree as array
+      const payload = {
+        doctorName: form.doctorName,
+        specialty: form.specialty,
+        bio: form.bio,
+        degree: degreeArray,
+        academic: String(form.academic ?? ''),
+        achievements: form.achievements ? String(form.achievements) : '',
+        yearsOfExperience: Number(form.yearsOfExperience) || 0,
+        profile: {
+          ...form.profile,
+        },
+      };
+
+      const id = initialData.id || initialData._id;
+      console.log('Edit doctor payload ->', payload);
+      const res = await updateDoctor(id, payload);
+      console.log('Update doctor raw response ->', res);
+      let updated = res?.data ?? res ?? null;
+      console.log('Normalized updated ->', updated);
+
+      // If server returned no updated object, attempt to re-fetch the doctor
+      if (!updated) {
+        try {
+          const ref = await getDoctorById(id);
+          updated = ref?.data ?? ref ?? null;
+          console.log('Refetched updated ->', updated);
+        } catch (e) {
+          console.error('Refetch after update failed', e);
+        }
+      }
+
+      if (!updated) {
+        toast.error('Không nhận được dữ liệu trả về từ server');
+      } else {
+        toast.success('Cập nhật hồ sơ bác sĩ thành công');
+      }
+
+      onOpenChange(false);
+      onUpdated?.(updated ?? null);
+    } catch (err) {
+      console.error('updateDoctor error', err);
+      toast.error('Có lỗi khi cập nhật bác sĩ');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[98vw] max-w-[1600px] sm:max-w-[700px] max-h-[90vh] p-0 overflow-auto mx-auto">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-slate-800 dark:to-slate-900">
+          <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white">
+              <User size={20} />
+            </div>
+            Cập nhật hồ sơ bác sĩ
+          </DialogTitle>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Chỉnh sửa thông tin bác sĩ và lưu thay đổi</p>
+        </DialogHeader>
+
+        <div className="px-6 pt-4 border-b bg-white dark:bg-slate-900">
+          <div className="flex gap-1">
+            {['profile','professional'].map((t) => (
+              <button key={t} onClick={() => setActiveTab(t)} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm ${activeTab===t? 'bg-white dark:bg-slate-800 text-amber-600 border-t-2 border-amber-500':'text-gray-600 dark:text-gray-400'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col h-full min-h-0">
+          <div className="flex-1 overflow-auto px-6 py-6">
+            {activeTab === 'profile' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField label="Tên" name="profile.name" value={form.profile.name} onChange={handleChange} icon={User} required error={errors['profile.name']} />
+                  <InputField label="Email" name="profile.email" value={form.profile.email} onChange={handleChange} type="email" icon={Mail} required error={errors['profile.email']} />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField label="Số điện thoại" name="profile.phone" value={form.profile.phone} onChange={handleChange} icon={Phone} />
+                  <InputField label="Địa chỉ" name="profile.address" value={form.profile.address} onChange={handleChange} icon={MapPin} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'professional' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InputField label="Tên bác sĩ" name="doctorName" value={form.doctorName} onChange={handleChange} readOnly placeholder="Không thể chỉnh" icon={User} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Chuyên khoa</label>
+                    <select name="specialty" value={form.specialty} onChange={handleChange} className="w-full rounded-md border px-3 py-2">
+                      <option value="">Chọn chuyên khoa</option>
+                      {specialtiesList.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
+                    </select>
+                    {errors['specialty'] && <p className="text-xs text-red-500">{errors['specialty']}</p>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Học vị</label>
+                    <div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {degreeOptions.map((d) => (
+                          <label key={d.label} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              value={d.label}
+                              checked={Array.isArray(form.degree) && form.degree.includes(d.label)}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setForm((s: any) => {
+                                  const next = Array.isArray(s.degree) ? [...s.degree] : [];
+                                  if (checked) {
+                                    if (!next.includes(d.label)) next.push(d.label);
+                                  } else {
+                                    const idx = next.indexOf(d.label);
+                                    if (idx >= 0) next.splice(idx, 1);
+                                  }
+                                  const computed = buildDoctorName(s.profile?.name, s.academic, next);
+                                  return { ...s, degree: next, doctorName: computed };
+                                });
+                              }}
+                              className="w-4 h-4"
+                            />
+                            <span>{d.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">Chọn học vị chính của bác sĩ</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Học hàm</label>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                        <Award size={18} />
+                      </div>
+                      <select
+                        name="academic"
+                        value={form.academic}
+                        onChange={handleChange}
+                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Chọn học hàm (không bắt buộc)</option>
+                        {academicOptions.map((a) => (
+                          <option key={a.label} value={a.label}>{a.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-500">Chọn học hàm nếu có</p>
+                  </div>
+                </div>
+
+                <InputField label="Tiểu sử / Giới thiệu" name="bio" value={form.bio} onChange={handleChange} rows={4} icon={FileText} />
+                <InputField label="Thành tựu" name="achievements" value={form.achievements} onChange={handleChange} rows={4} />
+                <InputField label="Số năm kinh nghiệm" name="yearsOfExperience" value={form.yearsOfExperience} onChange={handleChange} type="number" icon={Calendar} />
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t bg-gray-50 dark:bg-slate-900 flex items-center justify-between">
+            <div className="text-sm text-gray-600">{activeTab === 'profile' ? 'Bước 1/2' : 'Bước 2/2'}</div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Hủy</Button>
+              {activeTab === 'profile' ? (
+                <Button onClick={() => { if (validate()) setActiveTab('professional'); }}>Tiếp theo →</Button>
+              ) : (
+                <Button onClick={handleSubmit} className="bg-amber-500 text-white" disabled={loading}>{loading ? 'Đang lưu...' : 'Lưu thay đổi'}</Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 
 export default function AdminDoctorsPage() {
   const [openCreate, setOpenCreate] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editInitial, setEditInitial] = useState<any | null>(null);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(5);
@@ -593,6 +922,27 @@ export default function AdminDoctorsPage() {
   const [viewLoading, setViewLoading] = useState(false);
 
   const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set());
+
+  // Normalize a server doctor object to the UI shape used in this page
+  const normalizeDoctor = (d: any) => {
+    if (!d) return null;
+    return {
+      id: d._id ?? d.id ?? '',
+      doctorName: d.doctorName ?? '',
+      specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
+      specialtyId: d.chuyenKhoaId?._id ?? '',
+      degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
+      degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
+      academic: d.academic ?? '',
+      bio: d.bio ?? '',
+      achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
+      yearsOfExperience: Number(d.yearsOfExperience) || 0,
+      profile: d.profileId ?? d.profile ?? {},
+      account: d.accountId ?? null,
+      accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
+      raw: d,
+    };
+  };
 
   const handleToggleAccount = async (doctor: any) => {
     if (!doctor?.account?._id) {
@@ -612,6 +962,12 @@ export default function AdminDoctorsPage() {
       // Update UI based on result (fall back to targetStatus)
       setDoctors((prev) => prev.map((d) => (d.id === doctor.id ? { ...d, accountStatus: updated?.status ?? targetStatus, account: { ...d.account, status: updated?.status ?? targetStatus } } : d)));
       toast.success(`Cập nhật trạng thái tài khoản: ${(updated?.status ?? targetStatus)}`);
+      // Refresh list to ensure latest server state
+      try {
+        await fetchDoctors();
+      } catch (e) {
+        console.error('Failed to refresh doctors after account toggle', e);
+      }
     } catch (err) {
       console.error('Failed to update account status', err);
       toast.error('Không thể cập nhật trạng thái tài khoản');
@@ -624,43 +980,61 @@ export default function AdminDoctorsPage() {
     }
   };
 
-  // Fetch doctors from admin API and map to UI shape
-  useEffect(() => {
-    const fetchDoctors = async () => {
-      setLoadingList(true);
-      try {
-        const params: any = { page, limit };
-        if (selectedSpecialty && selectedSpecialty !== 'all') params.specialtyId = selectedSpecialty;
-        if (searchQuery && searchQuery.trim()) params.name = searchQuery.trim();
+  // Open edit modal for a doctor. Fetch full doctor via API for most up-to-date data.
+  const handleEdit = async (doctor: any) => {
+    if (!doctor) return;
+    setViewLoading(true);
+    try {
+      const res = await getDoctorById(doctor.id || doctor._id);
+      const data = res?.data ?? doctor.raw ?? doctor;
+      setEditInitial(data);
+      setOpenEdit(true);
+    } catch (err) {
+      console.error('Failed to load doctor for edit', err);
+      toast.error('Không thể tải dữ liệu bác sĩ để chỉnh sửa');
+    } finally {
+      setViewLoading(false);
+    }
+  };
 
-        const res = await getDoctorsAdmin(params);
-        const docs = res?.data?.doctors ?? [];
-        const pagination = res?.data?.pagination ?? {};
-        const mapped = (docs as any[]).map((d) => ({
-          id: d._id,
-          doctorName: d.doctorName ?? '',
-          specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
-          specialtyId: d.chuyenKhoaId?._id ?? '',
-          degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
-          degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
-          academic: d.academic ?? '',
-          bio: d.bio ?? '',
-          achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
-          yearsOfExperience: Number(d.yearsOfExperience) || 0,
-          profile: d.profileId ?? {},
-          account: d.accountId ?? null,
-          accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
-          raw: d,
-        }));
-        setDoctors(mapped);
-        setTotal(Number(pagination.total) || 0);
-        setTotalPages(Number(pagination.totalPages) || 1);
-      } catch (err) {
-        console.error('Failed to fetch doctors admin', err);
-      } finally {
-        setLoadingList(false);
-      }
-    };
+  // Fetch doctors from admin API and map to UI shape (exposed for reuse)
+  const fetchDoctors = async () => {
+    setLoadingList(true);
+    try {
+      const params: any = { page, limit };
+      if (selectedSpecialty && selectedSpecialty !== 'all') params.specialtyId = selectedSpecialty;
+      if (searchQuery && searchQuery.trim()) params.name = searchQuery.trim();
+
+      const res = await getDoctorsAdmin(params);
+      const docs = res?.data?.doctors ?? [];
+      const pagination = res?.data?.pagination ?? {};
+      const mapped = (docs as any[]).map((d) => ({
+        id: d._id,
+        doctorName: d.doctorName ?? '',
+        specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
+        specialtyId: d.chuyenKhoaId?._id ?? '',
+        degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
+        degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
+        academic: d.academic ?? '',
+        bio: d.bio ?? '',
+        achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
+        yearsOfExperience: Number(d.yearsOfExperience) || 0,
+        profile: d.profileId ?? {},
+        account: d.accountId ?? null,
+        accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
+        raw: d,
+      }));
+      setDoctors(mapped);
+      setTotal(Number(pagination.total) || 0);
+      setTotalPages(Number(pagination.totalPages) || 1);
+    } catch (err) {
+      console.error('Failed to fetch doctors admin', err);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDoctors();
   }, [page, limit, selectedSpecialty, searchQuery]);
 
@@ -869,10 +1243,10 @@ export default function AdminDoctorsPage() {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-4 border-t">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      <Edit size={14} className="mr-1" />
-                      Sửa
-                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(doctor)}>
+                          <Edit size={14} className="mr-1" />
+                          Sửa
+                        </Button>
                     {(() => {
                       const isActive = doctor.accountStatus === 'ACTIVE';
                       const btnClass = isActive ? 'bg-yellow-400 hover:bg-yellow-500 text-black' : 'bg-green-600 hover:bg-green-700 text-white';
@@ -970,7 +1344,7 @@ export default function AdminDoctorsPage() {
                             {/* <Button variant="ghost" size="sm">
                               <Eye size={14} />
                             </Button> */}
-                            <Button variant="outline" size="sm" className="flex-1">
+                            <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(doctor)}>
                               <Edit size={14} className="mr-1" />
                             </Button>
                             {(() => {
@@ -1030,46 +1404,32 @@ export default function AdminDoctorsPage() {
       <DoctorCreateModal 
         open={openCreate}
         onOpenChange={setOpenCreate}
-        onCreated={(created) => {
+        onCreated={async (created) => {
             setOpenCreate(false);
-            if (!created) {
-              console.log('Doctor created, but no payload returned');
-              return;
+            // After creating, refresh the server-backed list so it's authoritative
+            try {
+              setPage(1);
+              await fetchDoctors();
+            } catch (e) {
+              console.error('Failed to refresh doctors after create', e);
             }
-
-            // Server returns nested `profileId` and `chuyenKhoaId` fields.
-            // Normalize the created object to the same UI shape we use when fetching the list,
-            // so the newly created item displays immediately without needing a full reload.
-            const d: any = created;
-            const createdProfile = d.profile ?? d.profileId ?? {
-              name: d.doctorName ?? '',
-              email: d.email ?? '',
-              phone: d.phone ?? '',
-              address: d.address ?? '',
-              avatarUrl: d.avatarUrl ?? '',
-            };
-
-            const normalized = {
-              id: d._id ?? d.id ?? '',
-              doctorName: d.doctorName ?? '',
-              specialty: d.chuyenKhoaId?.name ?? (d.chuyenKhoaId === null ? '' : ''),
-              specialtyId: d.chuyenKhoaId?._id ?? '',
-              degree: Array.isArray(d.degree) ? d.degree.join(', ') : d.degree ?? '',
-              degreeArray: Array.isArray(d.degree) ? d.degree : d.degree ? [d.degree] : [],
-              academic: d.academic ?? '',
-              bio: d.bio ?? '',
-              achievements: Array.isArray(d.achievements) ? d.achievements : d.achievements ? [d.achievements] : [],
-              yearsOfExperience: Number(d.yearsOfExperience) || 0,
-              profile: createdProfile,
-              account: d.accountId ?? null,
-              accountStatus: d.accountId?.status ?? d.status ?? 'UNKNOWN',
-              raw: d,
-            };
-
-            setDoctors((prev) => [normalized, ...prev]);
-            console.log('Doctor created successfully', normalized);
           }}
       />
+        {/* Edit Modal */}
+        <DoctorEditModal
+          open={openEdit}
+          onOpenChange={setOpenEdit}
+          initialData={editInitial ?? undefined}
+          onUpdated={async (updated) => {
+            // After update, refresh server-backed list to ensure canonical state
+            try {
+              await fetchDoctors();
+            } catch (e) {
+              console.error('Failed to refresh doctors after update', e);
+            }
+            setOpenEdit(false);
+          }}
+        />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Banner from "@/components/banner";
 import Footer from "@/components/footer";
@@ -13,9 +13,45 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import Image from "next/image";
+import { getDoctorsAdmin } from '@/apis/admin/admin.api';
+import { getAllReviews } from '@/apis/review/review.api';
+
+// Fallback static names used when API returns no doctors
+const fallbackNames = ["Chí", "Daniel", "Hiếu", "Minh"];
 
 export default function Home() {
   const router = useRouter();
+
+  const [apiDoctors, setApiDoctors] = useState<any[]>([]);
+  const [apiReviews, setApiReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    // fetch a small set of doctors to display on homepage
+    const fetch = async () => {
+      try {
+        const res = await getDoctorsAdmin({ page: 1, limit: 8 });
+        const docs = res?.data?.doctors ?? [];
+        setApiDoctors(docs);
+      } catch (e) {
+        console.error('Failed to load doctors for homepage', e);
+      }
+    };
+    fetch();
+  }, []);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const res = await getAllReviews();
+        // DataResponse wrapper: res?.data may be the array, or res itself may be the array
+        const items = res?.data ?? res ?? [];
+        setApiReviews(Array.isArray(items) ? items : []);
+      } catch (e) {
+        console.error('Failed to load reviews for homepage', e);
+      }
+    };
+    fetchReviews();
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -113,27 +149,41 @@ export default function Home() {
         <h2 className="text-3xl font-bold text-center mb-10">Đội ngũ bác sĩ</h2>
         <Carousel>
           <CarouselContent>
-            {["Chí", "Daniel", "Hiếu", "Minh"].map((d) => (
-              <CarouselItem
-                key={d}
-                className="basis-1/1 md:basis-1/2 lg:basis-1/3"
-              >
-                <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow text-center h-[320px] flex flex-col items-center justify-center">
-                  <div className="w-[200px] h-[200px] mb-4">
-                    <Image
-                      src={`/assets/bs/bs-${d}.jpg`}
-                      alt={`Doctor ${d}`}
-                      width={200}
-                      height={200}
-                      className="w-full h-full object-cover rounded-full"
-                    />
-                  </div>
-                  <h3 className="font-semibold text-lg">Bác sĩ {d}</h3>
-                  <p className="text-gray-500 text-sm">Chuyên khoa nội</p>
-                </div>
-              </CarouselItem>
-              
-            ))}
+            {/* Render server-backed doctors if available, otherwise fallback to static list */}
+            {/**
+             * Each doctor object from API is expected to have at least:
+             * - doctorName
+             * - profile or profileId with avatarUrl, email
+             * - chuyenKhoaId?.name as specialty
+             */}
+            {/** Use local state `doctors` filled by effect below */}
+            {(function renderDoctors() {
+              // Safe guard: window-only API lives in client component
+              // `apiDoctors` populated in useEffect
+              return (apiDoctors.length ? apiDoctors : fallbackNames).map((d: any, idx: number) => {
+                const avatarUrl = d?.profile?.avatarUrl ?? d?.profileId?.avatarUrl ?? d?.avatar ?? null;
+                const name = d?.doctorName ?? d?.profile?.name ?? d?.profileId?.name ?? (typeof d === 'string' ? d : `Bác sĩ ${idx + 1}`);
+                const specialty = d?.chuyenKhoaId?.name ?? d?.specialty ?? 'Chuyên khoa';
+                const fallbackImg = `/assets/bs/bs-${(name || '').toString().split(' ')[1] || `default-${idx}`}.jpg`;
+                return (
+                  <CarouselItem key={d?._id ?? d?.id ?? `fallback-${idx}`} className="basis-1/1 md:basis-1/2 lg:basis-1/3">
+                    <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow text-center h-[320px] flex flex-col items-center justify-center">
+                      <div className="w-[200px] h-[200px] mb-4">
+                        {avatarUrl ? (
+                          // external avatar URL: use <img> to avoid Next.js domain config issues
+                          // ensure URL is a string
+                          <img src={String(avatarUrl)} alt={name} className="w-full h-full object-cover rounded-full" />
+                        ) : (
+                          <Image src={fallbackImg} alt={name} width={200} height={200} className="w-full h-full object-cover rounded-full" />
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-lg">{name}</h3>
+                      <p className="text-gray-500 text-sm">{specialty}</p>
+                    </div>
+                  </CarouselItem>
+                );
+              });
+            })()}
           </CarouselContent>
           <CarouselPrevious />
           <CarouselNext />
@@ -145,19 +195,20 @@ export default function Home() {
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold mb-10">Phản hồi bệnh nhân</h2>
           <div className="grid md:grid-cols-3 gap-8">
-            {[
-              "Dịch vụ tuyệt vời, bác sĩ rất tận tâm.",
-              "Ứng dụng tiện lợi, đặt lịch nhanh chóng.",
-              "Cơ sở vật chất hiện đại, tôi rất yên tâm.",
-            ].map((fb, i) => (
-              <div
-                key={i}
-                className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow"
-              >
-                <p className="italic">“{fb}”</p>
-                <div className="mt-4 text-sm font-semibold">- Bệnh nhân {i + 1}</div>
-              </div>
-            ))}
+            {apiReviews && apiReviews.length > 0 ? (
+              apiReviews.map((r: any, i: number) => {
+                const comment = r?.comment ?? r?.message ?? '';
+                const patientName = r?.patientId?.profileId?.name ?? r?.patientId?.name ?? `Bệnh nhân ${i + 1}`;
+                return (
+                  <div key={r._id ?? i} className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow">
+                    <p className="italic">“{comment}”</p>
+                    <div className="mt-4 text-sm font-semibold">- {patientName}</div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">Chưa có phản hồi nào.</p>
+            )}
           </div>
         </div>
       </section>

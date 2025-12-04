@@ -49,6 +49,36 @@ export const updateAccountStatus = async (
   }
 };
 
+export const updateDoctor = async (id: string, form: any) => {
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>(`/doctors/${id}`, form);
+    console.log('[Axios] Update doctor:', res.data);
+    return res.data;
+  } catch (error) {
+    console.error('Failed to update doctor:', error);
+    throw error;
+  }
+};
+
+export const getActiveDoctors = async (params: {
+  page?: number;
+  limit?: number;
+  chuyenKhoaId?: string;
+}) => {
+  try {
+    const response = await axiosClient.get("/doctors/active", {
+      params,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách bác sĩ:", error);
+    throw error;
+  }
+};
+
+
+
 
 
 

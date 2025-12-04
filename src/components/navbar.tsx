@@ -40,7 +40,9 @@ const Navbar = () => {
           <li className="navbarLi">
             <Link href="/chuyen-khoa">CHUYÊN KHOA</Link>
           </li>
-          <li className="navbarLi">CHUYÊN GIA - BÁC SĨ</li>
+          <li className="navbarLi">
+            <Link href="/chuyen-gia">CHUYÊN GIA - BÁC SĨ</Link>
+          </li>
           <li className="navbarLi">TIN TỨC</li>
           <li className="navbarLi">LIÊN HỆ</li>
         </ul>
