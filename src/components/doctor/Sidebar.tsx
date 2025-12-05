@@ -9,6 +9,9 @@ import Image from "next/image";
 import { useEffect, useState, Dispatch, SetStateAction } from "react";
 import { cn } from "@/lib/utils";
 import { getProfileById, ProfileResponseDto } from "@/apis/doctor/profile.api";
+import axiosClient from "@/lib/axiosClient";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const menuItems = [
   { name: "Tổng quan", icon: LayoutDashboard, path: "/doctor", },
@@ -25,9 +28,12 @@ interface SidebarProps {
   setCollapsed: Dispatch<SetStateAction<boolean>>;
 }
 
+
 export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   const pathname = usePathname();
   const [profile, setProfile] = useState<ProfileResponseDto | null>(null);
+  const router = useRouter();
+  
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -40,6 +46,25 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     };
     fetchProfile();
   }, []);
+
+  const handleLogout = () => {
+    if (typeof window === 'undefined') return;
+    // keys to clear
+    const keys = ['accessToken', 'refreshToken', 'email', 'id', 'accountId', 'userId', 'role', 'name', 'doctorId', 'patientId'];
+    keys.forEach((k) => localStorage.removeItem(k));
+
+    // clear axios default auth header
+    try {
+      if (axiosClient && axiosClient.defaults && axiosClient.defaults.headers) {
+        if (axiosClient.defaults.headers.common) delete axiosClient.defaults.headers.common.Authorization;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    toast.success('Đã đăng xuất');
+    router.push('/login');
+  };
 
   return (
     <aside
@@ -169,10 +194,12 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                 <User className="w-4 h-4" />
                 <span className="text-sm">Hồ sơ cá nhân</span>
               </button>
-              <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+              <div className="mt-3 space-y-1">
+              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
                 <LogOut className="w-4 h-4" />
                 <span className="text-sm">Đăng xuất</span>
               </button>
+            </div>
             </div>
           </>
         )}

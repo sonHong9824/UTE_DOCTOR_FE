@@ -51,6 +51,7 @@ export default function EditUserInfoModal({ open, onClose, user, onSave }: EditU
           ...prev,
           avatarUrl: dataUrl,
         }));
+        console.log('Selected file for edit:', dataUrl);
         setSelectedFile(file);
       };
       reader.readAsDataURL(file);

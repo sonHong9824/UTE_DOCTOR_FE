@@ -21,7 +21,7 @@ import axiosClient from '@/lib/axiosClient';
 import { toast } from 'sonner';
 
 const menuItems = [
-  { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
+  // { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
   { name: 'Bệnh nhân', icon: Users, path: '/admin/patients' },
   { name: 'Bác sĩ', icon: User, path: '/admin/doctors' },
   { name: 'Cuộc hẹn', icon: Calendar, path: '/admin/appointments' },

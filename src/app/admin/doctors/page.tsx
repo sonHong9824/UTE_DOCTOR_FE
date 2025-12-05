@@ -111,6 +111,28 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [specialtiesList, setSpecialtiesList] = useState<Array<{ _id: string; name: string }>>([]);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setAvatarPreview(dataUrl);
+        setForm((prev) => ({
+          ...prev,
+          profile: {
+            ...prev.profile,
+            avatarUrl: dataUrl,
+          },
+        }));
+        setSelectedFile(file);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -575,7 +597,6 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
   );
 };
 
-// DoctorEditModal: similar to create modal but pre-fills with `initialData` and calls updateDoctor
 const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open: boolean; onOpenChange: (v: boolean) => void; initialData?: any; onUpdated?: (updated?: any) => void }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
@@ -805,6 +826,41 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
                   <InputField label="Số điện thoại" name="profile.phone" value={form.profile.phone} onChange={handleChange} icon={Phone} />
                   <InputField label="Địa chỉ" name="profile.address" value={form.profile.address} onChange={handleChange} icon={MapPin} />
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Giới tính</label>
+                    <select
+                      name="profile.gender"
+                      value={form.profile.gender}
+                      onChange={handleChange}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Chọn giới tính</option>
+                      <option value="male">Nam</option>
+                      <option value="female">Nữ</option>
+                      <option value="other">Khác</option>
+                    </select>
+                  </div>
+
+                  <InputField
+                    label="Ngày sinh"
+                    name="profile.dob"
+                    value={form.profile.dob}
+                    onChange={handleChange}
+                    type="date"
+                    icon={Calendar}
+                  />
+
+                  <InputField
+                    label="Avatar URL"
+                    name="profile.avatarUrl"
+                    value={form.profile.avatarUrl}
+                    onChange={handleChange}
+                    placeholder="https://example.com/avatar.jpg"
+                    icon={Camera}
+                  />
+                </div>
               </div>
             )}
 
@@ -1029,6 +1085,13 @@ export default function AdminDoctorsPage() {
       setTotalPages(Number(pagination.totalPages) || 1);
     } catch (err) {
       console.error('Failed to fetch doctors admin', err);
+      try {
+        const e: any = err;
+        const serverMsg = e?.response?.data?.message ?? e?.message ?? 'Lỗi khi tải danh sách bác sĩ';
+        toast.error(String(serverMsg));
+      } catch (e) {
+        // ignore
+      }
     } finally {
       setLoadingList(false);
     }
@@ -1069,12 +1132,12 @@ export default function AdminDoctorsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            {/* <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg">
                 <Stethoscope size={24} />
               </div>
               Quản lý Bác sĩ
-            </h1>
+            </h1> */}
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               Quản lý hồ sơ và thông tin bác sĩ trong hệ thống
             </p>
@@ -1143,48 +1206,10 @@ export default function AdminDoctorsPage() {
                 </button>
               </div>
             </div>
-
-            <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-              <span>
-                Hiển thị {filteredDoctors.length} / {doctors.length} bác sĩ
-              </span>
-            </div>
           </CardContent>
         </Card>
 
         {/* Doctors Grid/List */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {loadingList ? 'Đang tải danh sách...' : `Hiển thị trang ${page} / ${totalPages} — ${total} bác sĩ`}
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={limit}
-              onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}
-              className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm"
-            >
-              <option value={5}>5 / trang</option>
-              <option value={10}>10 / trang</option>
-              <option value={20}>20 / trang</option>
-            </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-            >
-              ‹ Trước
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-            >
-              Sau ›
-            </Button>
-          </div>
-        </div>
         {viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDoctors.map(doctor => (
@@ -1375,6 +1400,39 @@ export default function AdminDoctorsPage() {
             </CardContent>
           </Card>
         )}
+
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            {loadingList ? 'Đang tải danh sách...' : `Hiển thị trang ${page} / ${totalPages}`}
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={limit}
+              onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}
+              className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm"
+            >
+              <option value={5}>5 / trang</option>
+              <option value={10}>10 / trang</option>
+              <option value={20}>20 / trang</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              ‹ Trước
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              Sau ›
+            </Button>
+          </div>
+        </div>
 
         {/* Empty State */}
         {filteredDoctors.length === 0 && (

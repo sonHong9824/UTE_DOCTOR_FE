@@ -8,14 +8,36 @@ export const getDoctorsAdmin = async (params: {
   limit?: number;
 }) => {
   try {
+    // map frontend `specialtyId` to backend `chuyenKhoaId` for compatibility
+    const mappedParams: any = { ...(params || {}) };
+    if (mappedParams.specialtyId && !mappedParams.chuyenKhoaId) {
+      mappedParams.chuyenKhoaId = mappedParams.specialtyId;
+      delete mappedParams.specialtyId;
+    }
+
     const res = await axiosClient.get<DataResponse<any>>("/doctors/admin", {
-      params,
+      params: mappedParams,
     });
 
     console.log("[Axios] Get doctors admin:", res.data);
     return res.data;
   } catch (e) {
-    console.error("Failed to fetch doctors admin:", e);
+    // Log detailed axios response if available to help debugging
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err: any = e;
+      if (err?.response) {
+        console.error("Failed to fetch doctors admin - response:", err.response.status, err.response.data);
+      } else if (err?.request) {
+        console.error("Failed to fetch doctors admin - no response:", err.request);
+      } else {
+        console.error("Failed to fetch doctors admin - error:", err.message || err);
+      }
+    } catch (logErr) {
+      console.error("Error logging fetch doctors admin error", logErr);
+    }
+    // Rethrow so callers can inspect the error (status code, message)
+    throw e;
   }
 };
 
@@ -76,6 +98,7 @@ export const getActiveDoctors = async (params: {
     throw error;
   }
 };
+
 
 
 
