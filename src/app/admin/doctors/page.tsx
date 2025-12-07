@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   User, 
   Search, 
@@ -259,6 +259,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
         degree: degreeArray,
         academic: academicStr,
         yearsOfExperience: Number(form.yearsOfExperience) || 0,
+        avatar: selectedFile || undefined,
       };
 
       const res = await createDoctor(payload);
@@ -266,7 +267,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
       const code = (res as any)?.code ?? undefined;
 
       if ((typeof code === 'string' && code.toUpperCase() === 'SUCCESS') || code === 'SUCCESS' || code === 200) {
-        toast.success(String(message));
+        toast.success(String(message), { id: 'create-doctor-success' });
         const created = (res as any)?.data ?? null;
         onOpenChange(false);
         onCreated?.(created ?? undefined);
@@ -296,9 +297,9 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
             </div>
             Tạo hồ sơ bác sĩ mới
           </DialogTitle>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Điền đầy đủ thông tin để tạo hồ sơ bác sĩ trong hệ thống
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pt-4 border-b bg-white dark:bg-slate-900">
@@ -368,7 +369,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
                     icon={MapPin}
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Giới tính</label>
                     <select
@@ -391,14 +392,27 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
                     type="date"
                     icon={Calendar}
                   />
-                  <InputField
-                    label="Avatar URL"
-                    name="profile.avatarUrl"
-                    value={form.profile.avatarUrl}
-                    onChange={handleChange}
-                    placeholder="https://example.com/avatar.jpg"
-                    icon={Camera}
-                  />
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ảnh đại diện</label>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-slate-800 flex items-center justify-center border">
+                        {avatarPreview || form.profile.avatarUrl ? (
+                          <img src={avatarPreview || form.profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera size={20} className="text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarChange}
+                          className="block w-full text-sm text-gray-700 dark:text-gray-300"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Tải ảnh mới (tùy chọn). Nếu bỏ trống sẽ giữ ảnh mặc định.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -618,6 +632,8 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
       avatarUrl: '',
     },
   });
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const degreeOptions = [
     { label: 'Tiến sĩ Y học', short: 'TSYH', priority: 1 },
@@ -687,6 +703,7 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
         avatarUrl: (d.profile?.avatarUrl ?? d.profileId?.avatarUrl) ?? '',
       }
     });
+    setAvatarPreview((d.profile?.avatarUrl ?? d.profileId?.avatarUrl) ?? null);
   }, [initialData]);
 
   // keep doctorName in sync with profile.name, academic, degree
@@ -717,6 +734,20 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
       setForm((s: any) => ({ ...s, [name]: value }));
     }
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        setAvatarPreview(dataUrl);
+        setForm((s: any) => ({ ...s, profile: { ...s.profile, avatarUrl: dataUrl } }));
+        setSelectedFile(file);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const validate = () => {
@@ -755,6 +786,7 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
         profile: {
           ...form.profile,
         },
+        avatar: selectedFile || undefined,
       };
 
       const id = initialData.id || initialData._id;
@@ -778,7 +810,7 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
       if (!updated) {
         toast.error('Không nhận được dữ liệu trả về từ server');
       } else {
-        toast.success('Cập nhật hồ sơ bác sĩ thành công');
+        toast.success('Cập nhật hồ sơ bác sĩ thành công', { id: 'update-doctor-success' });
       }
 
       onOpenChange(false);
@@ -801,7 +833,9 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
             </div>
             Cập nhật hồ sơ bác sĩ
           </DialogTitle>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Chỉnh sửa thông tin bác sĩ và lưu thay đổi</p>
+          <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Chỉnh sửa thông tin bác sĩ và lưu thay đổi
+          </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 pt-4 border-b bg-white dark:bg-slate-900">
@@ -827,7 +861,7 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
                   <InputField label="Địa chỉ" name="profile.address" value={form.profile.address} onChange={handleChange} icon={MapPin} />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Giới tính</label>
                     <select
@@ -852,14 +886,27 @@ const DoctorEditModal = ({ open, onOpenChange, initialData, onUpdated }: { open:
                     icon={Calendar}
                   />
 
-                  <InputField
-                    label="Avatar URL"
-                    name="profile.avatarUrl"
-                    value={form.profile.avatarUrl}
-                    onChange={handleChange}
-                    placeholder="https://example.com/avatar.jpg"
-                    icon={Camera}
-                  />
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ảnh đại diện</label>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100 dark:bg-slate-800 flex items-center justify-center border">
+                        {avatarPreview || form.profile.avatarUrl ? (
+                          <img src={avatarPreview || form.profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera size={20} className="text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarChange}
+                          className="block w-full text-sm text-gray-700 dark:text-gray-300"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Tải ảnh mới (tùy chọn). Nếu bỏ trống sẽ giữ ảnh cũ.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

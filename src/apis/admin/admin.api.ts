@@ -43,12 +43,62 @@ export const getDoctorsAdmin = async (params: {
 
 export const createDoctor = async (form: any) => {
   try {
-    const res = await axiosClient.post<DataResponse<any>>("/doctors", form);
+    const formData = new FormData();
+
+    // doctor fields
+    if (form.doctorName) formData.append("doctorName", form.doctorName);
+
+    const specialtyId = form.specialty || form.chuyenKhoaId;
+    if (specialtyId) {
+      formData.append("chuyenKhoaId", specialtyId);
+      // also send as "specialty" to mirror update API shape
+      formData.append("specialty", specialtyId);
+    }
+
+    if (form.bio) formData.append("bio", form.bio);
+    if (form.academic) formData.append("academic", form.academic);
+    if (form.achievements) formData.append("achievements", form.achievements);
+
+    // degree: array -> JSON string
+    if (form.degree) {
+      formData.append("degree", JSON.stringify(form.degree));
+    }
+
+    // yearsOfExperience: number -> string
+    if (form.yearsOfExperience !== undefined) {
+      formData.append("yearsOfExperience", String(form.yearsOfExperience));
+    }
+
+    // profile: nested object -> JSON string
+    if (form.profile) {
+      formData.append("profile", JSON.stringify(form.profile));
+    }
+
+    // avatar file (optional)
+    if (form.avatar) {
+      formData.append("avatar", form.avatar);
+    }
+
+    const res = await axiosClient.post<DataResponse<any>>("/doctors", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
     console.log("[Axios] Create doctor:", res.data);
     return res.data;
   } catch (error) {
-    console.error("Failed to create doctor:", error);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const err: any = error;
+      if (err?.response) {
+        console.error("Failed to create doctor (response):", err.response.status, err.response.data);
+      } else if (err?.request) {
+        console.error("Failed to create doctor (no response):", err.request);
+      } else {
+        console.error("Failed to create doctor:", err?.message || err);
+      }
+    } catch (logErr) {
+      console.error("Failed to log create doctor error", logErr);
+    }
     throw error;
   }
 };
@@ -73,7 +123,45 @@ export const updateAccountStatus = async (
 
 export const updateDoctor = async (id: string, form: any) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>(`/doctors/${id}`, form);
+    const formData = new FormData();
+
+    // Append doctor fields
+    if (form.doctorName) formData.append('doctorName', form.doctorName);
+    if (form.specialty) formData.append('specialty', form.specialty);
+    if (form.bio) formData.append('bio', form.bio);
+    if (form.academic) formData.append('academic', form.academic);
+    if (form.achievements) formData.append('achievements', form.achievements);
+
+    // degree must be array → convert to JSON string
+    if (form.degree) {
+      formData.append('degree', JSON.stringify(form.degree));
+    }
+
+    // yearsOfExperience must be number → convert to string
+    if (form.yearsOfExperience !== undefined) {
+      formData.append('yearsOfExperience', String(form.yearsOfExperience));
+    }
+
+    // profile is nested object → convert to JSON string
+    if (form.profile) {
+      formData.append('profile', JSON.stringify(form.profile));
+    }
+
+    // Avatar file
+    if (form.avatar) {
+      formData.append('avatar', form.avatar);
+    }
+
+    const res = await axiosClient.patch<DataResponse<any>>(
+      `/doctors/${id}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
     console.log('[Axios] Update doctor:', res.data);
     return res.data;
   } catch (error) {
@@ -81,6 +169,7 @@ export const updateDoctor = async (id: string, form: any) => {
     throw error;
   }
 };
+
 
 export const getActiveDoctors = async (params: {
   page?: number;
