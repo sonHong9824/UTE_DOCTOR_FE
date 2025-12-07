@@ -1,5 +1,6 @@
 import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
 import { getTimeslot } from '@/apis/timeslot/timeslot.api';
+import { getWalletBalance } from '@/apis/wallet/wallet.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
@@ -83,6 +84,10 @@ export default function AppointmentForm() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
 
+  // State cho coin balance
+  const [coinBalance, setCoinBalance] = useState<number>(0);
+  const [loadingCoin, setLoadingCoin] = useState(true);
+
   // Load mock data
   useEffect(() => {
   const fetchData = async () => {
@@ -107,6 +112,18 @@ export default function AppointmentForm() {
     if (email) {
       const res = await getSpecialties(email);
       setSpecialties(res!.data);
+    }
+
+    // Fetch coin balance
+    try {
+      const walletRes = await getWalletBalance();
+      if (walletRes?.data?.balance !== undefined) {
+        setCoinBalance(walletRes.data.balance);
+      }
+    } catch (err) {
+      console.error("Failed to load coin balance:", err);
+    } finally {
+      setLoadingCoin(false);
     }
   };
 
@@ -568,8 +585,12 @@ export default function AppointmentForm() {
                     onChange={(e) => handleChange('paymentMethod', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option key="ONLINE" value="ONLINE">💳 Thanh toán online</option>
-                    <option key="OFFLINE" value="OFFLINE">💵 Thanh toán tại bệnh viện</option>
+                    <option value="ONLINE">💳 VNPay (Sandbox)</option>
+                    <option value="COIN">
+                      🪙 Dùng Coin
+                      {!loadingCoin && coinBalance > 0 && ` (${coinBalance.toLocaleString('vi-VN')} coins)`}
+                    </option>
+                    <option value="OFFLINE">💵 Thanh toán tại bệnh viện</option>
                   </select>
                 </div>
 
