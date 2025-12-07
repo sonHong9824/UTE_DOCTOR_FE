@@ -24,8 +24,10 @@ const menuItems = [
   // { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
   { name: 'Bệnh nhân', icon: Users, path: '/admin/patients' },
   { name: 'Bác sĩ', icon: User, path: '/admin/doctors' },
-  { name: 'Cuộc hẹn', icon: Calendar, path: '/admin/appointments' },
+  { name: 'Lịch hẹn', icon: Calendar, path: '/admin/appointments' },
   { name: 'Thuốc', icon: FileText, path: '/admin/medications' },
+  { name: 'Đánh giá', icon: BarChart2, path: '/admin/reviews' },
+  { name: 'Tin tức', icon: Settings, path: '/admin/news' },
 ];
 
 interface AdminSidebarProps {

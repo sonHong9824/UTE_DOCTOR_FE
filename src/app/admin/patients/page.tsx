@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Phone, Eye, Stethoscope, Edit, Users } from "lucide-react";
+import { Search, Phone, Eye, Stethoscope, Edit, Users, Calendar, MapPin, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { getPatientsAdmin } from "@/apis/admin/patients.api";
 import { updateAccountStatus } from "@/apis/admin/admin.api";
@@ -20,13 +20,19 @@ export default function AdminPatientsPage() {
   const [keyword, setKeyword] = useState<string>("");
   const [selectedPatient, setSelectedPatient] = useState<any | null>(null);
   const [openDetail, setOpenDetail] = useState(false);
+  const [openMedicalRecord, setOpenMedicalRecord] = useState(false);
   const [activatingIds, setActivatingIds] = useState<Set<string>>(new Set());
 
   const fetchPatients = async () => {
     setLoading(true);
     try {
       const params: any = { page, limit };
-      if (keyword && keyword.trim()) params.keyword = keyword.trim();
+      if (keyword && keyword.trim()) {
+        const q = keyword.trim();
+        // send both for compatibility
+        params.keyword = q;
+        params.key = q;
+      }
 
       const res = await getPatientsAdmin(params);
       // API returns { code, message, data: [...], pagination }
@@ -91,7 +97,6 @@ export default function AdminPatientsPage() {
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Quản lý Bệnh nhân</h1>
             <p className="text-sm text-gray-600">Danh sách bệnh nhân và hồ sơ y tế</p>
           </div>
         </div>
@@ -149,7 +154,7 @@ export default function AdminPatientsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs font-medium cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors" onClick={() => { setSelectedPatient(p); setOpenMedicalRecord(true); }}>
                             <Stethoscope size={12} />
                             {p.medicalRecord?._id ?? '—'}
                           </span>
@@ -164,7 +169,7 @@ export default function AdminPatientsPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedPatient(p); setOpenDetail(true); }}>
-                              <Edit size={14} className="mr-1" />
+                              <Eye size={14} className="mr-1" />
                             </Button>
                             {(() => {
                               const isActive = accountStatus === 'ACTIVE';
@@ -231,54 +236,232 @@ export default function AdminPatientsPage() {
 
         {/* Detail dialog */}
         <Dialog open={openDetail} onOpenChange={setOpenDetail}>
-          <DialogContent className="max-w-2xl mx-auto p-0">
-            <DialogHeader className="p-6 border-b">
-              <DialogTitle className="text-lg font-bold">Chi tiết bệnh nhân</DialogTitle>
+          <DialogContent className="w-auto max-w-fit mx-auto">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="text-xl font-bold">Chi tiết bệnh nhân</DialogTitle>
             </DialogHeader>
-            <div className="p-6">
-              {selectedPatient ? (
-                <div className="space-y-4">
-                  <div className="flex gap-4 items-center">
-                    <img src={selectedPatient.profileId?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedPatient.profileId?.name ?? selectedPatient._id)}`} alt="avatar" className="w-20 h-20 rounded-full" />
-                    <div>
-                      <div className="text-xl font-semibold">{selectedPatient.profileId?.name}</div>
-                      <div className="text-sm text-gray-600">{selectedPatient.profileId?.email}</div>
-                      <div className="text-sm text-gray-600">{selectedPatient.profileId?.phone}</div>
-                    </div>
+            {selectedPatient?.profileId ? (
+              <div className="space-y-5">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center border-4 border-blue-100 dark:border-blue-900">
+                    <img src={selectedPatient.profileId?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(selectedPatient.profileId?.name ?? selectedPatient._id)}`} alt="avatar" className="w-full h-full object-cover" />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500">Chiều cao</div>
-                      <div className="font-medium">{selectedPatient.height ?? selectedPatient.medicalRecord?.height ?? '—'} cm</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Cân nặng</div>
-                      <div className="font-medium">{selectedPatient.weight ?? selectedPatient.medicalRecord?.weight ?? '—'} kg</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Nhóm máu</div>
-                      <div className="font-medium">{selectedPatient.bloodType ?? selectedPatient.medicalRecord?.bloodType ?? '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Số hồ sơ y tế</div>
-                      <div className="font-medium">{selectedPatient.medicalRecord?._id ?? '—'}</div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="font-semibold">Lịch sử y tế (một vài mục gần nhất)</h4>
-                    <ul className="mt-2 space-y-2">
-                      {(selectedPatient.medicalRecord?.medicalHistory ?? []).slice(0,3).map((h: any) => (
-                        <li key={h._id} className="text-sm text-gray-700">{new Date(h.dateRecord).toLocaleDateString()} — {h.diagnosis} — {h.note}</li>
-                      ))}
-                    </ul>
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedPatient.profileId?.name ?? '—'}</h2>
+                    <p className="text-sm text-gray-500 mt-1">{selectedPatient.profileId?.gender ?? '—'}</p>
                   </div>
                 </div>
-              ) : (
-                <div>Không có dữ liệu</div>
-              )}
-            </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <Phone size={18} className="text-blue-500" />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Số điện thoại</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{selectedPatient.profileId?.phone ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <Eye size={18} className="text-blue-500" />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Email</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{selectedPatient.profileId?.email ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <Calendar size={18} className="text-blue-500" />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Ngày sinh</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{selectedPatient.profileId?.dob ? new Date(selectedPatient.profileId.dob).toLocaleDateString('vi-VN') : '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <MapPin size={18} className="text-blue-500" />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500">Địa chỉ</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{selectedPatient.profileId?.address ?? '—'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button 
+                    onClick={() => setOpenDetail(false)}
+                    className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    Đóng
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">Không có dữ liệu</div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Medical Record Dialog - Drug Allergies & Appointments */}
+        <Dialog open={openMedicalRecord} onOpenChange={setOpenMedicalRecord}>
+          <DialogContent className="max-w-none w-[800px] max-h-[90vh] flex flex-col p-0 !sm:max-w-none">
+            <DialogHeader className="pb-3 px-6 pt-6">
+              <DialogTitle className="text-xl font-semibold">
+                Hồ sơ y tế - {selectedPatient?.profileId?.name ?? '—'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedPatient?.medicalRecord ? (
+              <div className="overflow-y-auto flex-1 px-6 pb-6">
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Drug Allergies Column */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={18} className="text-red-600 dark:text-red-400" />
+                      <h3 className="text-base font-semibold text-gray-800 dark:text-white">Dị ứng thuốc</h3>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {(selectedPatient.medicalRecord?.drugAllergies ?? []).length > 0 ? (
+                        (selectedPatient.medicalRecord.drugAllergies).map((allergy: any) => (
+                          <div key={allergy._id} className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+                            <div className="flex items-start justify-between mb-1">
+                              <h4 className="font-medium text-red-800 dark:text-red-300 text-sm">{allergy.name}</h4>
+                              <span className="text-xs text-red-600 dark:text-red-400">
+                                {allergy.dateRecord ? new Date(allergy.dateRecord).toLocaleDateString('vi-VN') : '—'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-red-700 dark:text-red-400">{allergy.description}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded p-3 text-center">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs">Không có dữ liệu</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Food Allergies Column */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={18} className="text-orange-600 dark:text-orange-400" />
+                      <h3 className="text-base font-semibold text-gray-800 dark:text-white">Dị ứng thực phẩm</h3>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {(selectedPatient.medicalRecord?.foodAllergies ?? []).length > 0 ? (
+                        (selectedPatient.medicalRecord.foodAllergies).map((allergy: any) => (
+                          <div key={allergy._id} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded p-3">
+                            <div className="flex items-start justify-between mb-1">
+                              <h4 className="font-medium text-orange-800 dark:text-orange-300 text-sm">{allergy.name}</h4>
+                              <span className="text-xs text-orange-600 dark:text-orange-400">
+                                {allergy.dateRecord ? new Date(allergy.dateRecord).toLocaleDateString('vi-VN') : '—'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-orange-700 dark:text-orange-400">{allergy.description}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded p-3 text-center">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs">Không có dữ liệu</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Vital Signs Column */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope size={18} className="text-purple-600 dark:text-purple-400" />
+                      <h3 className="text-base font-semibold text-gray-800 dark:text-white">Chỉ số sức khỏe</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-3">
+                        <div className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Chiều cao / Cân nặng</div>
+                        <div className="text-base font-semibold text-purple-900 dark:text-purple-100">
+                          {selectedPatient.medicalRecord?.height ?? '—'} cm / {selectedPatient.medicalRecord?.weight ?? '—'} kg
+                        </div>
+                      </div>
+                      
+                      <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-3">
+                        <div className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Nhóm máu</div>
+                        <div className="text-base font-semibold text-purple-900 dark:text-purple-100">
+                          {selectedPatient.medicalRecord?.bloodType ?? '—'}
+                        </div>
+                      </div>
+
+                      <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-3">
+                        <div className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1">Huyết áp</div>
+                        <div className="text-base font-semibold text-purple-900 dark:text-purple-100">
+                          {(() => {
+                            const bp = selectedPatient.medicalRecord?.bloodPressure?.[selectedPatient.medicalRecord.bloodPressure.length - 1];
+                            return bp ? `${bp.bloodPressure?.systolic ?? '—'}/${bp.bloodPressure?.diastolic ?? '—'}` : '—';
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Medical History Column */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope size={18} className="text-blue-600 dark:text-blue-400" />
+                      <h3 className="text-base font-semibold text-gray-800 dark:text-white">
+                        Lịch sử khám ({selectedPatient.medicalRecord?.medicalHistory?.length ?? 0} buổi)
+                      </h3>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {(selectedPatient.medicalRecord?.medicalHistory ?? []).length > 0 ? (
+                        (selectedPatient.medicalRecord.medicalHistory).slice().reverse().map((record: any, idx: number) => (
+                          <div key={record._id} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-medium text-blue-900 dark:text-blue-300 text-sm flex-1">{record.diagnosis}</h4>
+                              <span className="text-xs text-blue-600 dark:text-blue-400">
+                                {record.dateRecord ? new Date(record.dateRecord).toLocaleDateString('vi-VN') : '—'}
+                              </span>
+                            </div>
+
+                            {record.note && (
+                              <p className="text-xs text-blue-700 dark:text-blue-400 mb-2">{record.note}</p>
+                            )}
+
+                            {Array.isArray(record.prescriptions) && record.prescriptions.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                                <p className="text-xs font-medium text-blue-900 dark:text-blue-300 mb-1">Đơn thuốc:</p>
+                                <ul className="space-y-1">
+                                  {record.prescriptions.map((prescription: any, pIdx: number) => (
+                                    <li key={pIdx} className="text-xs text-blue-800 dark:text-blue-300">
+                                      • {prescription.name} - SL: {prescription.quantity}
+                                      {prescription.note && ` (${prescription.note})`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded p-3 text-center">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs">Không có dữ liệu</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <div className="text-center">
+                  <svg className="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-gray-500 dark:text-gray-400 text-lg">Không có dữ liệu hồ sơ y tế</p>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

@@ -1,10 +1,10 @@
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 
-export const getPatientsAdmin = async (params: {
-  keyword?: string; 
+export const getPatientsAdmin = async (params: { 
   page?: number;
   limit?: number;
+  keyword?: string;
 }) => {
   try {
     const res = await axiosClient.get<DataResponse<any>>("/patients/admin", {
