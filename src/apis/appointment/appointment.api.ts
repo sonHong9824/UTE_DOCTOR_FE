@@ -104,17 +104,62 @@ export const getAppointmentById = async (id: string) => {
   }
 };
 
-export const getAppointmentByPatientEmail = async (email: string) => {
+export const getAppointments = async (
+  page: number = 1,
+  limit: number = 10
+) => {
   try {
-    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/patient", {
-      params: { email }
+    const res = await axiosClient.get<DataResponse<{
+      data: any[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>>("/appointment/patient", {
+      params: { 
+        page,
+        limit
+      }
     });
-    console.log("[Axios] Get appointments by patient email:", res.data);
+
+    console.log("[Axios] Get appointments:", res.data);
     return res.data;
   } catch (e) {
-    console.error("Failed to fetch appointments by patient email:", e);
+    console.error("Failed to fetch appointments:", e);
   }
 };
+
+
+export const rescheduleAppointment = async (data: {
+  appointmentId: string;
+  newDate: string;
+  newTimeSlotId: string;
+  reason?: string;
+}) => {
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", data);
+    console.log("[Axios] Reschedule appointment:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to reschedule appointment:", e);
+    throw e;
+  }
+};
+
+export const cancelAppointment = async (appointmentId: string, patientId?: string) => {
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", { 
+      appointmentId,
+      patientId: patientId || localStorage.getItem("patientId") || undefined
+    });
+    console.log("[Axios] Cancel appointment:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to cancel appointment:", e);
+    throw e;
+  }
+};
+
 
 
 

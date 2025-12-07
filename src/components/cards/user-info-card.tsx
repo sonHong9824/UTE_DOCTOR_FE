@@ -7,8 +7,9 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
 import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
+import { Coins } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { JSX, useState } from "react";
+import { JSX, useEffect, useState } from "react";
 import {
   FaBirthdayCake,
   FaCalendarAlt,
@@ -20,6 +21,8 @@ import {
   FaUser,
   FaVenusMars
 } from "react-icons/fa";
+import { Skeleton } from "../ui";
+import { getWalletBalance } from "@/apis/wallet/wallet.api";
 
 interface UserInfoCardProps {
   user: AccountProfileDTO;
@@ -36,6 +39,27 @@ interface Field {
 export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps) {
   const router = useRouter();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [coinBalance, setCoinBalance] = useState<number | null>(null);
+  const [loadingCoin, setLoadingCoin] = useState(true);
+
+  // Fetch coin balance on mount
+  useEffect(() => {
+    const fetchCoinBalance = async () => {
+      try {
+        const response = await getWalletBalance();
+        console.log("Wallet balance response:", response);
+        if (response?.data?.balance !== undefined) {
+          setCoinBalance(response.data.balance);
+        }
+      } catch (err) {
+        console.error("Failed to fetch coin balance:", err);
+      } finally {
+        setLoadingCoin(false);
+      }
+    };
+
+    fetchCoinBalance();
+  }, []);
 
   const handleSaveUserInfo = async (updatedData: Partial<AccountProfileDTO>, avatarFile?: File) => {
     try {
@@ -74,7 +98,6 @@ export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps)
     { label: "Date of Birth", value: user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN") : "Unknown", icon: <FaBirthdayCake className="w-5 h-5 text-pink-500" /> },
     { label: "Address", value: user.address || "Unknown", icon: <FaMapMarkerAlt className="w-5 h-5 text-yellow-500" /> },
     { label: "Status", value: user.status || AccountStatusEnum.ACTIVE, icon: <FaCheckCircle className="w-5 h-5 text-teal-500" />, isStatus: true },
-
   ];
 
   const renderFields = (fields: typeof fieldsBlock1) =>
@@ -122,14 +145,35 @@ export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps)
           <div>{renderFields(fieldsBlock2)}</div>
         </Card>
 
-        {/* Góc phần tư 4: Block 3 + Button */}
-        <Card
-          className="p-4 rounded-xl shadow-md w-full flex flex-col justify-center"
-          style={{ backgroundColor: "var(--card)", color: "var(--card-foreground)" }}
-        >
-          <CardTitle className="text-lg mb-3">Trạng thái & thông tin khác</CardTitle>
-          <div>{renderFields(fieldsBlock3)}</div>
-        </Card>
+        {/* Góc phần tư 4: Block 3 + Coin Widget */}
+        <div className="flex flex-col gap-4">
+          <Card
+            className="p-4 rounded-xl shadow-md w-full flex flex-col justify-center"
+            style={{ backgroundColor: "var(--card)", color: "var(--card-foreground)" }}
+          >
+            <CardTitle className="text-lg mb-3">Trạng thái & thông tin khác</CardTitle>
+            <div>{renderFields(fieldsBlock3)}</div>
+          </Card>
+
+          {/* Coin Balance Card */}
+          <Card className="p-4 rounded-xl shadow-md w-full bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-200">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-200 p-3 rounded-lg">
+                <Coins className="h-6 w-6 text-amber-700" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Số Coin hiện có</p>
+                {loadingCoin ? (
+                  <Skeleton className="h-7 w-24 mt-1" />
+                ) : (
+                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                    {coinBalance?.toLocaleString('vi-VN') || '0'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
 
       {/* Btn Edit */}
       <div className="mt-6 flex justify-center col-span-2">

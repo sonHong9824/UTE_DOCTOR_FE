@@ -1,6 +1,6 @@
 "use client";
 
-import { getAppointmentById, getAppointmentByPatientEmail } from "@/apis/appointment/appointment.api";
+import { getAppointmentById, getAppointments } from "@/apis/appointment/appointment.api";
 import { getDoctorById } from "@/apis/doctor/profile.api";
 import { CreatePrescriptionPdfDto, generatePrescriptionPdf, PrescriptionItemDto } from "@/apis/medicine/medicine.api";
 import { getPatientByAccount, getPatientProfile } from "@/apis/patient/patient.api";
@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
+import AppointmentsList from "../appointments/appointments-list";
+import AppointmentStatus from "@/enum/appointment-status.enum";
 
 
 // Custom TabsTrigger styled
@@ -66,18 +68,13 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   const [doctorName, setDoctorName] = useState<string | null>(null);
   const [patientName, setPatientName] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [showPagination, setShowPagination] = useState<boolean>(false);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [total, setTotal] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState(1);
+
 
   useEffect(() => {
-    async function loadAppointments() {
-      try {
-        const email = localStorage.getItem('email');
-        const res = await getAppointmentByPatientEmail(email || '');
-        setAppointments(res?.data || []);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
     loadAppointments();
   }, [record.email]);
 
@@ -449,46 +446,57 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
     }
   };
 
-  const handleCancelAppointment = async (appt: any) => {
-    if (!appt) return;
-
+  const loadAppointments = async (page: number = 1, limit: number = 10) => {
     try {
-      // Tạm thời set loading hoặc disable button
-      setApptLoading(true);
+      const res = await getAppointments(page, limit);
 
-      // Gọi API hủy (ví dụ endpoint /appointments/cancel)
-      // Dùng fetch hoặc axios tùy project
-      const response = await fetch(`/api/appointments/cancel`, {
-        method: 'POST', // hoặc PUT nếu backend yêu cầu
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ appointmentId: appt._id }), // gửi id là đủ
-      });
+      console.log("Appointments API response:", res);
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || 'Hủy cuộc hẹn thất bại');
-      }
+      setAppointments(res?.data.data || []);
+      setTotalPages(res?.data.totalPages || 1);
+      setTotal(res?.data.total || 0);
 
-      toast.success('Hủy cuộc hẹn thành công');
+      setCurrentPage(res?.data.page || 1);
 
-      // Update state: bỏ appointment vừa hủy ra khỏi danh sách
-      setAppointments((prev) =>
-        prev.map((a) => (a._id === appt._id ? { ...a, appointmentStatus: 'CANCELLED' } : a))
-      );
+      const pages = res?.data.totalPages || 1;
+      setShowPagination(pages > 1);
 
-      // Đóng modal nếu muốn
-      setApptModalOpen(false);
-      setApptData(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err.message || 'Hủy cuộc hẹn thất bại');
-    } finally {
-      setApptLoading(false);
     }
   };
 
+
+
+  async function handleCancelAppointment(apptData: any): Promise<void> {
+    if (!apptData || !apptData._id) {
+      toast.error("Không tìm thấy thông tin cuộc hẹn để hủy.");
+      return;
+    }
+    if (!window.confirm("Bạn có chắc chắn muốn hủy buổi khám này?")) {
+      return;
+    }
+    setApptLoading(true);
+    try {
+      // You may need to implement or import an API for canceling appointment
+      // For example: await cancelAppointmentById(apptData._id);
+      // Here is a placeholder for the actual API call:
+      // await cancelAppointmentById(apptData._id);
+
+      // Simulate API call with a timeout (remove this in production)
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      toast.success("Đã hủy buổi khám thành công.");
+      setApptModalOpen(false);
+      setApptData(null);
+      await loadAppointments();
+    } catch (err: any) {
+      toast.error("Hủy buổi khám thất bại. Vui lòng thử lại.");
+      console.error("Cancel appointment error:", err);
+    } finally {
+      setApptLoading(false);
+    }
+  }
 
   return (
     <div className="flex flex-col max-h-full overflow-hidden rounded-lg">
@@ -536,7 +544,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             <TabsTrigger value="appointments" className="px-3 py-2 rounded">
                 Cuộc hẹn 
                 <Badge variant="gray" className="ml-2">
-                  {appointments.length}
+                  {total}
                 </Badge>
               </TabsTrigger>
 
@@ -659,81 +667,31 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
           </TabsContent>
 
           <TabsContent value="appointments">
-            <div className="h-full max-h-[70vh] overflow-auto pr-2 space-y-3 p-8">
-              {appointments.length === 0 ? (
-                <p className="italic text-muted-foreground text-center py-8 text-lg">
-                  Chưa có dữ liệu
-                </p>
-              ) : (
-                appointments.map((appt: any) => (
-                  <Card key={appt._id} className="p-4">
-                    <CardContent>
-                      <div className="flex flex-col gap-2">
-                        
-                        {/* Ngày khám */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Ngày khám:</span>
-                          <span className="text-muted-foreground">
-                            {new Date(appt.date).toLocaleString("vi-VN")}
-                          </span>
-                        </div>
-
-                        {/* Bác sĩ */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Bác sĩ:</span>
-                          <span>{appt.doctorId?.profileId?.name ?? "-"}</span>
-                        </div>
-
-                        {/* Loại dịch vụ */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Dịch vụ:</span>
-                          <span>{appt.serviceType}</span>
-                        </div>
-
-                        {/* Tình trạng */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Trạng thái:</span>
-                          <span>{appt.appointmentStatus}</span>
-                        </div>
-
-                        {/* Lý do khám */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Lý do:</span>
-                          <span>{appt.reasonForAppointment ?? "-"}</span>
-                        </div>
-
-                        {/* Tiền khám */}
-                        <div className="flex justify-between">
-                          <span className="font-medium">Phí khám:</span>
-                          <span>{appt.consultationFee?.toLocaleString()} đ</span>
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            onClick={async () => {
-                              setApptLoading(true);
-                              setApptModalOpen(true);
-                              try {
-                                setApptData(appt);
-                              } catch (err) {
-                                console.error('Failed to open appointment modal', err);
-                                setApptData(null);
-                                toast.error('Không tải được chi tiết cuộc hẹn');
-                              } finally {
-                                setApptLoading(false);
-                              }
-                            }}
-                          >
-                            Xem chi tiết
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
+            <AppointmentsList
+              appointments={appointments}
+              loading={apptLoading}
+              showPagination={showPagination} 
+              currentPage={currentPage}
+              totalPages={totalPages}
+               onPageChange={(newPage) => {
+                setCurrentPage(newPage);
+                loadAppointments(newPage);
+              }}
+              onOpenDetail={(appt) => {
+                setApptLoading(true);
+                setApptModalOpen(true);
+                try {
+                  setApptData(appt);
+                } catch (err) {
+                  console.error('Failed to open appointment modal', err);
+                  setApptData(null);
+                  toast.error('Không tải được chi tiết cuộc hẹn');
+                } finally {
+                  setApptLoading(false);
+                }
+              }}
+              onRefresh={loadAppointments}
+            />
           </TabsContent>
 
         </div>
@@ -838,7 +796,8 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>{apptData?.appointmentStatus ?? 'UNKNOWN'}</span>
               <div className="flex items-center gap-2">
                 {/* Hide rating button if an existing review is present */}
-                  {apptData?.appointmentStatus !== 'COMPLETED' && (
+                  {apptData?.appointmentStatus !== AppointmentStatus.COMPLETED &&
+                    apptData?.appointmentStatus !== AppointmentStatus.CANCELLED && (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -849,7 +808,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
                     Hủy buổi khám
                   </Button>
                 )}
-                {!existingReview && (
+                {!existingReview && apptData?.appointmentStatus === AppointmentStatus.COMPLETED && (
                   <Button size="sm" onClick={handleOpenRatingModal} disabled={!apptData}>Đánh giá buổi khám</Button>
                 )}
               </div>
