@@ -12,6 +12,7 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     { id: "password", label: "Mật khẩu", icon: <Lock size={20} /> },
     { id: "medical-detail", label: "Chi tiết bệnh lý", icon: <FileText size={20} /> },
     { id: "appointments", label: "Đăng ký lịch hẹn", icon: <FileText size={20} /> },
+    { id: "wallet", label: "Ví Điện Tử", icon: <FileText size={20} /> },
   ];
 
   return (

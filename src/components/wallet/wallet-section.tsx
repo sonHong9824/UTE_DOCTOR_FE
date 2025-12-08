@@ -1,18 +1,49 @@
+import { getWalletDetails } from '@/apis/wallet/wallet.api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WalletBalance } from '@/components/wallet/wallet-balance';
 import { WalletDetailsCard } from '@/components/wallet/wallet-details-card';
 import { WalletHistoryCard } from '@/components/wallet/wallet-history-card';
 import { Wallet, Zap } from 'lucide-react';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-interface WalletPageProps {
+interface WalletSectionProps {
   patientId: string;
   email: string;
 }
 
-export const WalletPage: React.FC<WalletPageProps> = ({ patientId, email }) => {
+interface WalletData {
+  coinBalance: number;
+  totalCoinEarned: number;
+  totalCoinUsed: number;
+}
+
+export const WalletSection: React.FC<WalletSectionProps> = ({ patientId, email }) => {
+  const [walletData, setWalletData] = useState<WalletData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
+
+  useEffect(() => {
+    const fetchWalletData = async () => {
+      try {
+        setLoading(true);
+        const res = await getWalletDetails(1, 10); // Fetch page 1 with 10 items per page
+        if (res?.data) {
+          setWalletData({
+            coinBalance: res.data.coinBalance,
+            totalCoinEarned: res.data.totalCoinEarned,
+            totalCoinUsed: res.data.totalCoinUsed,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch wallet data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWalletData();
+  }, [refreshTrigger]);
 
   return (
     <div className="space-y-6 p-6">
@@ -43,12 +74,18 @@ export const WalletPage: React.FC<WalletPageProps> = ({ patientId, email }) => {
 
         {/* Balance Tab */}
         <TabsContent value="balance" className="mt-6">
-          <div className="max-w-2xl">
-            <WalletDetailsCard
-              coinBalance={1400000}
-              totalCoinEarned={1400000}
-              totalCoinUsed={0}
-            />
+          <div className="w-full">
+            {loading ? (
+              <div className="text-center py-12">Loading...</div>
+            ) : walletData ? (
+              <WalletDetailsCard
+                coinBalance={walletData.coinBalance}
+                totalCoinEarned={walletData.totalCoinEarned}
+                totalCoinUsed={walletData.totalCoinUsed}
+              />
+            ) : (
+              <div className="text-center py-12">Không thể tải dữ liệu</div>
+            )}
           </div>
         </TabsContent>
 
@@ -143,4 +180,4 @@ export const WalletPage: React.FC<WalletPageProps> = ({ patientId, email }) => {
   );
 };
 
-export default WalletPage;
+export default WalletSection;
