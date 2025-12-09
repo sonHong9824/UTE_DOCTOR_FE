@@ -19,8 +19,7 @@ const menuItems = [
   { name: "Lịch làm việc", icon: Calendar, path: "/doctor/schedule",},
   { name: "Lịch sử khám", icon: ClipboardList, path: "/doctor/records" },
   { name: "Đơn thuốc", icon: Stethoscope, path: "/doctor/prescriptions" },
-  { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages",},
-  { name: "Cài đặt", icon: Settings, path: "/doctor/settings" },
+  // { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages",},
 ];
 
 interface SidebarProps {
