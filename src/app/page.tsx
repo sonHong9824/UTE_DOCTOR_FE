@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { getDoctorsAdmin } from '@/apis/admin/admin.api';
+import { getAllReviews } from '@/apis/review/review.api';
 import Banner from "@/components/banner";
 import Footer from "@/components/footer";
 import Navbar from "@/components/navbar";
@@ -13,8 +13,8 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import Image from "next/image";
-import { getDoctorsAdmin } from '@/apis/admin/admin.api';
-import { getAllReviews } from '@/apis/review/review.api';
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
 // Fallback static names used when API returns no doctors
 const fallbackNames = ["Chí", "Daniel", "Hiếu", "Minh"];
@@ -216,7 +216,7 @@ export default function Home() {
       <section className="container mx-auto px-6 py-16">
         <h2 className="text-3xl font-bold text-center mb-10">Tin tức & Sức khỏe</h2>
         <div className="grid md:grid-cols-3 gap-8">
-          {[1, 1, 1].map((n) => (
+          {[1, 2, 3].map((n) => (
             <div
               key={n}
               className="bg-white dark:bg-gray-900 rounded-xl shadow hover:shadow-lg transition"

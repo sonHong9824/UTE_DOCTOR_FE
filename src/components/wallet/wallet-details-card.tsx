@@ -1,21 +1,67 @@
+import { getWalletDetails } from '@/apis/wallet/wallet.api';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Coins, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface WalletDetailsProps {
-  coinBalance: number;
-  totalCoinEarned: number;
-  totalCoinUsed: number;
+  coinBalance?: number;
+  totalCoinEarned?: number;
+  totalCoinUsed?: number;
 }
 
 export const WalletDetailsCard: React.FC<WalletDetailsProps> = ({
-  coinBalance,
-  totalCoinEarned,
-  totalCoinUsed,
+  coinBalance: propCoinBalance,
+  totalCoinEarned: propTotalEarned,
+  totalCoinUsed: propTotalUsed,
 }) => {
+  const [coinBalance, setCoinBalance] = useState(propCoinBalance || 0);
+  const [totalCoinEarned, setTotalCoinEarned] = useState(propTotalEarned || 0);
+  const [totalCoinUsed, setTotalCoinUsed] = useState(propTotalUsed || 0);
+  const [loading, setLoading] = useState(!propCoinBalance);
+
+  useEffect(() => {
+    // If props provided, use them; otherwise fetch from API
+    if (propCoinBalance !== undefined && propTotalEarned !== undefined && propTotalUsed !== undefined) {
+      return;
+    }
+
+    const fetchDetails = async () => {
+      try {
+        const res = await getWalletDetails(1, 10); // Fetch with default pagination
+        if (res?.data) {
+          setCoinBalance(res.data.coinBalance);
+          setTotalCoinEarned(res.data.totalCoinEarned);
+          setTotalCoinUsed(res.data.totalCoinUsed);
+        }
+      } catch (err) {
+        console.error('Failed to fetch wallet details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDetails();
+  }, [propCoinBalance, propTotalEarned, propTotalUsed]);
+
   const conversionRate = 1000; // 1 coin = 1000 VNĐ equivalent
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-2 border-amber-200">
+          <CardHeader className="bg-gradient-to-r from-amber-50 to-yellow-50">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-4 w-32 mt-2" />
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Skeleton className="h-12 w-40 mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -107,16 +153,6 @@ export const WalletDetailsCard: React.FC<WalletDetailsProps> = ({
           </div>
         </CardContent>
       </Card>
-
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button variant="outline" className="w-full">
-          Lịch sử giao dịch
-        </Button>
-        <Button variant="outline" className="w-full">
-          Chi tiết Coin
-        </Button>
-      </div>
     </div>
   );
 };

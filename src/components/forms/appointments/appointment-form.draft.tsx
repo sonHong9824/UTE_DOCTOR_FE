@@ -35,9 +35,9 @@ type AppointmentBookingDto = {
   amount?: number;
   patientEmail: string;
   patientId: string;
-
-  // Thêm trường lý do khám
   reasonForAppointment: string;
+  useCoin?: boolean; // Whether to use coins for payment
+  coinsToUse?: number; // Number of coins to use
 };
 
 export default function AppointmentForm() {
@@ -71,9 +71,9 @@ export default function AppointmentForm() {
     amount: 100000,
     patientEmail: 'td13052004@gmail.com',
     patientId: localStorage.getItem("patientId") || "",
-
-    // default empty reason
     reasonForAppointment: '',
+    useCoin: false, // Default: don't use coins
+    coinsToUse: 0, // Default: 0 coins
   });
 
   // const [selectedDoctorId, setSelectedDoctorId] = useState('');
@@ -614,6 +614,50 @@ export default function AppointmentForm() {
                   />
                 </div>
               </div>
+
+              {/* Coin payment section - show only when COIN is selected */}
+              {formData.paymentMethod === 'COIN' && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 mb-3">🪙 Thanh toán bằng Coin</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Số Coin hiện có: <span className="text-blue-600 font-bold">{coinBalance}</span>
+                      </label>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Số Coin để dùng *</label>
+                      <input
+                        type="number"
+                        value={formData.coinsToUse || 0}
+                        onChange={(e) => {
+                          const value = Math.min(Number(e.target.value) || 0, coinBalance);
+                          handleChange('coinsToUse', value);
+                          handleChange('useCoin', value > 0 ? "true" : "false");
+                        }}
+                        max={coinBalance}
+                        min={0}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Nhập số coin muốn dùng"
+                      />
+                    </div>
+                  </div>
+
+                  {formData.coinsToUse && formData.coinsToUse > 0 && (
+                    <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-sm text-green-800">
+                      ✓ Bạn sẽ sử dụng <strong>{formData.coinsToUse}</strong> coin để thanh toán (từ {coinBalance} coin có sẵn)
+                    </div>
+                  )}
+
+                  {formData.coinsToUse && formData.coinsToUse > coinBalance && (
+                    <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-sm text-red-800">
+                      ⚠️ Bạn không đủ coin! Hiện có {coinBalance} coin, cần {formData.coinsToUse} coin
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Submit button */}
