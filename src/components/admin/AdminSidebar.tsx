@@ -25,7 +25,7 @@ const menuItems = [
   { name: 'Bệnh nhân', icon: Users, path: '/admin/patients' },
   { name: 'Bác sĩ', icon: User, path: '/admin/doctors' },
   { name: 'Lịch hẹn', icon: Calendar, path: '/admin/appointments' },
-  { name: 'Thuốc', icon: FileText, path: '/admin/medications' },
+  { name: 'Thuốc', icon: FileText, path: '/admin/medicines' },
   { name: 'Đánh giá', icon: BarChart2, path: '/admin/reviews' },
   { name: 'Tin tức', icon: Settings, path: '/admin/news' },
 ];

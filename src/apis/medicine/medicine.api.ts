@@ -1,21 +1,56 @@
 import axiosClient from "@/lib/axiosClient";
-import {DataResponse } from "@/types/apiDTO";
+import { DataResponse } from "@/types/apiDTO";
 
 export interface Medicine {
   _id: string;
   name: string;
   packaging: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export const getMedicines = async (): Promise<DataResponse<Medicine[]>> => {
+export interface MedicineListResponse {
+  data: Medicine[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface MedicineQuery {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  sort?: "asc" | "desc";
+}
+
+export const getMedicines = async (params: MedicineQuery = {}): Promise<MedicineListResponse> => {
   try {
-    const res = await axiosClient.get<DataResponse<Medicine[]>>("/medicines");
+    const { page = 1, limit = 10, keyword, sort = "asc" } = params;
+    const res = await axiosClient.get<MedicineListResponse>("/medicines", {
+      params: { page, limit, keyword, sort },
+    });
+
     return res.data;
   } catch (e) {
     console.error("Failed to fetch medicines:", e);
     throw e;
   }
 };
+
+export const createMedicine = async (data: {
+  name: string;
+  packaging: string;
+}) => {
+  try {
+    const res = await axiosClient.post("/medicines", data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to create medicine:", e);
+    throw e;
+  }
+};
+
 
 export interface PrescriptionItemDto {
   medicineId?: string;
@@ -50,6 +85,34 @@ export const generatePrescriptionPdf = async (
     throw error;
   }
 };
+
+export const deleteMedicine = async (id: string) => {
+  try {
+    const res = await axiosClient.delete(`/medicines/${id}`);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to delete medicine:", e);
+    throw e;
+  }
+};
+
+export const updateMedicine = async (
+  id: string,
+  data: { name?: string; packaging?: string }
+) => {
+  try {
+    const res = await axiosClient.put(`/medicines/${id}`, data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to update medicine:", e);
+    throw e;
+  }
+};
+
+
+
+
+
 
 
 
