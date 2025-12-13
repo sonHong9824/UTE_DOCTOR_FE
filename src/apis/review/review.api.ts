@@ -39,4 +39,16 @@ export const getAllReviews = async () => {
   }
 };
 
+export const deleteReview = async (id: string) => {
+  try {
+    const res = await axiosClient.delete<DataResponse<any>>(`/reviews/${id}`);
+    console.log("[Axios] Delete review:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Failed to delete review:", error);
+    throw error;
+  }
+};
+
+
 
