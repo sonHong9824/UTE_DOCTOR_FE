@@ -62,14 +62,14 @@ export default function AppointmentForm() {
 
   const [formData, setFormData] = useState<AppointmentBookingDto>({
     date: new Date().toISOString().split('T')[0],
-    hospitalName: 'Bệnh viện Đa khoa Tâm Đức',
+    hospitalName: 'Bệnh viện Đa khoa',
     specialty: '',
     timeSlotId: '',
     doctor: null,
     serviceType: 'KHAM_DICH_VU',
     paymentMethod: 'ONLINE',
     amount: 100000,
-    patientEmail: 'td13052004@gmail.com',
+    patientEmail: localStorage.getItem("email") || "",
     patientId: localStorage.getItem("patientId") || "",
     reasonForAppointment: '',
     useCoin: false, // Default: don't use coins
@@ -234,7 +234,7 @@ export default function AppointmentForm() {
     setLoading(true);
     setResponse(null);
 
-    console.log('📤 Submitting appointment:', formData);
+    console.log('Submitting appointment:', formData);
 
     try {
       
@@ -319,7 +319,7 @@ export default function AppointmentForm() {
   useEffect(() => {
     // Kiểm tra khi có thay đổi ở bác sĩ
     if (formData.doctor) {
-      console.log('🏥 Bác sĩ đã được chọn:', {
+      console.log('Bác sĩ đã được chọn:', {
         name: formData.doctor.name,
         id: formData.doctor.id,
         email: formData.doctor.email
@@ -328,14 +328,14 @@ export default function AppointmentForm() {
 
     // Kiểm tra khi có thay đổi ở ngày
     if (formData.date) {
-      console.log('📅 Ngày được chọn:', formData.date);
+      console.log('Ngày được chọn:', formData.date);
     }
 
     // Kiểm tra khi có thay đổi ở timeslot
     if (formData.timeSlotId) {
       const selectedSlot = timeSlots.find(slot => slot.id === formData.timeSlotId);
       if (selectedSlot) {
-        console.log('⏰ Khung giờ được chọn:', {
+        console.log('Khung giờ được chọn:', {
           id: selectedSlot.id,
           time: `${selectedSlot.start} - ${selectedSlot.end}`,
           label: selectedSlot.label
@@ -346,7 +346,7 @@ export default function AppointmentForm() {
     // Kiểm tra tính hợp lệ của lịch hẹn
     const isValidAppointment = formData.date && formData.timeSlotId;
     if (isValidAppointment) {
-      console.log('✅ Thông tin lịch hẹn hợp lệ');
+      console.log('Thông tin lịch hẹn hợp lệ');
     }
 
   }, [formData.doctor, formData.date, formData.timeSlotId, timeSlots]);
@@ -394,19 +394,19 @@ export default function AppointmentForm() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-bold text-gray-800">🏥 Đặt Lịch Khám Bệnh</h2>
-            <button
+            <h2 className="text-3xl font-bold text-gray-800">Đặt Lịch Khám Bệnh</h2>
+            {/* <button
               onClick={copyJSON}
               className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition"
             >
               📋 Copy JSON
-            </button>
+            </button> */}
           </div>
 
           <div className="space-y-6">
             {/* Thông tin bệnh viện */} 
             <div className="bg-blue-50 p-5 rounded-xl">
-              <h3 className="text-lg font-semibold text-blue-900 mb-4">🏥 Thông tin bệnh viện</h3>
+              <h3 className="text-lg font-semibold text-blue-900 mb-4">Thông tin bệnh viện</h3>
               
               <div className="space-y-4">
                 <div>
@@ -459,7 +459,7 @@ export default function AppointmentForm() {
             {/* Thông tin bác sĩ */}
             <div className="bg-purple-50 p-5 rounded-xl">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-purple-900">👨‍⚕️ Thông tin bác sĩ (Nếu để trống, tiếp tân sẽ chọn giúp bạn!)</h3>
+                <h3 className="text-lg font-semibold text-purple-900">Thông tin bác sĩ</h3>
               </div>
 
               
@@ -505,7 +505,7 @@ export default function AppointmentForm() {
 
             {/* Thông tin lịch hẹn */}
             <div className="bg-green-50 p-5 rounded-xl">
-              <h3 className="text-lg font-semibold text-green-900 mb-4">📅 Thông tin lịch hẹn</h3>
+              <h3 className="text-lg font-semibold text-green-900 mb-4">Thông tin lịch hẹn</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Chọn ngày và giờ cụ thể */}
@@ -518,7 +518,7 @@ export default function AppointmentForm() {
                         alert("Vui lòng chọn ngày hợp lệ!");
                         return;
                       }
-                      const localDate = date.toLocaleDateString('en-CA'); // ✅ chuẩn local
+                      const localDate = date.toLocaleDateString('en-CA');
                       setFormData(prev => ({ ...prev, date: localDate }));
                     }}
                     limitDays={30}
@@ -666,14 +666,14 @@ export default function AppointmentForm() {
               disabled={loading || !formData.timeSlotId}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '⏳ Đang xử lý...' : '✅ Đặt Lịch Khám'}
+              {loading ? 'Đang xử lý...' : 'Đặt Lịch Khám'}
             </button>
           </div>
 
           {/* Response Display */}
           {response && (
             <div className={`mt-6 p-4 rounded-xl ${response.success ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300'}`}>
-              <h3 className="font-semibold mb-2">{response.success ? '✅ Success' : '❌ Error'}</h3>
+              <h3 className="font-semibold mb-2">{response.success ? 'Success' : '❌ Error'}</h3>
               <pre className="text-sm overflow-auto">{JSON.stringify(response.data || response.error, null, 2)}</pre>
             </div>
           )}
@@ -682,7 +682,7 @@ export default function AppointmentForm() {
           {showSuccessModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg">
-                <h3 className="text-lg font-semibold mb-2">✅ Thành công</h3>
+                <h3 className="text-lg font-semibold mb-2">Thành công</h3>
                 <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
                 <div className="flex justify-end">
                   <button
@@ -697,14 +697,14 @@ export default function AppointmentForm() {
           )}
 
           {/* JSON Preview */}
-          <details className="mt-6">
+          {/* <details className="mt-6">
             <summary className="cursor-pointer font-semibold text-gray-700 hover:text-gray-900">
               📄 Preview JSON Payload
             </summary>
             <pre className="mt-3 p-4 bg-gray-100 rounded-lg text-xs overflow-auto">
               {JSON.stringify(formData, null, 2)}
             </pre>
-          </details>
+          </details> */}
         </div>
       </div>
     </div>

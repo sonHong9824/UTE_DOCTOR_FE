@@ -58,7 +58,7 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
     }
 
     toast.success('Đã đăng xuất');
-    router.push('/login');
+    router.push('/');
   };
 
   return (

@@ -52,8 +52,12 @@ export default function LoginForm() {
 
         if (res.data.role === "DOCTOR") {
           alert("xin chao bac si");
-          router.push("/doctor");
-        } else {
+          router.push("/doctor/patients");
+        } 
+        else if (res.data.role === "ADMIN") {
+          router.push("/admin/patients");
+        } 
+        else {
           router.push("/");
         }
       }

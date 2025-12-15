@@ -7,11 +7,14 @@ import { Menu, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import NotificationBell from "./notification/notification-bell";
+import { useRouter } from "next/navigation";
 
 
 const Navbar = () => {
   const [email, setEmail] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const router = useRouter();
+  
   useEffect(() => {
     const storeEmail = localStorage.getItem("email");
     if (storeEmail) {
@@ -36,15 +39,19 @@ const Navbar = () => {
           </h1>
         
         <ul className="hidden lg:flex items-center gap-8 uppercase text-sm font-semibold text-foreground">
-          <li className="navbarLi">GIỚI THIỆU</li>
+          <li className="navbarLi">
+            <Link href="/gioi-thieu">GIỚI THIỆU</Link>
+          </li>
           <li className="navbarLi">
             <Link href="/chuyen-khoa">CHUYÊN KHOA</Link>
           </li>
           <li className="navbarLi">
             <Link href="/chuyen-gia">CHUYÊN GIA - BÁC SĨ</Link>
           </li>
-          <li className="navbarLi">TIN TỨC</li>
-          <li className="navbarLi">LIÊN HỆ</li>
+          <li className="navbarLi">
+            <Link href="/tin-tuc">TIN TỨC</Link>
+          </li>
+
         </ul>
         
         <div className="hidden lg:flex gap-6 items-center">
@@ -62,6 +69,7 @@ const Navbar = () => {
                 onClick={() => {
                   localStorage.removeItem("email");
                   setEmail(null);
+                  router.push('/');
                 }}
                 className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-500 text-red-500 hover:bg-red-100 transition"
               >

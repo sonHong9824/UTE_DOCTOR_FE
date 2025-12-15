@@ -4,6 +4,7 @@ import { getDoctorsAdmin } from '@/apis/admin/admin.api';
 import { getAllReviews } from '@/apis/review/review.api';
 import Banner from "@/components/banner";
 import Footer from "@/components/footer";
+import { getPublicNews } from "@/apis/admin/news.api";
 import Navbar from "@/components/navbar";
 import {
   Carousel,
@@ -13,6 +14,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
@@ -24,6 +26,8 @@ export default function Home() {
 
   const [apiDoctors, setApiDoctors] = useState<any[]>([]);
   const [apiReviews, setApiReviews] = useState<any[]>([]);
+  const [newsItems, setNewsItems] = useState<any[]>([]);
+  const [selectedNews, setSelectedNews] = useState<any | null>(null);
 
   useEffect(() => {
     // fetch a small set of doctors to display on homepage
@@ -37,6 +41,19 @@ export default function Home() {
       }
     };
     fetch();
+  }, []);
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      try {
+        const res = await getPublicNews();
+        const items = res?.data ?? [];
+        setNewsItems(Array.isArray(items) ? items : []);
+      } catch (e) {
+        console.error('Failed to load public news', e);
+      }
+    };
+    fetchNews();
   }, []);
 
   useEffect(() => {
@@ -61,9 +78,9 @@ export default function Home() {
 
     // Redirect based on role
     if (role === 'ADMIN') {
-      router.replace('/admin');
+      router.replace('/admin/patients');
     } else if (role === 'DOCTOR') {
-      router.replace('/doctor');
+      router.replace('/doctor/patients');
     }
   }, [router]);
 
@@ -72,13 +89,15 @@ export default function Home() {
       {/* Banner */}
       <div className="w-full bg-[url('/assets/banner-bg.jpg')] bg-cover bg-center">
         <div className="w-full h-full bg-background/80">
-          <Navbar />
-          <Banner />
+          <div className="max-w-7xl mx-auto">
+            <Navbar />
+            <Banner />
+          </div>
         </div>
       </div>
 
       {/* About Section */}
-      <section className="container mx-auto px-6 py-16 grid md:grid-cols-2 gap-10 items-center">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid md:grid-cols-2 gap-10 items-center">
         <div>
           <h2 className="text-3xl font-bold mb-4">
             Về <span className="text-blue-600 dark:text-blue-400">Doctor+</span>
@@ -106,7 +125,7 @@ export default function Home() {
 
       {/* Services */}
       <section className="bg-gray-50 dark:bg-gray-800 py-16">
-        <div className="container mx-auto px-6 text-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-bold mb-10">Dịch vụ nổi bật</h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[
@@ -216,27 +235,36 @@ export default function Home() {
       <section className="container mx-auto px-6 py-16">
         <h2 className="text-3xl font-bold text-center mb-10">Tin tức & Sức khỏe</h2>
         <div className="grid md:grid-cols-3 gap-8">
-          {[1, 2, 3].map((n) => (
-            <div
-              key={n}
-              className="bg-white dark:bg-gray-900 rounded-xl shadow hover:shadow-lg transition"
+          {(newsItems.length ? newsItems : []).map((n) => (
+            <Link
+              key={n._id}
+              href={`/tin-tuc/${n._id}`}
+              className="block text-left bg-white dark:bg-gray-900 rounded-xl shadow hover:shadow-lg transition overflow-hidden"
             >
-              <Image
-                src={`/assets/news${n}.jpg`}
-                alt={`News ${n}`}
-                width={400}
-                height={250}
-                className="rounded-t-lg"
-              />
+              {n.imageUrl ? (
+                <Image
+                  src={n.imageUrl}
+                  alt={n.title}
+                  width={400}
+                  height={250}
+                  className="w-full h-[250px] object-cover"
+                />
+              ) : (
+                <div className="w-full h-[250px] bg-gray-200 dark:bg-gray-800" />
+              )}
               <div className="p-4">
-                <h3 className="font-semibold mb-2">Bài viết {n}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Nội dung tóm tắt về sức khỏe, y tế...
+                <h3 className="font-semibold mb-2">{n.title}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  {new Date(n.startDate).toLocaleDateString()} - {new Date(n.endDate).toLocaleDateString()}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 whitespace-pre-line">
+                  {n.content}
                 </p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
+
       </section>
 
       {/* Footer */}

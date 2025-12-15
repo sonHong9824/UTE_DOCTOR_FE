@@ -50,12 +50,23 @@ export default function ProfilePage() {
   if (!user) return <p className="text-center mt-8">Loading...</p>;
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <div className="flex mt-8">
-        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-        <UserContent user={user} activeTab={activeTab} />
+    <div className="min-h-screen bg-background">
+      {/* Fixed Navbar at top */}
+      <div className="fixed top-0 left-0 right-0 z-40 border-b border-border bg-background/95 backdrop-blur">
+        <Navbar />
       </div>
+
+      {/* Fixed Sidebar on the left below navbar */}
+      <div className="fixed top-16 left-0 z-30 h-[calc(100vh-4rem)] w-64 border-r border-border bg-[var(--sidebar)]">
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
+
+      {/* Main content area with offsets for navbar + sidebar */}
+      <main className="pt-20 pl-64">
+        <div className="p-6">
+          <UserContent user={user} activeTab={activeTab} />
+        </div>
+      </main>
     </div>
   );
 }

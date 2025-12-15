@@ -10,17 +10,7 @@ import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { Coins } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { JSX, useEffect, useState } from "react";
-import {
-  FaBirthdayCake,
-  FaCalendarAlt,
-  FaCheckCircle,
-  FaEdit,
-  FaEnvelope,
-  FaMapMarkerAlt,
-  FaPhone,
-  FaUser,
-  FaVenusMars
-} from "react-icons/fa";
+import { FaEdit } from "react-icons/fa";
 import { Skeleton } from "../ui";
 import { getWalletBalance } from "@/apis/wallet/wallet.api";
 
@@ -32,7 +22,6 @@ interface UserInfoCardProps {
 interface Field {
   label: string;
   value: string;
-  icon: JSX.Element;
   isStatus?: boolean; // optional, chỉ dùng cho trường Status
 }
 
@@ -84,27 +73,26 @@ export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps)
     }
   };
   const fieldsBlock1: Field[] = [
-    { label: "Name", value: user.name || "Unknown", icon: <FaUser className="w-5 h-5 text-blue-500" /> },
-    { label: "Gender", value: user.gender || GenderEnum.OTHER, icon: <FaVenusMars className="w-5 h-5 text-purple-500" /> },
-    { label: "Joined At", value: user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "Unknown", icon: <FaCalendarAlt className="w-5 h-5 text-indigo-500" /> },
+    { label: "Tên", value: user.name || "Unknown" },
+    { label: "Giới tính", value: user.gender || GenderEnum.OTHER },
+    { label: "Ngày tham gia", value: user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "Unknown" },
   ];
 
   const fieldsBlock2: Field[] = [
-    { label: "Email", value: user.email || "Unknown", icon: <FaEnvelope className="w-5 h-5 text-red-500" /> },
-    { label: "Phone", value: user.phoneNumber || "Unknown", icon: <FaPhone className="w-5 h-5 text-green-500" /> },
+    { label: "Email", value: user.email || "Unknown" },
+    { label: "Điện thoại", value: user.phoneNumber || "Unknown" },
   ];
 
   const fieldsBlock3: Field[] = [
-    { label: "Date of Birth", value: user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN") : "Unknown", icon: <FaBirthdayCake className="w-5 h-5 text-pink-500" /> },
-    { label: "Address", value: user.address || "Unknown", icon: <FaMapMarkerAlt className="w-5 h-5 text-yellow-500" /> },
-    { label: "Status", value: user.status || AccountStatusEnum.ACTIVE, icon: <FaCheckCircle className="w-5 h-5 text-teal-500" />, isStatus: true },
+    { label: "Ngày sinh", value: user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString("vi-VN") : "Unknown" },
+    { label: "Địa chỉ", value: user.address || "Unknown" },
+    { label: "Trạng thái", value: user.status || AccountStatusEnum.ACTIVE, isStatus: true },
   ];
 
   const renderFields = (fields: typeof fieldsBlock1) =>
     fields.map((field) => (
       <div key={field.label} className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          {field.icon}
           <span className="text-sm text-muted-foreground">{field.label}:</span>
         </div>
         <span className={`font-semibold ${field.isStatus ? 
@@ -182,7 +170,7 @@ export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps)
           onClick={() => setIsEditModalOpen(true)}
         >
           <FaEdit className="w-4 h-4" />
-          Edit Information
+          Chỉnh sửa thông tin
         </Button>
       </div>
 
