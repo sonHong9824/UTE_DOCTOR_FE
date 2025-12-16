@@ -5,9 +5,12 @@ import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
 import { ResponseCode as rc } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
-import { createPatientProfileSocket, socketClient } from "@/services/socket/socket-client";
+import { createPatientProfileSocket } from "@/services/socket/socket-client";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+
+const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
 
 export default function ProfilePage() {
   const [user, setUser] = useState<PatientProfileDto | null>(null);
@@ -67,6 +70,9 @@ export default function ProfilePage() {
           <UserContent user={user} activeTab={activeTab} />
         </div>
       </main>
+
+      {/* Floating chat bubble for Patient */}
+      <ChatBubble />
     </div>
   );
 }
