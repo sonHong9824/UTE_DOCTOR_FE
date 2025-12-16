@@ -103,7 +103,7 @@ export default function TinTucPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 to-blue-600/80" />
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[280px] flex flex-col justify-center">
-          <nav aria-label="Breadcrumb" className="mb-2">
+          {/* <nav aria-label="Breadcrumb" className="mb-2">
             <ol className="flex items-center text-sm text-white/80 gap-2">
               <li>
                 <Link href="/" className="hover:text-white">
@@ -115,7 +115,7 @@ export default function TinTucPage() {
                 Tin tức
               </li>
             </ol>
-          </nav>
+          </nav> */}
           <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-3">
             Tin Tức Y Khoa
           </h1>
@@ -143,10 +143,10 @@ export default function TinTucPage() {
           </div>
 
           {/* Results Count */}
-          <div className="mt-3 text-sm text-muted-foreground">
+          {/* <div className="mt-3 text-sm text-muted-foreground">
             Hiển thị {filteredNews.length} tin tức
             {searchQuery && ` cho "${searchQuery}"`}
-          </div>
+          </div> */}
         </div>
       </section>
 

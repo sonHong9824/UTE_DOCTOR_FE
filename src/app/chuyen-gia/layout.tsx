@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "../globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import Navbar from "@/components/navbar";
-import Footer from "@/components/footer";
 
 const montserrat = Montserrat({
   subsets: ["vietnamese"],
@@ -32,9 +30,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <Navbar />
-          <main className="flex-grow">{children}</main>
-          <Footer />
+          {children}
         </ThemeProvider>
       </body>
     </html>

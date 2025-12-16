@@ -5,11 +5,12 @@ import React from 'react';
 import {
   LayoutDashboard,
   Users,
-  Calendar,
-  FileText,
-  BarChart2,
-  Settings,
-  User,
+  CalendarDays,
+  Pill,
+  Star,
+  Layers,
+  Stethoscope,
+  Newspaper,
   LogOut,
   ChevronRight,
 } from 'lucide-react';
@@ -23,11 +24,12 @@ import { toast } from 'sonner';
 const menuItems = [
   // { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
   { name: 'Bệnh nhân', icon: Users, path: '/admin/patients' },
-  { name: 'Bác sĩ', icon: User, path: '/admin/doctors' },
-  { name: 'Lịch hẹn', icon: Calendar, path: '/admin/appointments' },
-  { name: 'Thuốc', icon: FileText, path: '/admin/medicines' },
-  { name: 'Đánh giá', icon: BarChart2, path: '/admin/reviews' },
-  { name: 'Tin tức', icon: Settings, path: '/admin/news' },
+  { name: 'Bác sĩ', icon: Stethoscope, path: '/admin/doctors' },
+  { name: 'Chuyên khoa', icon: Layers, path: '/admin/chuyen-khoa' },
+  { name: 'Lịch hẹn', icon: CalendarDays, path: '/admin/appointments' },
+  { name: 'Thuốc', icon: Pill, path: '/admin/medicines' },
+  { name: 'Đánh giá', icon: Star, path: '/admin/reviews' },
+  { name: 'Tin tức', icon: Newspaper, path: '/admin/news' },
 ];
 
 interface AdminSidebarProps {

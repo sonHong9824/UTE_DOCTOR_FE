@@ -58,3 +58,17 @@ export const cancelAppointment = async (id: string, reason?: string) => {
     throw e;
   }
 };
+
+export const confirmAppointment = async (id: string) => {
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>(
+      `/appointment/${id}/confirm`
+    );
+
+    console.log("[Axios] Confirm appointment:", res.data);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to confirm appointment:", e);
+    throw e;
+  }
+};

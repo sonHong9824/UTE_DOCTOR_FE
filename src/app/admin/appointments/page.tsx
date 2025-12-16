@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search, Calendar, Clock, User, Stethoscope, Eye, X, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { getAppointmentsAdmin, updateAppointmentStatus, cancelAppointment } from "@/apis/admin/appointments.api";
+import { getAppointmentsAdmin, cancelAppointment, confirmAppointment } from "@/apis/admin/appointments.api";
 import { getPatientsAdmin } from "@/apis/admin/patients.api";
 import { getActiveDoctors } from "@/apis/admin/admin.api";
 
@@ -30,6 +30,7 @@ export default function AdminAppointmentsPage() {
   const [openCancel, setOpenCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
 
   const fetchPatients = async () => {
     try {
@@ -113,16 +114,16 @@ export default function AdminAppointmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword]);
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
-    if (!window.confirm(`Xác nhận đổi trạng thái thành ${newStatus}?`)) return;
+  const handleConfirmAppointment = async (id: string) => {
+    if (!window.confirm("Xác nhận cuộc hẹn này?")) return;
     setProcessingIds((s) => new Set(s).add(id));
     try {
-      await updateAppointmentStatus(id, newStatus);
-      toast.success("Cập nhật trạng thái thành công");
+      await confirmAppointment(id);
+      toast.success("Đã xác nhận cuộc hẹn");
       await fetchAppointments();
     } catch (err) {
-      console.error("Failed to update appointment status", err);
-      toast.error("Không thể cập nhật trạng thái");
+      console.error("Failed to confirm appointment", err);
+      toast.error("Không thể xác nhận cuộc hẹn");
     } finally {
       setProcessingIds((s) => {
         const next = new Set(s);
@@ -300,7 +301,7 @@ export default function AdminAppointmentsPage() {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => { setSelectedAppointment(apt); setOpenDetail(true); }}
+                              onClick={() => { setSelectedAppointment(apt); setSelectedDoctorId(""); setOpenDetail(true); }}
                             >
                               <Eye size={14} className="mr-1" />
                               Xem
@@ -310,14 +311,14 @@ export default function AdminAppointmentsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-green-600 hover:text-green-700"
-                                onClick={() => handleStatusChange(apt._id, "CONFIRMED")}
+                                onClick={() => handleConfirmAppointment(apt._id)}
                                 disabled={processingIds.has(apt._id)}
                               >
                                 <CheckCircle2 size={14} className="mr-1" />
                                 Xác nhận
                               </Button>
                             )}
-                            {(status === "PENDING" || status === "CONFIRMED") && (
+                            {/* {(status === "PENDING" || status === "CONFIRMED") && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -328,7 +329,7 @@ export default function AdminAppointmentsPage() {
                                 <XCircle size={14} className="mr-1" />
                                 Hủy
                               </Button>
-                            )}
+                            )} */}
                           </div>
                         </td>
                       </tr>
@@ -400,23 +401,63 @@ export default function AdminAppointmentsPage() {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-semibold text-gray-500 mb-2">Thông tin bác sĩ</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={selectedAppointment.doctorId?.profile?.avatarUrl ?? selectedAppointment.doctorId?.profileId?.avatarUrl}
-                              alt={selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName} />
-                            <AvatarFallback>
-                              {(selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? "?").slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? '—'}</div>
-                            <div className="text-sm text-gray-500">{selectedAppointment.doctorId?.profile?.email ?? selectedAppointment.doctorId?.profileId?.email ?? '—'}</div>
+                      {selectedAppointment.doctorId ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={selectedAppointment.doctorId?.profile?.avatarUrl ?? selectedAppointment.doctorId?.profileId?.avatarUrl}
+                                alt={selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName} />
+                              <AvatarFallback>
+                                {(selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? "?").slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? '—'}</div>
+                              <div className="text-sm text-gray-500">{selectedAppointment.doctorId?.profile?.email ?? selectedAppointment.doctorId?.profileId?.email ?? '—'}</div>
+                            </div>
                           </div>
+                          <div><span className="font-medium">Tên:</span> {selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? '—'}</div>
+                          <div><span className="font-medium">Chuyên khoa:</span> {selectedAppointment.doctorId?.specialty?.name ?? selectedAppointment.doctorId?.chuyenKhoa?.name ?? (typeof selectedAppointment.doctorId?.chuyenKhoaId === 'object' ? selectedAppointment.doctorId?.chuyenKhoaId?.name : selectedAppointment.doctorId?.chuyenKhoaId) ?? '—'}</div>
                         </div>
-                        <div><span className="font-medium">Tên:</span> {selectedAppointment.doctorId?.profile?.name ?? selectedAppointment.doctorId?.profileId?.name ?? selectedAppointment.doctorId?.doctorName ?? '—'}</div>
-                        <div><span className="font-medium">Chuyên khoa:</span> {selectedAppointment.doctorId?.specialty?.name ?? selectedAppointment.doctorId?.chuyenKhoa?.name ?? (typeof selectedAppointment.doctorId?.chuyenKhoaId === 'object' ? selectedAppointment.doctorId?.chuyenKhoaId?.name : selectedAppointment.doctorId?.chuyenKhoaId) ?? '—'}</div>
-                      </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-600">Chưa gán bác sĩ cho buổi hẹn này.</p>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedDoctorId}
+                              onChange={(e) => setSelectedDoctorId(e.target.value)}
+                              className="flex-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                            >
+                              <option value="">Chọn bác sĩ</option>
+                              {doctors.map((d) => (
+                                <option key={d._id} value={d._id}>
+                                  {d.doctorName ?? d.profile?.name ?? d.profileId?.name ?? d._id}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (!selectedDoctorId) {
+                                  toast.error("Vui lòng chọn bác sĩ");
+                                  return;
+                                }
+                                const chosen = doctors.find((d) => d._id === selectedDoctorId);
+                                if (!chosen) {
+                                  toast.error("Không tìm thấy bác sĩ đã chọn");
+                                  return;
+                                }
+                                setSelectedAppointment((prev: any) => (prev ? { ...prev, doctorId: chosen } : prev));
+                                toast.success("Đã chọn bác sĩ (chỉ lưu tạm trong phiên)");
+                              }}
+                            >
+                              Chọn
+                            </Button>
+                          </div>
+                          <p className="text-xs text-gray-500">Lưu ý: hiện chỉ lưu trong phiên xem; cần API gán bác sĩ để lưu vào hệ thống.</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -2,9 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Star, Award, Briefcase, ChevronLeft, ChevronRight, MapPin, Clock, Calendar, Heart, User, Stethoscope, GraduationCap, TrendingUp } from 'lucide-react';
 import { getActiveDoctors } from '@/apis/admin/admin.api';
+import { getSpecialties } from '@/apis/appointment/appointment.api';
+import Navbar from '@/components/navbar';
+import Footer from '@/components/footer';
 
 export default function ChuyenGiaPage() {
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [specialties, setSpecialties] = useState<{ _id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSpecialty, setSelectedSpecialty] = useState("");
@@ -14,6 +18,19 @@ export default function ChuyenGiaPage() {
   useEffect(() => {
     fetchDoctors();
   }, [currentPage, selectedSpecialty]);
+
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      try {
+        const res = await getSpecialties('');
+        const items = res?.data ?? [];
+        setSpecialties(Array.isArray(items) ? items : []);
+      } catch (error) {
+        console.error("Lỗi khi tải danh sách chuyên khoa:", error);
+      }
+    };
+    fetchSpecialties();
+  }, []);
 
   const fetchDoctors = async () => {
     setLoading(true);
@@ -47,22 +64,19 @@ export default function ChuyenGiaPage() {
     return !q || name.includes(q) || chuyen.includes(q);
   });
 
-  const specialties = Array.from(new Set(doctors.map((d: any) => (d?.chuyenKhoa?.name ?? d?.chuyenKhoaId?.name)).filter(Boolean)));
-
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 10)));
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      
       {/* Hero Header */}
       <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-cyan-600 overflow-hidden">
         <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-blue-900/20"></div>
         
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center p-2 bg-white/10 backdrop-blur-sm rounded-full mb-6">
-              <Stethoscope className="w-8 h-8 text-white" />
-            </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-4">
               Đội Ngũ Bác Sĩ Chuyên Nghiệp
             </h1>
@@ -87,9 +101,9 @@ export default function ChuyenGiaPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
         {/* Search Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 lg:sticky lg:top-24 z-20">
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 sticky top-0 lg:top-4 z-50">
           <div className="flex flex-col lg:flex-row gap-4">
             {/* Search Box */}
             <div className="flex-1 relative">
@@ -116,7 +130,7 @@ export default function ChuyenGiaPage() {
               >
                 <option value="">Tất cả chuyên khoa</option>
                 {specialties.map(specialty => (
-                  <option key={specialty} value={specialty}>{specialty}</option>
+                  <option key={specialty._id} value={specialty._id}>{specialty.name}</option>
                 ))}
               </select>
               <ChevronRight className="absolute right-4 top-1/2 transform -translate-y-1/2 rotate-90 text-gray-400 w-5 h-5 pointer-events-none" />
@@ -125,9 +139,6 @@ export default function ChuyenGiaPage() {
 
           {/* Results Count */}
           <div className="mt-4 flex items-center justify-between text-sm border-t pt-4">
-            <div className="text-gray-600">
-              Hiển thị <span className="font-semibold text-blue-600">{filteredDoctors.length}</span> / <span className="font-semibold">{pagination.total}</span> bác sĩ
-            </div>
             {searchTerm && (
               <button 
                 onClick={() => setSearchTerm("")}
@@ -159,7 +170,7 @@ export default function ChuyenGiaPage() {
         ) : (
           <>
             {/* Doctors Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-12">
               {filteredDoctors.map((doctor: any) => {
                 const specialty = doctor?.chuyenKhoa?.name ?? doctor?.chuyenKhoaId?.name ?? '';
                 const colorKey = specialty.includes('Nội') ? 'blue' : 
@@ -187,132 +198,69 @@ export default function ChuyenGiaPage() {
                 return (
                   <div
                     key={doctor?._id ?? doctor?.id}
-                    className="group bg-white rounded-2xl shadow-md transform-gpu hover:scale-[1.02] active:scale-[0.99] transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200"
+                    className="group bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-100"
                   >
-                    <div className="p-8">
-                      <div className="flex gap-6 mb-6">
+                    <div className="p-5">
+                      <div className="flex gap-4 mb-4">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
-                          <div className="w-32 h-32 rounded-2xl overflow-hidden border-4 border-blue-50 group-hover:border-blue-100 transition-all">
+                          <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-blue-50 group-hover:border-blue-200 transition-all">
                             <img
                               src={doctor?.profile?.avatarUrl ?? doctor?.profileId?.avatarUrl ?? ''}
                               alt={doctor?.profile?.name ?? doctor?.profileId?.name ?? doctor?.doctorName ?? 'Bác sĩ'}
                               className="w-full h-full object-cover"
                             />
                           </div>
-                          <div className="absolute -bottom-2 -right-2 bg-green-500 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center">
-                            <span className="w-2 h-2 bg-white rounded-full"></span>
-                          </div>
                         </div>
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                          <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors line-clamp-1">
                             {doctor?.doctorName ?? doctor?.profile?.name ?? doctor?.profileId?.name}
                           </h3>
 
                           {/* Specialty Badge */}
-                          <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold ${badgeClasses} mb-3`}>
-                            <Stethoscope className="w-4 h-4 mr-2" />
+                          <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses} mb-2`}>
+                            <Stethoscope className="w-3 h-3 mr-1" />
                             {specialty}
                           </div>
 
                           {/* Academic Title */}
                           {doctor.academic && (
-                            <div className="flex items-center text-purple-600 font-semibold mb-2">
-                              <GraduationCap className="w-4 h-4 mr-2" />
+                            <div className="text-xs text-purple-600 font-semibold line-clamp-1">
                               {doctor.academic}
                             </div>
                           )}
+                        </div>
+                      </div>
 
-                          {/* Degrees */}
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {degrees.map((deg: any, idx: number) => (
-                              <span
-                                key={idx}
-                                className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200"
-                              >
-                                <Award className="w-3 h-3 mr-1.5" />
-                                {deg}
-                              </span>
-                            ))}
-                          </div>
-
-                          {/* Experience */}
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center text-gray-600">
-                              <Briefcase className="w-4 h-4 mr-2 text-blue-500" />
-                              <span className="font-medium">{doctor?.yearsOfExperience ?? 0} năm</span>
-                            </div>
-                            <div className="flex items-center text-gray-600">
-                              <TrendingUp className="w-4 h-4 mr-2 text-green-500" />
-                              <span className="font-medium">Kinh nghiệm cao</span>
-                            </div>
-                          </div>
+                      {/* Experience */}
+                      <div className="flex items-center gap-3 text-xs text-gray-600 mb-3">
+                        <div className="flex items-center">
+                          <Briefcase className="w-3 h-3 mr-1 text-blue-500" />
+                          <span>{doctor?.yearsOfExperience ?? 0} năm</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Star className="w-3 h-3 mr-1 text-amber-500" />
+                          <span>{doctor?.topReviews?.length ?? 0} đánh giá</span>
                         </div>
                       </div>
 
                       {/* Bio */}
                       {doctor?.bio && (
-                        <div className="mb-4 p-4 bg-gray-50 rounded-xl">
-                          <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">
-                            {doctor.bio}
-                          </p>
-                        </div>
+                        <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                          {doctor.bio}
+                        </p>
                       )}
-
-                      {/* Specialty Description */}
-                      {(doctor?.chuyenKhoa?.description || doctor?.chuyenKhoaId?.description) && (
-                        <div className="mb-4 flex items-start gap-2 text-sm text-gray-600">
-                          <MapPin className="w-4 h-4 mt-0.5 text-blue-500 flex-shrink-0" />
-                          <span className="line-clamp-2">{doctor?.chuyenKhoa?.description ?? doctor?.chuyenKhoaId?.description}</span>
-                        </div>
-                      )}
-
-                      {/* Achievements */}
-                      {(doctor?.achievements ?? []).length > 0 && (
-                        <div className="mb-6 p-4 bg-amber-50 rounded-xl border border-amber-100">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 mb-2">
-                            <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                            Thành tích nổi bật
-                          </div>
-                          <ul className="space-y-2">
-                            {(doctor?.achievements ?? []).slice(0, 2).map((achievement: any, idx: number) => (
-                              <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0"></span>
-                                <span className="line-clamp-1">{achievement}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Stats Row */}
-                      <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-blue-50 rounded-xl">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">{doctor?.yearsOfExperience ?? 0}+</div>
-                          <div className="text-xs text-gray-600 mt-1">Năm KN</div>
-                        </div>
-                        <div className="text-center border-x border-blue-100">
-                          <div className="text-2xl font-bold text-blue-600">{(doctor?.degree ?? []).length}</div>
-                          <div className="text-xs text-gray-600 mt-1">Bằng cấp</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {doctor?.topReviews?.length ?? 0}
-                          </div>
-                          <div className="text-xs text-gray-600 mt-1">Đánh giá</div>
-                        </div>
-                      </div>
 
                       {/* Action Buttons */}
-                      <div className="flex gap-3">
-                        <button aria-label="Đặt lịch khám" className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                          <Calendar className="w-5 h-5" />
-                          Đặt lịch khám
+                      <div className="flex gap-2">
+                        <button aria-label="Đặt lịch khám" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          Đặt lịch
                         </button>
-                        <button aria-label="Yêu thích bác sĩ" className="px-4 py-3.5 border-2 border-gray-200 hover:border-red-300 rounded-xl transition-all duration-200 group/fav focus:outline-none focus:ring-2 focus:ring-red-300">
-                          <Heart className="w-5 h-5 text-gray-400 group-hover/fav:text-red-500 group-hover/fav:fill-red-500 transition-all" />
+                        <button aria-label="Yêu thích bác sĩ" className="px-3 py-2 border border-gray-200 hover:border-red-300 rounded-lg transition-colors group/fav">
+                          <Heart className="w-4 h-4 text-gray-400 group-hover/fav:text-red-500 group-hover/fav:fill-red-500 transition-all" />
                         </button>
                       </div>
                     </div>
@@ -412,20 +360,7 @@ export default function ChuyenGiaPage() {
         )}
       </div>
 
-      {/* Footer CTA */}
-      <div className="bg-gradient-to-r from-blue-600 to-cyan-600 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Không tìm thấy bác sĩ phù hợp?
-          </h2>
-          <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-            Liên hệ với chúng tôi để được tư vấn và hỗ trợ tìm kiếm bác sĩ phù hợp nhất với nhu cầu của bạn
-          </p>
-          <button className="bg-white text-blue-600 font-semibold px-8 py-3 rounded-xl hover:bg-blue-50 transition-colors shadow-lg">
-            Liên hệ tư vấn
-          </button>
-        </div>
-      </div>
+      <Footer />
     </div>
   );
 }
