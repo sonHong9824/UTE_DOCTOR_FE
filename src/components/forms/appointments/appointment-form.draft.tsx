@@ -474,7 +474,7 @@ export default function AppointmentForm() {
                         handleDoctorBlur();
                       }}
                     onChange={(e) => handleDoctorSearch(e.target.value)}
-                    placeholder="Gõ tên bác sĩ..."
+                    placeholder="Nhập tên bác sĩ..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
 

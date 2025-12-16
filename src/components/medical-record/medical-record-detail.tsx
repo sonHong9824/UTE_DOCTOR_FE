@@ -440,6 +440,18 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
 
   const handleOpenRatingModal = () => {
     if (apptData?.appointmentStatus === 'COMPLETED') {
+      // Prefill visible names for rating modal
+      const preDoctor = doctorName ?? apptData?.doctorId?.profileId?.name ?? apptData?.doctorId?.name ?? apptData?.doctorName ?? null;
+      const prePatient = patientName ?? apptData?.patientId?.profileId?.name ?? apptData?.patientId?.name ?? apptData?.patientName ?? null;
+      setDoctorName(preDoctor);
+      setPatientName(prePatient);
+
+      // Capture minimal context required for submitting rating
+      const resolvedDoctorId = (apptData?.doctorId && typeof apptData.doctorId === 'object') ? (apptData.doctorId._id ?? apptData.doctorId) : apptData?.doctorId;
+      const resolvedPatientId = (apptData?.patientId && typeof apptData.patientId === 'object') ? (apptData.patientId._id ?? apptData.patientId) : apptData?.patientId;
+      const resolvedAppointmentId = apptData?._id ?? apptData?.appointmentId;
+      setRatingContext({ appointmentId: resolvedAppointmentId, doctorId: resolvedDoctorId, patientId: resolvedPatientId });
+
       setRatingModalOpen(true);
     } else {
       toast.info("Bạn chỉ có thể đánh giá sau khi buổi khám hoàn tất");
@@ -974,9 +986,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             <Button
               size="sm"
               onClick={handleSubmitRating}
-              disabled={
-                ratingSubmitting || ratingStars === 0 || apptData?.appointmentStatus !== 'COMPLETED'
-              }
+              disabled={ratingSubmitting || ratingStars === 0 || !ratingContext}
             >
               {ratingSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
             </Button>
