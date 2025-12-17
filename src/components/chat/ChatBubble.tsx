@@ -1,9 +1,9 @@
 "use client";
 
 import { createConversation, searchContacts } from '@/apis/chat/chat.api';
+import { useChatSocket } from '@/contexts/ChatSocketContext';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
-import { createChatSocket } from '@/services/socket/socket-client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ChatWindow from './ChatWindow';
 
 interface ChatBubbleProps {
@@ -13,9 +13,9 @@ interface ChatBubbleProps {
 }
 
 export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBubbleProps) {
+  const chatSocket = useChatSocket();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const socketRef = useRef<ReturnType<typeof createChatSocket> | null>(null);
 
   const currentUser = useMemo(() => ({
     accountId: typeof window !== 'undefined' ? (localStorage.getItem('id') || '') : '',
@@ -23,15 +23,13 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
     role: typeof window !== 'undefined' ? (localStorage.getItem('role') || '') : '',
   }), []);
 
-  // Initialize socket and join user room
+  // Join user room using shared socket
   useEffect(() => {
     if (!currentUser.accountId) return;
-    const s = createChatSocket();
-    socketRef.current = s;
-    s.emitSafe(SocketEventsEnum.CHAT_JOIN_USER, { accountId: currentUser.accountId });
+    chatSocket.emitSafe(SocketEventsEnum.CHAT_JOIN_USER, { accountId: currentUser.accountId });
 
     // Listen for incoming messages on user room (from new conversations)
-    s.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
+    chatSocket.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
       if (payload?.data?.conversationId) {
         // Auto-open conversation when receiving first message
         if (!conversationId) {
@@ -44,11 +42,11 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
 
     return () => {
       if (currentUser.accountId) {
-        s.emitSafe(SocketEventsEnum.CHAT_LEAVE_USER, { accountId: currentUser.accountId });
+        chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_USER, { accountId: currentUser.accountId });
       }
-      s.disconnect();
+      chatSocket.off(SocketEventsEnum.CHAT_MESSAGE_RECEIVED);
     };
-  }, [currentUser.accountId, conversationId]);
+  }, [currentUser.accountId, conversationId, chatSocket]);
 
   // Load any persisted conversation
   useEffect(() => {

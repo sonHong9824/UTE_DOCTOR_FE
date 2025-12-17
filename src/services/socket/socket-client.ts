@@ -86,7 +86,7 @@ class SocketClient {
    * Manual reconnect - được gọi khi HTTP layer refresh token
    * Disconnect rồi connect lại → socket.io sẽ gọi token function để lấy token mới
    */
-  private reconnect() {
+  public reconnect() {
     console.log('[Socket] Manually reconnecting...');
     if (this.socket.connected) {
       this.socket.disconnect();
@@ -139,6 +139,27 @@ class SocketClient {
         resolve();
       });
     });
+  }
+
+  // ===== Extra helpers for providers =====
+  isConnected(): boolean {
+    return this.socket.connected;
+  }
+
+  onConnect(cb: () => void) {
+    this.socket.on('connect', cb);
+  }
+
+  offConnect(cb: () => void) {
+    this.socket.off('connect', cb);
+  }
+
+  onDisconnect(cb: (reason: Socket.DisconnectReason) => void) {
+    this.socket.on('disconnect', cb as any);
+  }
+
+  offDisconnect(cb: (reason: Socket.DisconnectReason) => void) {
+    this.socket.off('disconnect', cb as any);
   }
 }
 

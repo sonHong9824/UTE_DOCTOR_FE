@@ -1,8 +1,8 @@
 "use client";
 
 import { getMessages, markRead } from '@/apis/chat/chat.api';
+import { useChatSocket } from '@/contexts/ChatSocketContext';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
-import { createChatSocket } from '@/services/socket/socket-client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -17,11 +17,12 @@ interface ChatWindowProps {
 
 export default function ChatWindow({ conversationId, currentUser, onBack, title, receiver, showBack = false }: ChatWindowProps) {
   const router = useRouter();
+  const chatSocket = useChatSocket();
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const socketRef = useRef<ReturnType<typeof createChatSocket> | null>(null);
+  // using shared chat socket via context
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const getInitials = (name?: string) => {
@@ -90,14 +91,13 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
         setLoading(false);
       });
 
-    const s = createChatSocket();
-    socketRef.current = s;
+    // socket managed by ChatSocketProvider
 
     // join conversation room
-    s.emitSafe(SocketEventsEnum.CHAT_JOIN_CONVERSATION, { conversationId });
+    chatSocket.emitSafe(SocketEventsEnum.CHAT_JOIN_CONVERSATION, { conversationId });
 
     // receive new messages
-    s.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
+    chatSocket.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
       if (payload?.data?.conversationId === conversationId) {
         setMessages((prev) => {
           const newMsg = payload.data;
@@ -117,11 +117,11 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
     markRead(conversationId, currentUser.accountId).catch(() => {});
 
     return () => {
-      s.emit(SocketEventsEnum.CHAT_LEAVE_CONVERSATION, { conversationId });
-      s.disconnect();
+      chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_CONVERSATION, { conversationId });
+      chatSocket.off(SocketEventsEnum.CHAT_MESSAGE_RECEIVED);
       mounted = false;
     };
-  }, [conversationId]);
+  }, [conversationId, chatSocket]);
 
   useEffect(() => {
     if (!messagesContainerRef.current || messages.length === 0) return;
@@ -136,10 +136,9 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
   }, [messages, currentUser.accountId]);
 
   const sendMessage = () => {
-    const s = socketRef.current;
-    if (!s || !input.trim()) return;
+    if (!input.trim()) return;
     const msg = input.trim();
-    s.emit(SocketEventsEnum.CHAT_MESSAGE_SEND, {
+    chatSocket.emit(SocketEventsEnum.CHAT_MESSAGE_SEND, {
       conversationId,
       senderId: currentUser.accountId,
       senderEmail: currentUser.email,

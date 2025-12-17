@@ -48,6 +48,11 @@ export default function LoginForm() {
         localStorage.setItem("doctorId", res.data.doctorId || "");
         localStorage.setItem("profileId", res.data.profileId || "");
 
+        // Notify ChatSocketProvider to connect socket after successful login
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('user-logged-in'));
+        }
+
         console.log("Login successful:", res);
 
         if (res.data.role === "DOCTOR") {
