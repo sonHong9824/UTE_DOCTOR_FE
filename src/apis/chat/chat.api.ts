@@ -5,8 +5,8 @@ export async function createConversation(participants: { accountId: string; emai
   return res.data;
 }
 
-export async function listConversations(accountId: string) {
-  const res = await axiosClient.get('/chat/conversations', { params: { accountId } });
+export async function listConversations(accountId: string, skip = 0, limit = 20) {
+  const res = await axiosClient.get('/chat/conversations', { params: { accountId, skip, limit } });
   return res.data;
 }
 
