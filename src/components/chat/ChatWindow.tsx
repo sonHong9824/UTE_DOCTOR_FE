@@ -73,6 +73,8 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
     let mounted = true;
     setLoading(true);
     console.log('[ChatWindow] Loading messages for conversation:', conversationId);
+    console.log('[ChatWindow] Socket connected:', chatSocket.connected);
+    console.log('[ChatWindow] Current user:', currentUser);
     
     getMessages(conversationId, undefined, 20)
       .then((res) => {
@@ -138,6 +140,12 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
   const sendMessage = () => {
     if (!input.trim()) return;
     const msg = input.trim();
+    console.log('[ChatWindow] Sending message:', { 
+      conversationId, 
+      senderId: currentUser.accountId, 
+      content: msg,
+      connected: chatSocket.connected 
+    });
     chatSocket.emit(SocketEventsEnum.CHAT_MESSAGE_SEND, {
       conversationId,
       senderId: currentUser.accountId,

@@ -55,18 +55,21 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
   const ensureSocket = useCallback(() => {
     if (socketRef.current) return socketRef.current;
 
+    console.log('[ChatSocketProvider] Creating new chat socket...');
     setConnecting(true);
     const s = createChatSocket();
     socketRef.current = s;
 
     // Lifecycle
     const onConnect = () => {
+      console.log('[ChatSocketProvider] Socket connected!');
       setConnected(true);
       setConnecting(false);
       flushQueue();
     };
 
-    const onDisconnect = () => {
+    const onDisconnect = (reason: any) => {
+      console.log('[ChatSocketProvider] Socket disconnected, reason:', reason);
       setConnected(false);
     };
 
@@ -99,23 +102,34 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
   }, [flushQueue]);
 
   useEffect(() => {
+    console.log('[ChatSocketProvider] Mount effect running');
+    
     // Autoconnect when provider mounts and token exists
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
-      if (token) ensureSocket();
-
-      // Listen for login event to connect socket immediately after login
-      const onLogin = () => {
-        console.log('[ChatSocketProvider] user-logged-in → connect socket');
-        ensureSocket();
-      };
-      window.addEventListener('user-logged-in', onLogin);
-
-      return () => {
-        window.removeEventListener('user-logged-in', onLogin);
-      };
+    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    console.log('[ChatSocketProvider] Token exists:', !!token, 'length:', token?.length || 0);
+    
+    if (token) {
+      console.log('[ChatSocketProvider] Auto-connecting on mount...');
+      ensureSocket();
     }
+
+    // Listen for login event to connect socket immediately after login
+    const onLogin = () => {
+      console.log('[ChatSocketProvider] user-logged-in → connect socket');
+      ensureSocket();
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('user-logged-in', onLogin);
+    }
+
+    // Cleanup on unmount
     return () => {
+      console.log('[ChatSocketProvider] Component unmounting');
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('user-logged-in', onLogin);
+      }
+      
       const s = socketRef.current;
       if (!s) return;
       const cleanup = (socketRef as any).currentCleanup;
@@ -126,7 +140,7 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
       setConnected(false);
       setConnecting(false);
     };
-  }, [ensureSocket]);
+  }, []); // Empty deps - only run once on mount
 
   const emit = useCallback((event: SocketEventsEnum, data: any) => {
     const s = ensureSocket();

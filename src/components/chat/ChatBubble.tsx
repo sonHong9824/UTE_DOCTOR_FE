@@ -5,6 +5,7 @@ import { useChatSocket } from '@/contexts/ChatSocketContext';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { useEffect, useMemo, useState } from 'react';
 import ChatWindow from './ChatWindow';
+import ConversationList from './ConversationList';
 
 interface ChatBubbleProps {
   defaultTitle?: string;
@@ -16,6 +17,8 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
   const chatSocket = useChatSocket();
   const [open, setOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [receiverInfo, setReceiverInfo] = useState<{ name: string; avatarUrl?: string } | null>(null);
+  const [view, setView] = useState<'list' | 'search'>('list'); // Toggle between list and search
 
   const currentUser = useMemo(() => ({
     accountId: typeof window !== 'undefined' ? (localStorage.getItem('id') || '') : '',
@@ -86,7 +89,7 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
     }
   };
 
-  const startChatWith = async (target: { accountId: string; email?: string; role?: string }) => {
+  const startChatWith = async (target: { accountId: string; email?: string; role?: string; displayName?: string; avatarUrl?: string }) => {
     const participants = [
       { accountId: currentUser.accountId, email: currentUser.email, role: currentUser.role },
       { accountId: target.accountId, email: target.email, role: target.role || '' },
@@ -95,8 +98,15 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
     const id = res?.data?._id || res?.data?.id;
     if (id) {
       setConversationId(id);
+      setReceiverInfo({ name: target.displayName || target.email || 'User', avatarUrl: target.avatarUrl });
       localStorage.setItem('activeConversationId', id);
     }
+  };
+
+  const handleSelectConversation = (convId: string, receiver: { name: string; avatarUrl?: string }) => {
+    setConversationId(convId);
+    setReceiverInfo(receiver);
+    localStorage.setItem('activeConversationId', convId);
   };
 
   return (
@@ -112,55 +122,82 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
         <div className={`fixed ${positionClass} translate-y-[-80px] z-50 w-[360px] h-[520px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl overflow-hidden flex flex-col`}
         >
           {conversationId ? (
-            <>
-              <div className="p-2 border-b flex items-center gap-2">
-                <button
-                  onClick={() => { setConversationId(null); setQ(''); setResults([]); }}
-                  className="px-2 py-1 text-sm bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300"
-                >
-                  ← Back
-                </button>
-              </div>
-              <ChatWindow conversationId={conversationId} currentUser={{ accountId: currentUser.accountId, email: currentUser.email }} />
-            </>
+            <ChatWindow 
+              conversationId={conversationId} 
+              currentUser={{ accountId: currentUser.accountId, email: currentUser.email }}
+              receiver={receiverInfo || undefined}
+              showBack={true}
+              onBack={() => { 
+                setConversationId(null); 
+                setReceiverInfo(null);
+                setQ(''); 
+                setResults([]);
+                setView('list');
+              }}
+            />
           ) : (
-            <div className="h-full flex flex-col p-3 text-sm text-gray-700 dark:text-gray-200">
-              <div className="mb-2 font-medium">Tìm liên hệ (tên hoặc email)</div>
-              <div className="flex gap-2 mb-3">
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') runSearch(); }}
-                  placeholder="Nhập tên/email..."
-                  className="flex-1 border rounded px-3 py-2 bg-transparent"
-                />
-                <button onClick={runSearch} className="px-3 py-2 rounded bg-blue-600 text-white">Tìm</button>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {searching && <div className="text-gray-500">Đang tìm...</div>}
-                {!searching && results.length === 0 && <div className="text-gray-500">Không có kết quả</div>}
-                {!searching && results.map((r) => (
+            <div className="h-full flex flex-col">
+              {/* Header with tabs */}
+              <div className="p-3 border-b">
+                <div className="flex gap-2 mb-3">
                   <button
-                    key={r.accountId}
-                    onClick={() => startChatWith(r)}
-                    className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                    onClick={() => setView('list')}
+                    className={`flex-1 py-2 text-sm font-medium rounded ${view === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800'}`}
                   >
-                    {r.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.avatarUrl} alt={r.displayName} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-300" />
-                    )}
-                    <div className="flex flex-col">
-                      <span className="font-medium">{r.displayName}</span>
-                      <span className="text-xs text-gray-500">{r.email}</span>
-                    </div>
+                    Recent
                   </button>
-                ))}
+                  <button
+                    onClick={() => setView('search')}
+                    className={`flex-1 py-2 text-sm font-medium rounded ${view === 'search' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800'}`}
+                  >
+                    New Chat
+                  </button>
+                </div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Hoặc truyền sẵn participants để tự khởi tạo cuộc trò chuyện.
-              </div>
+
+              {/* Content */}
+              {view === 'list' ? (
+                <ConversationList 
+                  currentUserId={currentUser.accountId}
+                  onSelectConversation={handleSelectConversation}
+                />
+              ) : (
+                <div className="flex-1 flex flex-col p-3 text-sm text-gray-700 dark:text-gray-200">
+                  <div className="mb-2 font-medium">Tìm liên hệ (tên hoặc email)</div>
+                  <div className="flex gap-2 mb-3">
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') runSearch(); }}
+                      placeholder="Nhập tên/email..."
+                      className="flex-1 border rounded px-3 py-2 bg-transparent"
+                    />
+                    <button onClick={runSearch} className="px-3 py-2 rounded bg-blue-600 text-white">Tìm</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {searching && <div className="text-gray-500">Đang tìm...</div>}
+                    {!searching && results.length === 0 && <div className="text-gray-500">Không có kết quả</div>}
+                    {!searching && results.map((r) => (
+                      <button
+                        key={r.accountId}
+                        onClick={() => startChatWith(r)}
+                        className="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                      >
+                        {r.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={r.avatarUrl} alt={r.displayName} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-300" />
+                        )}
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.displayName}</span>
+                          <span className="text-xs text-gray-500">{r.email}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
