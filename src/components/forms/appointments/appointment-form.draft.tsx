@@ -4,7 +4,7 @@ import { getWalletBalance } from '@/apis/wallet/wallet.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
-import { createPaymentVnPaySocket } from '@/services/socket/socket-client';
+import { createAppointmentSocket, createPaymentVnPaySocket } from '@/services/socket/socket-client';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
 import { useEffect, useState } from 'react';
@@ -83,6 +83,10 @@ export default function AppointmentForm() {
   // Thêm state cho modal thành công
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
+
+  // State cho modal lỗi
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // State cho coin balance
   const [coinBalance, setCoinBalance] = useState<number>(0);
@@ -241,10 +245,16 @@ export default function AppointmentForm() {
       let paymentWindow : any = null;
       // Socket connection for payment
       const paymentSocket = createPaymentVnPaySocket();
+      // Socket connection for appointment booking events
+      const appointmentSocket = createAppointmentSocket();
     
       paymentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
         console.log('[Socket] Joined payment room:', data);
         bookAppointment(formData);
+      });
+
+      appointmentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
+        console.log('[Socket] Joined appointment room:', data);
       });
 
       paymentSocket.on<{ appointmentId: string; paymentUrl: string }>(
@@ -256,12 +266,12 @@ export default function AppointmentForm() {
         }
       );
 
-      paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, (data) => {
-        console.log('[Socket] Appointment booking success:', data);
+      appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, (response: DataResponse<any>) => {
+        console.log('[Socket] Appointment booking success:', response);
 
         setSuccessMessage('Lịch hẹn của bạn đã được đặt thành công!');
         setShowSuccessModal(true);
-        setResponse({ success: true, data });
+        setResponse({ success: true, data: response?.data });
 
         // Đóng popup thanh toán
         if (paymentWindow && !paymentWindow.closed) {
@@ -270,9 +280,46 @@ export default function AppointmentForm() {
 
         // Disconnect sau khi xử lý xong
         paymentSocket.disconnect();
+        appointmentSocket.disconnect();
+      });
+
+      appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, (response: DataResponse<any>) => {
+        console.log('[Socket] Appointment booking pending:', response);
+
+        setSuccessMessage('Lịch hẹn của bạn đang chờ xác nhận. Vui lòng chờ nhân viên lễ tân xác nhận.');
+        setShowSuccessModal(true);
+        setResponse({ success: true, data: response.data, status: 'PENDING' });
+
+        // Đóng popup thanh toán
+        if (paymentWindow && !paymentWindow.closed) {
+          paymentWindow.close();
+        }
+
+        // Disconnect sau khi xử lý xong
+        paymentSocket.disconnect();
+        appointmentSocket.disconnect();
+      });
+
+      appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, (response: DataResponse<any>) => {
+        console.log('[Socket] Appointment booking failed:', response);
+
+        const failedMessage = response?.message || response?.data?.error || 'Đặt lịch hẹn thất bại. Vui lòng thử lại.';
+        setErrorMessage(failedMessage);
+        setShowErrorModal(true);
+        setResponse({ success: false, error: failedMessage });
+
+        // Đóng popup thanh toán
+        if (paymentWindow && !paymentWindow.closed) {
+          paymentWindow.close();
+        }
+
+        // Disconnect sau khi xử lý xong
+        paymentSocket.disconnect();
+        appointmentSocket.disconnect();
       });
 
       paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: formData.patientEmail });
+      appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: formData.patientEmail });
       console.log("Emitted join room for email:", formData.patientEmail);
 
     } catch (error: any) {
@@ -682,14 +729,32 @@ export default function AppointmentForm() {
           {showSuccessModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg">
-                <h3 className="text-lg font-semibold mb-2">Thành công</h3>
+                <h3 className="text-lg font-semibold mb-2">✅ Thành công</h3>
                 <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
                 <div className="flex justify-end">
                   <button
                     onClick={() => { setShowSuccessModal(false); window.location.reload(); }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     OK
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error modal */}
+          {showErrorModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-lg border-l-4 border-red-500">
+                <h3 className="text-lg font-semibold mb-2 text-red-600">❌ Lỗi</h3>
+                <p className="text-sm text-gray-700 mb-4">{errorMessage}</p>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowErrorModal(false)}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                  >
+                    Đóng
                   </button>
                 </div>
               </div>
