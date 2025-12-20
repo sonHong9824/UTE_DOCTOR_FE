@@ -95,15 +95,25 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
     paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
 
-    // When doctor cancels a shift
-    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, () => {
+    // Reuse one handler for all booking-related events to keep the bell in sync
+    const handleBookingUpdate = () => {
       refreshBell();
-    });
+    };
 
-    // When booking succeeds (via VnPay flow)
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, () => {
-      refreshBell();
-    });
+    // When doctor cancels a shift
+    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, handleBookingUpdate);
+
+    // Booking lifecycle events (match booking form listeners)
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
+
+    // Some flows emit via payment namespace (e.g., VNPAY popup)
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
 
     // Cleanup on unmount
     return () => {
