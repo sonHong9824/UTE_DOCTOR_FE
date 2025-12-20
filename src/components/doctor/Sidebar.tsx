@@ -1,7 +1,7 @@
 "use client";
 import {
   LayoutDashboard, Users, Calendar, FileText, Stethoscope, MessageSquare, Settings, 
-  User, LogOut, ChevronRight, Activity, ClipboardList
+  User, LogOut, ChevronRight, Activity, ClipboardList, BookOpen
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,7 +18,7 @@ const menuItems = [
   { name: "Bệnh nhân", icon: Users, path: "/doctor/patients" },
   { name: "Lịch làm việc", icon: Calendar, path: "/doctor/schedule",},
   { name: "Lịch sử khám", icon: ClipboardList, path: "/doctor/records" },
-  { name: "Đơn thuốc", icon: Stethoscope, path: "/doctor/prescriptions" },
+  { name: "Bài đăng", icon: BookOpen, path: "/doctor/posts" },
   // { name: "Tin nhắn", icon: MessageSquare, path: "/doctor/messages",},
 ];
 
@@ -190,7 +190,9 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
             <div className="mt-3 space-y-1">
               <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <User className="w-4 h-4" />
-                <span className="text-sm">Hồ sơ cá nhân</span>
+                <div className="text-sm">
+                  <Link href="/doctor/profile">Hồ sơ cá nhân</Link>
+                </div>
               </button>
               <div className="mt-3 space-y-1">
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
