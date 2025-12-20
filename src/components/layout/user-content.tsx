@@ -15,12 +15,21 @@ interface UserContentProps {
 }
 
 export default function UserContent({ user, activeTab }: UserContentProps) {
-  if (!user.medicalRecord) {
+  // Check new collections first, fallback to legacy
+  const hasData =
+    user.medicalProfile ||
+    (user.encounters && user.encounters.length > 0) ||
+    (user.allergies && user.allergies.length > 0) ||
+    (user.medicalHistory && user.medicalHistory.length > 0) ||
+    user.medicalRecord;
+  
+  if (!hasData) {
     return <p>Chưa có hồ sơ y tế</p>;
   }
+  
   return (
     <div className="flex-1 p-4">
-      {activeTab === "general-health" && <MedicalRecordDisplay medicalRecord={user.medicalRecord} />}
+      {activeTab === "general-health" && <MedicalRecordDisplay user={user} />}
       
       {activeTab === "personal-info" && (
           <UserInfoCard user={user.accountProfileDto}/>
@@ -33,7 +42,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
         </Card>
       )}
 
-      {activeTab === "medical-detail" && <MedicalRecordDetail medicalRecord={user.medicalRecord} />}
+      {activeTab === "medical-detail" && <MedicalRecordDetail user={user} />}
       {activeTab === "appointments" && <AppointmentForm />}
       {activeTab === "wallet" && (
         // <div className="w-full space-y-6">

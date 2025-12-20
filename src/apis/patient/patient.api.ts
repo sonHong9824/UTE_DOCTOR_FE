@@ -1,6 +1,5 @@
 import axiosClient from "@/lib/axiosClient";
-import axios from "axios";
-import {DataResponse } from "@/types/apiDTO";
+import { DataResponse } from "@/types/apiDTO";
 
 export interface Patient {
   _id: string;
@@ -61,5 +60,51 @@ export const getPatientProfile = async (
     console.error('Failed to fetch patient profile (/patients/me):', error);
     throw error;
   }
+};
+
+// --- New medical record APIs ---
+
+export interface MedicalProfilePayload {
+  height?: number;
+  weight?: number;
+  bloodType?: string;
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export interface AllergyPayload {
+  type: "DRUG" | "FOOD";
+  substance: string;
+  reaction?: string;
+  severity?: string;
+  reportedBy?: "PATIENT" | "DOCTOR";
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export interface MedicalHistoryPayload {
+  conditionName: string;
+  diagnosisCode?: string;
+  diagnosedAt?: string | Date;
+  status?: "ONGOING" | "RESOLVED";
+  source?: "PATIENT" | "DOCTOR";
+  verifiedByDoctor?: boolean;
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export const upsertMedicalProfile = async (patientId: string, payload: MedicalProfilePayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/medical-profile`, payload);
+  return res.data;
+};
+
+export const createAllergyRecord = async (patientId: string, payload: AllergyPayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/allergies`, payload);
+  return res.data;
+};
+
+export const createMedicalHistoryRecord = async (patientId: string, payload: MedicalHistoryPayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/medical-history`, payload);
+  return res.data;
 };
 

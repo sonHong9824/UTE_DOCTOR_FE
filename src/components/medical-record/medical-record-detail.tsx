@@ -3,20 +3,21 @@
 import { getAppointmentById, getAppointments } from "@/apis/appointment/appointment.api";
 import { getDoctorById } from "@/apis/doctor/profile.api";
 import { CreatePrescriptionPdfDto, generatePrescriptionPdf, PrescriptionItemDto } from "@/apis/medicine/medicine.api";
-import { getPatientByAccount, getPatientProfile } from "@/apis/patient/patient.api";
+import { createAllergyRecord, createMedicalHistoryRecord, getPatientByAccount, getPatientProfile, upsertMedicalProfile } from "@/apis/patient/patient.api";
 import { createReview, getReviewByAppointmentAndPatient } from "@/apis/review/review.api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AppointmentStatus from "@/enum/appointment-status.enum";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
+import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
 import AppointmentsList from "../appointments/appointments-list";
-import AppointmentStatus from "@/enum/appointment-status.enum";
 
 
 // Custom TabsTrigger styled
@@ -36,21 +37,49 @@ function ThemedTabsTrigger({ children, value }: { children: React.ReactNode; val
 }
 
 interface MedicalRecordDetailProps {
-  medicalRecord: MedicalRecordDto;
+  user?: PatientProfileDto;
+  medicalRecord?: MedicalRecordDto;
 }
 
-export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDetailProps) {
+export default function MedicalRecordDetail({ user, medicalRecord }: MedicalRecordDetailProps) {
   const router = useRouter();
+  
+  // Prioritize new collections from user prop, fallback to legacy medicalRecord
+  const sourceRecord = user?.medicalRecord || medicalRecord;
+  
+  const vitalsFromEncounters = (user?.encounters || []).flatMap((e: any) =>
+    (e?.vitalSigns || []).map((v: any) => ({ ...v, appointmentId: e.appointmentId, encDate: e.dateRecord || v.dateRecord }))
+  );
+
   const record = {
-    medicalHistory: medicalRecord?.medicalHistory || [],
-    drugAllergies: medicalRecord?.drugAllergies || [],
-    foodAllergies: medicalRecord?.foodAllergies || [],
-    height: medicalRecord?.height || medicalRecord?.height || 0,
-    weight: medicalRecord?.weight || medicalRecord?.weight || 0,
-    bloodType: medicalRecord?.bloodType || null,
-    bloodPressure: medicalRecord?.bloodPressure || [],
-    heartRate: medicalRecord?.heartRate || [],
+    medicalHistory: user?.medicalHistory || sourceRecord?.medicalHistory || [],
+    drugAllergies: user?.allergies?.filter((a: any) => a.type === 'DRUG') || sourceRecord?.drugAllergies || [],
+    foodAllergies: user?.allergies?.filter((a: any) => a.type === 'FOOD') || sourceRecord?.foodAllergies || [],
+    height: user?.medicalProfile?.height || sourceRecord?.height || 0,
+    weight: user?.medicalProfile?.weight || sourceRecord?.weight || 0,
+    bloodType: user?.medicalProfile?.bloodType || sourceRecord?.bloodType || null,
+    bloodPressure: (sourceRecord?.bloodPressure || []).concat(
+      vitalsFromEncounters
+        .filter((v: any) => v.type === 'BP' && v.bloodPressure)
+        .map((v: any) => ({
+          value: v.bloodPressure,
+          dateRecord: v.dateRecord || v.encDate,
+          _id: v._id || `${v.appointmentId}-bp`,
+        }))
+    ),
+    heartRate: (sourceRecord?.heartRate || []).concat(
+      vitalsFromEncounters
+        .filter((v: any) => v.type === 'HR' && v.value !== undefined)
+        .map((v: any) => ({
+          value: v.value,
+          dateRecord: v.dateRecord || v.encDate,
+          _id: v._id || `${v.appointmentId}-hr`,
+        }))
+    ),
+    encounters: user?.encounters || [],
   } as any;
+  
+  console.log("MedicalRecordDetail received:", { user, medicalRecord, computed: record });
 
   const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -72,6 +101,171 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
   const [totalPages, setTotalPages] = useState<number>(1);
   const [total, setTotal] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profileOverride, setProfileOverride] = useState<{ height?: number; weight?: number; bloodType?: string } | null>(null);
+  const [allergiesOverride, setAllergiesOverride] = useState<any[] | null>(null);
+  const [historyOverride, setHistoryOverride] = useState<any[] | null>(null);
+  const [profileForm, setProfileForm] = useState<{ height: string; weight: string; bloodType: string }>(() => ({
+    height: (user?.medicalProfile?.height || sourceRecord?.height || '').toString(),
+    weight: (user?.medicalProfile?.weight || sourceRecord?.weight || '').toString(),
+    bloodType: user?.medicalProfile?.bloodType || sourceRecord?.bloodType || '',
+  }));
+  const [newAllergy, setNewAllergy] = useState({ type: 'DRUG', substance: '', reaction: '', severity: '' });
+  const [newHistory, setNewHistory] = useState({ conditionName: '', diagnosisCode: '', diagnosedAt: '', status: 'ONGOING' });
+
+  const openEditModal = () => {
+    setProfileForm({
+      height: (user?.medicalProfile?.height || sourceRecord?.height || '').toString(),
+      weight: (user?.medicalProfile?.weight || sourceRecord?.weight || '').toString(),
+      bloodType: user?.medicalProfile?.bloodType || sourceRecord?.bloodType || '',
+    });
+    setNewAllergy({ type: 'DRUG', substance: '', reaction: '', severity: '' });
+    setNewHistory({ conditionName: '', diagnosisCode: '', diagnosedAt: '', status: 'ONGOING' });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSaving(true);
+      const patientId = localStorage.getItem('patientId') || null;
+      if (!patientId) {
+        toast.error('Không tìm thấy bệnh nhân');
+        return;
+      }
+      const payload = {
+        height: profileForm.height ? Number(profileForm.height) : undefined,
+        weight: profileForm.weight ? Number(profileForm.weight) : undefined,
+        bloodType: profileForm.bloodType || undefined,
+        createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+        createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+      };
+      await upsertMedicalProfile(patientId, payload);
+      toast.success('Cập nhật hồ sơ y tế thành công');
+      setEditModalOpen(false);
+      // simplest: refresh view to reflect changes
+      try { router.refresh(); } catch {}
+    } catch (err: any) {
+      console.error('Save profile failed', err);
+      toast.error(String(err?.response?.data?.message ?? err?.message ?? 'Lỗi khi cập nhật hồ sơ'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddAllergy = async () => {
+    if (!newAllergy.substance) {
+      toast.error('Vui lòng nhập chất gây dị ứng');
+      return;
+    }
+    try {
+      setSaving(true);
+      const patientId = localStorage.getItem('patientId') || null;
+      if (!patientId) {
+        toast.error('Không tìm thấy bệnh nhân');
+        return;
+      }
+      const payload: any = {
+        ...newAllergy,
+        reportedBy: typeof window !== 'undefined' ? (localStorage.getItem('role') === 'DOCTOR' ? 'DOCTOR' : 'PATIENT') : 'PATIENT',
+        createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+        createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+      };
+      await createAllergyRecord(patientId, payload);
+      toast.success('Thêm dị ứng thành công');
+      setNewAllergy({ type: 'DRUG', substance: '', reaction: '', severity: '' });
+      try { router.refresh(); } catch {}
+    } catch (err: any) {
+      console.error('Add allergy failed', err);
+      toast.error(String(err?.response?.data?.message ?? err?.message ?? 'Lỗi khi thêm dị ứng'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddHistory = async () => {
+    if (!newHistory.conditionName) {
+      toast.error('Vui lòng nhập tên bệnh');
+      return;
+    }
+    try {
+      setSaving(true);
+      const patientId = localStorage.getItem('patientId') || null;
+      if (!patientId) {
+        toast.error('Không tìm thấy bệnh nhân');
+        return;
+      }
+      const payload: any = {
+        ...newHistory,
+        diagnosedAt: newHistory.diagnosedAt || undefined,
+        source: typeof window !== 'undefined' ? (localStorage.getItem('role') === 'DOCTOR' ? 'DOCTOR' : 'PATIENT') : 'PATIENT',
+        createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+        createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+      };
+      await createMedicalHistoryRecord(patientId, payload);
+      toast.success('Thêm tiền sử bệnh thành công');
+      setNewHistory({ conditionName: '', diagnosisCode: '', diagnosedAt: '', status: 'ONGOING' });
+      try { router.refresh(); } catch {}
+    } catch (err: any) {
+      console.error('Add medical history failed', err);
+      toast.error(String(err?.response?.data?.message ?? err?.message ?? 'Lỗi khi thêm tiền sử bệnh'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    try {
+      setSaving(true);
+      const patientId = localStorage.getItem('patientId') || null;
+      if (!patientId) {
+        toast.error('Không tìm thấy bệnh nhân');
+        return;
+      }
+
+      // Save medical profile
+      const profilePayload = {
+        height: profileForm.height ? Number(profileForm.height) : undefined,
+        weight: profileForm.weight ? Number(profileForm.weight) : undefined,
+        bloodType: profileForm.bloodType || undefined,
+        createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+        createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+      };
+      await upsertMedicalProfile(patientId, profilePayload);
+
+      // Add allergy if filled
+      if (newAllergy.substance) {
+        const allergyPayload: any = {
+          ...newAllergy,
+          reportedBy: typeof window !== 'undefined' ? (localStorage.getItem('role') === 'DOCTOR' ? 'DOCTOR' : 'PATIENT') : 'PATIENT',
+          createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+          createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+        };
+        await createAllergyRecord(patientId, allergyPayload);
+      }
+
+      // Add history if filled
+      if (newHistory.conditionName) {
+        const historyPayload: any = {
+          ...newHistory,
+          diagnosedAt: newHistory.diagnosedAt || undefined,
+          source: typeof window !== 'undefined' ? (localStorage.getItem('role') === 'DOCTOR' ? 'DOCTOR' : 'PATIENT') : 'PATIENT',
+          createdByRole: typeof window !== 'undefined' ? localStorage.getItem('role') || undefined : undefined,
+          createdByAccountId: typeof window !== 'undefined' ? localStorage.getItem('accountId') || undefined : undefined,
+        };
+        await createMedicalHistoryRecord(patientId, historyPayload);
+      }
+
+      toast.success('Đã lưu tất cả thay đổi');
+      setEditModalOpen(false);
+      try { router.refresh(); } catch {}
+    } catch (err: any) {
+      console.error('Save all failed', err);
+      toast.error(String(err?.response?.data?.message ?? err?.message ?? 'Lỗi khi lưu thay đổi'));
+    } finally {
+      setSaving(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -122,41 +316,6 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
     );
   };
 
-  // Resolve patientId from common places or via account lookup
-  const resolvePatientId = async (selRec?: any) => {
-    const candidates: Array<string | undefined | null> = [
-      (medicalRecord as any)?.patientId,
-      (medicalRecord as any)?.patient?._id,
-      (medicalRecord as any)?.profileId?._id,
-      selRec?.patientId,
-      selRec?.patient?._id,
-      selRec?.appointment?.patient?._id,
-      selRec?.apptId,
-      selRec?._id,
-    ];
-
-    for (const c of candidates) {
-      if (c) return String(c);
-    }
-
-    if (typeof window !== 'undefined') {
-      const possibleKeys = ['id', 'accountId', 'userId', 'patientId'];
-      for (const k of possibleKeys) {
-        const v = localStorage.getItem(k);
-        if (v) {
-          try {
-            const resp = await getPatientByAccount(v);
-            if (resp && resp.data && resp.data._id) return resp.data._id;
-          } catch (err) {
-            console.debug('resolvePatientId: lookup failed for', k, v, err);
-          }
-        }
-      }
-    }
-
-    return null;
-  };
-
   // When modal opens (selectedRecord set) and current user is PATIENT, generate PDF automatically
   useEffect(() => {
     let mounted = true;
@@ -170,7 +329,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
       setPdfUrl(null);
 
       try {
-        const patientId = await resolvePatientId(selectedRecord);
+        const patientId = localStorage.getItem('patientId') || null;
         if (!patientId) {
           setPdfError(new Error('Không tìm thấy patientId'));
           console.debug('generate PDF aborted: no patientId');
@@ -212,6 +371,8 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
         }
 
         const resolvedPatientName = (
+          user?.accountProfileDto?.name ??
+          user?.name ??
           (selectedRecord as any)?.patient?.name ??
           (medicalRecord as any)?.patient?.name ??
           (medicalRecord as any)?.patientName ??
@@ -219,7 +380,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
         ) || undefined;
 
         const resolvedPatientAge = (() => {
-          const candidate = (selectedRecord as any)?.patient?.age ?? (medicalRecord as any)?.patient?.age ?? (medicalRecord as any)?.patientAge ?? (profileData as any)?.profileId?.age ?? (profileData as any)?.profileId?.dob ?? (profileData as any)?.age ?? (profileData as any)?.patientAge ?? (profileData as any)?.dob ?? (profileData as any)?.dateOfBirth ?? (profileData as any)?.birthDate;
+          const candidate = user?.accountProfileDto?.age ?? user?.patientAge ?? (selectedRecord as any)?.patient?.age ?? (medicalRecord as any)?.patient?.age ?? (medicalRecord as any)?.patientAge ?? (profileData as any)?.profileId?.age ?? (profileData as any)?.profileId?.dob ?? (profileData as any)?.age ?? (profileData as any)?.patientAge ?? (profileData as any)?.dob ?? (profileData as any)?.dateOfBirth ?? (profileData as any)?.birthDate;
           if (candidate === undefined || candidate === null) return undefined;
           if (typeof candidate === 'string' && (candidate.includes('-') || candidate.includes('/'))) {
             const d = new Date(candidate);
@@ -276,7 +437,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
       // Ensure we have patientId; attempt to resolve as fallback
       let patientId = ratingContext.patientId;
       if (!patientId) {
-        const resolved = await resolvePatientId(selectedRecord ?? undefined);
+        const resolved = localStorage.getItem('patientId') || null;
         patientId = resolved ?? undefined;
       }
 
@@ -543,6 +704,9 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
           </CardContent>
         </Card>
       </div>
+      <div className="flex items-center justify-end px-4 mb-2">
+        <Button size="sm" variant="outline" onClick={openEditModal}>Cập nhật hồ sơ</Button>
+      </div>
 
       <Tabs defaultValue="medicalHistory" className="flex-1 flex flex-col">
         {/* Sticky tabs header */}
@@ -551,6 +715,7 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             <TabsTrigger value="medicalHistory" className="px-3 py-2 rounded">Tiền sử bệnh <Badge variant="gray" className="ml-2">{record.medicalHistory.length}</Badge></TabsTrigger>
             <TabsTrigger value="drugAllergies" className="px-3 py-2 rounded">Dị ứng thuốc <Badge variant="gray" className="ml-2">{record.drugAllergies.length}</Badge></TabsTrigger>
             <TabsTrigger value="foodAllergies" className="px-3 py-2 rounded">Dị ứng thức ăn <Badge variant="gray" className="ml-2">{record.foodAllergies.length}</Badge></TabsTrigger>
+            <TabsTrigger value="encounters" className="px-3 py-2 rounded">Lượt khám <Badge variant="gray" className="ml-2">{record.encounters.length}</Badge></TabsTrigger>
             <TabsTrigger value="bloodPressure" className="px-3 py-2 rounded">Huyết áp <Badge variant="gray" className="ml-2">{record.bloodPressure.length}</Badge></TabsTrigger>
             <TabsTrigger value="heartRate" className="px-3 py-2 rounded">Nhịp tim <Badge variant="gray" className="ml-2">{record.heartRate.length}</Badge></TabsTrigger>
             <TabsTrigger value="appointments" className="px-3 py-2 rounded">
@@ -578,10 +743,10 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <div>
-                                <div className="text-lg font-semibold leading-tight">{r.diagnosis || r.name || 'Chẩn đoán'}</div>
-                                <div className="text-xs text-muted-foreground mt-0.5">{r.dateRecord ? new Date(r.dateRecord).toLocaleString('vi-VN') : '-'}</div>
+                                <div className="text-lg font-semibold leading-tight">{r.conditionName || r.diagnosis || r.name || 'Chẩn đoán'}</div>
+                                <div className="text-xs text-muted-foreground mt-0.5">{r.diagnosedAt ? new Date(r.diagnosedAt).toLocaleDateString('vi-VN') : (r.dateRecord ? new Date(r.dateRecord).toLocaleDateString('vi-VN') : '-')}</div>
                               </div>
-                              <div className="text-xs text-muted-foreground text-right">{Array.isArray(r.prescriptions) ? `${r.prescriptions.length} đơn` : ''}</div>
+                              <div className="text-xs text-muted-foreground text-right uppercase">{r.status || r.source || ''}</div>
                             </div>
 
                             {r.note && (
@@ -609,12 +774,12 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {record.drugAllergies.map((r: any) => (
-                  <Card key={r._id || r.name} className="p-4">
+                  <Card key={r._id || r.substance || r.name} className="p-4">
                     <CardContent>
-                      <div className="text-lg font-semibold">{r.name}</div>
-                      <div className="text-sm text-muted-foreground">{r.dateRecord ? new Date(r.dateRecord).toLocaleDateString('vi-VN') : '-'}</div>
-                      {r.description && <div className="mt-2 text-sm">{r.description}</div>}
-                      {r.diagnosis && <div className="mt-2 text-xs text-muted-foreground">Ghi chú: {r.diagnosis}</div>}
+                      <div className="text-lg font-semibold">{r.substance || r.name}</div>
+                      <div className="text-sm text-muted-foreground">{r.reaction || r.note || 'Chưa có mô tả phản ứng'}</div>
+                      {r.severity && <div className="mt-2 text-xs">Mức độ: {r.severity}</div>}
+                      {r.reportedBy && <div className="text-xs text-muted-foreground mt-1">Nguồn: {r.reportedBy === 'DOCTOR' ? 'Bác sĩ' : 'Bệnh nhân'}</div>}
                     </CardContent>
                   </Card>
                 ))}
@@ -628,11 +793,12 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {record.foodAllergies.map((r: any) => (
-                  <Card key={r._id || r.name} className="p-4">
+                  <Card key={r._id || r.substance || r.name} className="p-4">
                     <CardContent>
-                      <div className="text-lg font-semibold">{r.name}</div>
-                      <div className="text-sm text-muted-foreground">{r.dateRecord ? new Date(r.dateRecord).toLocaleDateString('vi-VN') : '-'}</div>
-                      {r.description && <div className="mt-2 text-sm">{r.description}</div>}
+                      <div className="text-lg font-semibold">{r.substance || r.name}</div>
+                      <div className="text-sm text-muted-foreground">{r.reaction || r.note || 'Chưa có mô tả phản ứng'}</div>
+                      {r.severity && <div className="mt-2 text-xs">Mức độ: {r.severity}</div>}
+                      {r.reportedBy && <div className="text-xs text-muted-foreground mt-1">Nguồn: {r.reportedBy === 'DOCTOR' ? 'Bác sĩ' : 'Bệnh nhân'}</div>}
                     </CardContent>
                   </Card>
                 ))}
@@ -678,6 +844,48 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
             )}
           </TabsContent>
 
+          <TabsContent value="encounters">
+            {record.encounters.length === 0 ? (
+              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có lượt khám</p>
+            ) : (
+              <div className="space-y-4">
+                {record.encounters.map((e: any) => (
+                  <Card key={e._id || e.appointmentId} className="p-4 border shadow-sm">
+                    <CardContent className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="text-lg font-semibold leading-tight">{e.diagnosis || 'Chẩn đoán'}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{e.dateRecord ? new Date(e.dateRecord).toLocaleString('vi-VN') : '-'}</div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => setSelectedRecord(e)}>Xem chi tiết</Button>
+                      </div>
+
+                      {e.note && <div className="text-sm text-muted-foreground">{e.note}</div>}
+
+                      {Array.isArray(e.prescriptions) && e.prescriptions.length > 0 && (
+                        <div className="text-sm text-muted-foreground">Đơn thuốc: {e.prescriptions.length} thuốc</div>
+                      )}
+
+                      {Array.isArray(e.vitalSigns) && e.vitalSigns.length > 0 && (
+                        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
+                          {e.vitalSigns.map((v: any, idx: number) => (
+                            <span key={v._id || idx} className="px-2 py-1 rounded bg-muted text-xs">
+                              {v.type === 'BP'
+                                ? `HA ${v.bloodPressure?.systolic ?? '-'} / ${v.bloodPressure?.diastolic ?? '-'}`
+                                : v.type === 'HR'
+                                  ? `HR ${v.value ?? '-'}`
+                                  : `${v.type} ${v.value ?? '-'}`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="appointments">
             <AppointmentsList
               appointments={appointments}
@@ -711,87 +919,105 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
 
       {/* Modal for any selected record details (e.g., prescription detail) */}
       <Modal open={!!selectedRecord} onClose={() => setSelectedRecord(null)}>
-        {selectedRecord && (
-          <div className="space-y-3 text-base max-w-xl">
-            <div className="text-lg font-semibold">{selectedRecord.diagnosis ?? selectedRecord.name ?? 'Chi tiết'}</div>
-            {selectedRecord.dateRecord && <div className="text-sm text-muted-foreground">{new Date(selectedRecord.dateRecord).toLocaleString('vi-VN')}</div>}
-            {selectedRecord.note && <div className="text-sm">{selectedRecord.note}</div>}
-            {Array.isArray(selectedRecord.prescriptions) && selectedRecord.prescriptions.length > 0 && (
-              <div className="mt-3">
-                <div className="font-medium">Đơn thuốc</div>
-                <div className="space-y-2 mt-2">
-                  {selectedRecord.prescriptions.map((p: any, i: number) => (
-                    p ? (
-                      <div key={i} className="flex items-center justify-between border rounded p-2">
-                        <div>
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">Số lượng: {p.quantity}</div>
-                        </div>
-                        {/* <div className="text-xs text-muted-foreground">ID: {p.medicineId ?? '-'}</div> */}
-                      </div>
-                    ) : (
-                      <div key={i} className="text-sm text-muted-foreground">(Không có thông tin thuốc)</div>
-                    )
-                  ))}
+        {selectedRecord && (() => {
+          const isHistory = !!(selectedRecord.conditionName || selectedRecord.diagnosisCode || selectedRecord.status || selectedRecord.source);
+          const title = selectedRecord.conditionName || selectedRecord.diagnosis || selectedRecord.name || 'Chi tiết';
+          const dateStr = (selectedRecord.diagnosedAt || selectedRecord.dateRecord) ? new Date(selectedRecord.diagnosedAt || selectedRecord.dateRecord).toLocaleString('vi-VN') : null;
+          return (
+            <div className="space-y-3 text-base max-w-xl">
+              <div className="text-lg font-semibold">{title}</div>
+              {dateStr && <div className="text-sm text-muted-foreground">{dateStr}</div>}
+
+              {isHistory ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Trạng thái</div>
+                      <div className="font-medium">{selectedRecord.status || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Mã ICD</div>
+                      <div className="font-medium">{selectedRecord.diagnosisCode || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Nguồn</div>
+                      <div className="font-medium">{selectedRecord.source || selectedRecord.reportedBy || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Xác thực bác sĩ</div>
+                      <div className="font-medium">{selectedRecord.verifiedByDoctor ? 'Đã xác thực' : 'Chưa xác thực'}</div>
+                    </div>
+                  </div>
+                  {selectedRecord.note && <div className="text-sm">{selectedRecord.note}</div>}
                 </div>
-                {/* If current user is a PATIENT, show appointment details and create prescription actions */}
-                {typeof window !== 'undefined' && localStorage.getItem('role') === 'PATIENT' && (
-                  <div className="mt-4 flex items-center gap-3">
-                    <Button variant="outline" onClick={async () => {
-                      const apptId = selectedRecord.appointmentId || selectedRecord.apptId || selectedRecord._id;
-                      if (!apptId) {
-                        alert('Không tìm thấy thông tin lịch hẹn liên quan.');
-                        return;
-                      }
-
-                      try {
-                        setApptLoading(true);
-                        setApptData(null);
-                        // show modal early so user sees loading state
-                        setApptModalOpen(true);
-
-                        console.debug('Fetching appointment, apptId=', apptId, 'selectedRecord=', selectedRecord);
-                        const resp = await getAppointmentById(apptId);
-                        console.debug('getAppointmentById raw resp:', resp);
-
-                        // resp may be either a DataResponse wrapper or the appointment object itself
-                        const data = resp?.data ?? resp ?? null;
-                        if (!data) {
-                          console.warn('getAppointmentById returned no appointment data, full resp:', resp);
-                        }
-                        setApptData(data);
-                        console.debug('appointment data (used):', data);
-                      } catch (err) {
-                        console.error('Failed to load appointment', err);
-                        setApptData(null);
-                      } finally {
-                        setApptLoading(false);
-                      }
-                    }}>Xem chi tiết appointment</Button>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        onClick={() => {
-                          if (pdfUrl) window.open(pdfUrl, "_blank");
-                          else if (pdfLoading) console.debug('PDF is being generated');
-                          else alert('Đang chuẩn bị đơn thuốc...');
-                        }}
-                        disabled={pdfLoading || !pdfUrl}
-                      >
-                        {pdfLoading ? 'Đang tạo...' : 'Xem đơn thuốc'}
-                      </Button>
-
-                      {pdfUrl && (
-                        <div className="p-1 bg-white rounded shadow-sm">
-                          <QRCode value={pdfUrl} size={64} />
+              ) : (
+                <>
+                  {selectedRecord.note && <div className="text-sm">{selectedRecord.note}</div>}
+                  {Array.isArray(selectedRecord.prescriptions) && selectedRecord.prescriptions.length > 0 && (
+                    <div className="mt-3">
+                      <div className="font-medium">Đơn thuốc</div>
+                      <div className="space-y-2 mt-2">
+                        {selectedRecord.prescriptions.map((p: any, i: number) => (
+                          p ? (
+                            <div key={i} className="flex items-center justify-between border rounded p-2">
+                              <div>
+                                <div className="font-medium">{p.name}</div>
+                                <div className="text-xs text-muted-foreground">Số lượng: {p.quantity}</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div key={i} className="text-sm text-muted-foreground">(Không có thông tin thuốc)</div>
+                          )
+                        ))}
+                      </div>
+                      {typeof window !== 'undefined' && localStorage.getItem('role') === 'PATIENT' && (
+                        <div className="mt-4 flex items-center gap-3">
+                          <Button variant="outline" onClick={async () => {
+                            const apptId = selectedRecord.appointmentId || selectedRecord.apptId || selectedRecord._id;
+                            if (!apptId) {
+                              alert('Không tìm thấy thông tin lịch hẹn liên quan.');
+                              return;
+                            }
+                            try {
+                              setApptLoading(true);
+                              setApptData(null);
+                              setApptModalOpen(true);
+                              const resp = await getAppointmentById(apptId);
+                              const data = resp?.data ?? resp ?? null;
+                              setApptData(data);
+                            } catch (err) {
+                              console.error('Failed to load appointment', err);
+                              setApptData(null);
+                            } finally {
+                              setApptLoading(false);
+                            }
+                          }}>Xem chi tiết appointment</Button>
+                          <div className="flex items-center gap-3">
+                            <Button
+                              onClick={() => {
+                                if (pdfUrl) window.open(pdfUrl, "_blank");
+                                else if (pdfLoading) console.debug('PDF is being generated');
+                                else alert('Đang chuẩn bị đơn thuốc...');
+                              }}
+                              disabled={pdfLoading || !pdfUrl}
+                            >
+                              {pdfLoading ? 'Đang tạo...' : 'Xem đơn thuốc'}
+                            </Button>
+                            {pdfUrl && (
+                              <div className="p-1 bg-white rounded shadow-sm">
+                                <QRCode value={pdfUrl} size={64} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </Modal>
 
 
@@ -991,6 +1217,101 @@ export default function MedicalRecordDetail({ medicalRecord }: MedicalRecordDeta
               {ratingSubmitting ? 'Đang gửi...' : 'Gửi đánh giá'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Edit medical info modal */}
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        className="bg-white rounded-xl shadow-lg max-w-2xl w-full p-4"
+      >
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+          <div className="text-lg font-semibold">Cập nhật thông tin y tế</div>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="text-sm font-medium">Hồ sơ y tế</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Chiều cao (cm)</div>
+                  <input className="w-full border rounded p-2" value={profileForm.height} onChange={(e) => setProfileForm({ ...profileForm, height: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Cân nặng (kg)</div>
+                  <input className="w-full border rounded p-2" value={profileForm.weight} onChange={(e) => setProfileForm({ ...profileForm, weight: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Nhóm máu</div>
+                  <input className="w-full border rounded p-2" value={profileForm.bloodType} onChange={(e) => setProfileForm({ ...profileForm, bloodType: e.target.value })} placeholder="VD: O, A, B, AB" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button size="sm" onClick={handleSaveAll} disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu tất cả thay đổi'}</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="text-sm font-medium">Thêm dị ứng</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Loại</div>
+                  <select className="w-full border rounded p-2" value={newAllergy.type} onChange={(e) => setNewAllergy({ ...newAllergy, type: e.target.value as any })}>
+                    <option value="DRUG">Thuốc</option>
+                    <option value="FOOD">Thức ăn</option>
+                  </select>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Chất gây dị ứng</div>
+                  <input className="w-full border rounded p-2" value={newAllergy.substance} onChange={(e) => setNewAllergy({ ...newAllergy, substance: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Phản ứng</div>
+                  <input className="w-full border rounded p-2" value={newAllergy.reaction} onChange={(e) => setNewAllergy({ ...newAllergy, reaction: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Mức độ</div>
+                  <input className="w-full border rounded p-2" value={newAllergy.severity} onChange={(e) => setNewAllergy({ ...newAllergy, severity: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button size="sm" variant="outline" onClick={handleAddAllergy} disabled={saving}>{saving ? 'Đang thêm...' : 'Thêm dị ứng'}</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="text-sm font-medium">Thêm tiền sử bệnh</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Tên bệnh / chẩn đoán</div>
+                  <input className="w-full border rounded p-2" value={newHistory.conditionName} onChange={(e) => setNewHistory({ ...newHistory, conditionName: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Mã ICD (tuỳ chọn)</div>
+                  <input className="w-full border rounded p-2" value={newHistory.diagnosisCode} onChange={(e) => setNewHistory({ ...newHistory, diagnosisCode: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Ngày chẩn đoán</div>
+                  <input type="date" className="w-full border rounded p-2" value={newHistory.diagnosedAt} onChange={(e) => setNewHistory({ ...newHistory, diagnosedAt: e.target.value })} />
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Trạng thái</div>
+                  <select className="w-full border rounded p-2" value={newHistory.status} onChange={(e) => setNewHistory({ ...newHistory, status: e.target.value as any })}>
+                    <option value="ONGOING">Đang điều trị</option>
+                    <option value="RESOLVED">Đã khỏi</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button size="sm" variant="outline" onClick={handleAddHistory} disabled={saving}>{saving ? 'Đang thêm...' : 'Thêm tiền sử bệnh'}</Button>
+              </div>
+            </CardContent>
+          </Card>
+
         </div>
       </Modal>
 

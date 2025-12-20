@@ -60,12 +60,12 @@ export default function ProfilePage() {
       </div>
 
       {/* Fixed Sidebar on the left below navbar */}
-      <div className="fixed top-16 left-0 z-30 h-[calc(100vh-4rem)] w-64 border-r border-border bg-[var(--sidebar)]">
+      <div className="fixed top-20 lg:top-28 left-0 z-30 h-[calc(100vh-5rem)] lg:h-[calc(100vh-7rem)] w-64 border-r border-border bg-[var(--sidebar)]">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       {/* Main content area with offsets for navbar + sidebar */}
-      <main className="pt-20 pl-64">
+      <main className="pt-24 pl-64">
         <div className="p-6">
           <UserContent user={user} activeTab={activeTab} />
         </div>
