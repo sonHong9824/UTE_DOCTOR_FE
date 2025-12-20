@@ -1,7 +1,10 @@
 "use client";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
-import { useState, useEffect } from "react";
+
+const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
 
 export default function DoctorLayout({ children }: { children: React.ReactNode }) {
   const [isMounted, setIsMounted] = useState(false);
@@ -30,6 +33,8 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
         <main className="flex-1 p-4 md:p-6 overflow-auto">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
+        {/* Floating chat bubble for Doctor (placed bottom-left) */}
+        <ChatBubble />
       </div>
     </div>
   );

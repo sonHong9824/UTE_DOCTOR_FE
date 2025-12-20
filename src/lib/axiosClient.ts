@@ -103,6 +103,12 @@ axiosClient.interceptors.response.use(
             axiosClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
+            // Notify all sockets to reconnect with new token
+            if (typeof window !== 'undefined') {
+              const event = new Event('token-refreshed');
+              window.dispatchEvent(event);
+            }
+
             processQueue(null, newAccessToken);
             return axiosClient(originalRequest);
           }

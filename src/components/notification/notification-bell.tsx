@@ -2,6 +2,8 @@
 
 import { getNotificationsByEmail, getUnreadNotificationCount, markNotificationAsRead } from "@/apis/notification/notification.api";
 import { ResponseCode } from "@/enum/response-code.enum";
+import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import { createAppointmentSocket, createPaymentVnPaySocket } from "@/services/socket/socket-client";
 import { Notification } from "@/types/notification.dto";
 import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -62,6 +64,53 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
 
     fetchInitial();
     }, [email]);
+
+  // subscribe to socket events for real-time bell updates
+  useEffect(() => {
+    if (!email) return;
+
+    const appointmentSocket = createAppointmentSocket();
+    const paymentSocket = createPaymentVnPaySocket();
+
+    const refreshBell = async () => {
+      try {
+        const [countRes, notifRes] = await Promise.all([
+          getUnreadNotificationCount(email),
+          getNotificationsByEmail(email, { page: 1, limit: pageSize }),
+        ]);
+        if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === 'number') {
+          setUnreadCount(countRes.data);
+        }
+        if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
+          setNotifications(notifRes.data.data);
+          setHasMore(notifRes.data.data.length === pageSize);
+          setPage(1);
+        }
+      } catch (err) {
+        console.error('[NotificationBell] Failed to refresh on socket event', err);
+      }
+    };
+
+    // Join room by email on both namespaces
+    appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
+    paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
+
+    // When doctor cancels a shift
+    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, () => {
+      refreshBell();
+    });
+
+    // When booking succeeds (via VnPay flow)
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, () => {
+      refreshBell();
+    });
+
+    // Cleanup on unmount
+    return () => {
+      appointmentSocket.disconnect();
+      paymentSocket.disconnect();
+    };
+  }, [email, pageSize]);
 
 
   const loadNotifications = async (pageToLoad: number, replace = false) => {

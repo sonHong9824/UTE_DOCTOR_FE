@@ -45,7 +45,7 @@ export const WalletDetailsCard: React.FC<WalletDetailsProps> = ({
     fetchDetails();
   }, [propCoinBalance, propTotalEarned, propTotalUsed]);
 
-  const conversionRate = 1000; // 1 coin = 1000 VNĐ equivalent
+  const conversionRate = 1; 
 
   if (loading) {
     return (
