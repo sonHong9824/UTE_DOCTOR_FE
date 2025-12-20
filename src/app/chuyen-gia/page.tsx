@@ -257,10 +257,7 @@ export default function ChuyenGiaPage() {
                       <div className="flex gap-2">
                         <button aria-label="Đặt lịch khám" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          Đặt lịch
-                        </button>
-                        <button aria-label="Yêu thích bác sĩ" className="px-3 py-2 border border-gray-200 hover:border-red-300 rounded-lg transition-colors group/fav">
-                          <Heart className="w-4 h-4 text-gray-400 group-hover/fav:text-red-500 group-hover/fav:fill-red-500 transition-all" />
+                          Xem chi tiết
                         </button>
                       </div>
                     </div>
