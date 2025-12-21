@@ -5,6 +5,7 @@ import { getActiveDoctors } from '@/apis/admin/admin.api';
 import { getSpecialties } from '@/apis/appointment/appointment.api';
 import Navbar from '@/components/navbar';
 import Footer from '@/components/footer';
+import Link from 'next/link';
 
 export default function ChuyenGiaPage() {
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -255,10 +256,13 @@ export default function ChuyenGiaPage() {
 
                       {/* Action Buttons */}
                       <div className="flex gap-2">
-                        <button aria-label="Đặt lịch khám" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1">
+                        <Link
+                          href={`/chuyen-gia/${doctor?._id}`}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-1"
+                        >
                           <Calendar className="w-4 h-4" />
                           Xem chi tiết
-                        </button>
+                        </Link>
                       </div>
                     </div>
                   </div>

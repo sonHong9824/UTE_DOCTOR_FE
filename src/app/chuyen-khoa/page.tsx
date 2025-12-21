@@ -1,39 +1,24 @@
+"use client";
+import React, { useEffect, useState } from "react";
+import { getSpecialties } from "@/apis/appointment/appointment.api";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function ChuyenKhoaPage() {
-  const specialties = [
-    {
-      name: "Nội tổng quát",
-      desc: "Khám và điều trị các bệnh lý nội khoa thường gặp.",
-      icon: "/icons/internal.png",
-    },
-    {
-      name: "Ngoại tổng quát",
-      desc: "Chẩn đoán và phẫu thuật điều trị bệnh lý ngoại khoa.",
-      icon: "/icons/surgery.png",
-    },
-    {
-      name: "Nhi khoa",
-      desc: "Khám, theo dõi sức khỏe và tiêm chủng cho trẻ em.",
-      icon: "/icons/pediatrics.png",
-    },
-    {
-      name: "Sản - Phụ khoa",
-      desc: "Chăm sóc sức khỏe sinh sản và thai sản.",
-      icon: "/icons/obgyn.png",
-    },
-    {
-      name: "Tim mạch",
-      desc: "Khám, tư vấn và điều trị các bệnh tim mạch.",
-      icon: "/icons/cardiology.png",
-    },
-    {
-      name: "Tai - Mũi - Họng",
-      desc: "Chẩn đoán và điều trị các bệnh lý tai mũi họng.",
-      icon: "/icons/ent.png",
-    },
-  ];
+  const [specialties, setSpecialties] = useState<{ _id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      try {
+        const res = await getSpecialties("");
+        const items = res?.data ?? [];
+        setSpecialties(Array.isArray(items) ? items : []);
+      } catch (e) {
+        console.error("Lỗi khi tải danh sách chuyên khoa:", e);
+      }
+    };
+    fetchSpecialties();
+  }, []);
 
   return (
     <main className="bg-background text-foreground">
@@ -56,30 +41,30 @@ export default function ChuyenKhoaPage() {
           Các chuyên khoa nổi bật
         </h2>
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {specialties.map((sp, index) => (
+          {(specialties.length ? specialties : []).map((sp, index) => (
             <div
               key={index}
               className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow hover:shadow-xl transition-transform hover:-translate-y-1 text-center"
             >
-              <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full">
+              {/* <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full">
                 <Image
-                  src={sp.icon}
-                  alt={sp.name}
+                  src={iconSet[index % iconSet.length]}
+                  alt={String(sp?.name || "Chuyên khoa")}
                   width={40}
                   height={40}
                   className="object-contain"
                 />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">{sp.name}</h3>
+              </div> */}
+              <h3 className="text-xl font-semibold mb-2">{sp?.name}</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                {sp.desc}
+                Khám, tư vấn và điều trị theo chuyên khoa.
               </p>
-              <Link
+              {/* <Link
                 href={`/chuyen-khoa/${index}`}
                 className="inline-block px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 Xem chi tiết
-              </Link>
+              </Link> */}
             </div>
           ))}
         </div>
