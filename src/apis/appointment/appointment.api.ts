@@ -160,6 +160,47 @@ export const cancelAppointment = async (appointmentId: string, patientId?: strin
   }
 };
 
+export const getCompletedAppointmentsByDoctor = async (params: {
+  doctorId: string;
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  patientId?: string;
+}) => {
+  try {
+    const res = await axiosClient.get<
+      DataResponse<{
+        items: any[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      }>
+    >(`/appointment/completed/doctor/${params.doctorId}`, {
+      params: {
+        page: params.page ?? 1,
+        limit: params.limit ?? 10,
+        keyword: params.keyword || undefined,
+        patientId: params.patientId || undefined,
+      },
+    });
+
+    console.log(
+      "[Axios] Get completed appointments by doctor",
+      res.data
+    );
+
+    return res.data;
+  } catch (e) {
+    console.error("❌ Failed to fetch completed appointments", e);
+    throw e;
+  }
+};
+
+
+
 
 
 

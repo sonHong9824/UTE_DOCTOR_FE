@@ -99,7 +99,7 @@ export default function PatientsPage() {
             lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: "pending",
-            avatar: p.avatar || undefined,
+            avatar: p.profileId?.avatarUrl || undefined,
           } as Patient;
         });
 
@@ -166,7 +166,7 @@ export default function PatientsPage() {
             lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-            avatar: a.patient?.avatar || undefined,
+            avatar: a.patient?.profileId?.avatarUrl || undefined,
           },
         } as PendingRow);
       });
@@ -273,7 +273,7 @@ export default function PatientsPage() {
                 lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
                 condition: a?.reasonForAppointment || a?.serviceType || "",
                 status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-                avatar: p.avatar || undefined,
+                avatar: p.profileId?.avatarUrl || undefined,
               } as Patient;
             });
 
@@ -330,8 +330,8 @@ export default function PatientsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Quản lý bệnh nhân</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Theo dõi và quản lý thông tin bệnh nhân</p>
+          {/* <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Quản lý bệnh nhân</h1> */}
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Theo dõi và thăm khám bệnh nhân</p>
         </div>
         {/* <div className="flex items-center gap-3">
           <DropdownMenu>
@@ -502,8 +502,8 @@ export default function PatientsPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Họ tên</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tuổi</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Giới tính</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Ngày khám</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Chẩn đoán</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Hành động</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -530,11 +530,6 @@ export default function PatientsPage() {
                           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800">
                             {p.condition}
                           </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                            <FileText className="h-4 w-4" />
-                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -765,7 +760,7 @@ export default function PatientsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={selectedAppt.patient?.profileId?.avatar || selectedAppt.patient?.avatar} alt={selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name} />
+                      <AvatarImage src={selectedAppt.patient?.profileId?.avatarUrl} alt={selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name} />
                       <AvatarFallback>{((selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name) || "B").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
