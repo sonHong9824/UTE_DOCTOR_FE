@@ -1,7 +1,8 @@
 "use client";
 
-import { getDoctorsAdmin } from '@/apis/admin/admin.api';
+import { getActiveDoctors } from '@/apis/admin/admin.api';
 import { getAllReviews } from '@/apis/review/review.api';
+import { getAllDoctorPosts, increaseDoctorPostView } from '@/apis/doctor-post/doctor-post.api';
 import Banner from "@/components/banner";
 import Footer from "@/components/footer";
 import { getPublicNews } from "@/apis/admin/news.api";
@@ -17,6 +18,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import { Play, Eye } from "lucide-react";
 
 // Fallback static names used when API returns no doctors
 const fallbackNames = ["Chí", "Daniel", "Hiếu", "Minh"];
@@ -27,17 +29,21 @@ export default function Home() {
   const [apiDoctors, setApiDoctors] = useState<any[]>([]);
   const [apiReviews, setApiReviews] = useState<any[]>([]);
   const [newsItems, setNewsItems] = useState<any[]>([]);
+  const [doctorPosts, setDoctorPosts] = useState<any[]>([]);
   const [selectedNews, setSelectedNews] = useState<any | null>(null);
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const [trackedPostIds, setTrackedPostIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // fetch a small set of doctors to display on homepage
+    // fetch a small set of active doctors to display on homepage
     const fetch = async () => {
       try {
-        const res = await getDoctorsAdmin({ page: 1, limit: 8 });
-        const docs = res?.data?.doctors ?? [];
-        setApiDoctors(docs);
+        const res = await getActiveDoctors({ page: 1, limit: 8 });
+        // Response may be wrapped or direct array; support common shapes
+        const docs = res?.data?.items ?? res?.items ?? res?.data ?? [];
+        setApiDoctors(Array.isArray(docs) ? docs : []);
       } catch (e) {
-        console.error('Failed to load doctors for homepage', e);
+        console.error('Failed to load active doctors for homepage', e);
       }
     };
     fetch();
@@ -69,6 +75,44 @@ export default function Home() {
     };
     fetchReviews();
   }, []);
+
+  useEffect(() => {
+    const fetchDoctorPosts = async () => {
+      try {
+        const res = await getAllDoctorPosts({ page: 1, limit: 6 });
+        const items = res?.data?.items ?? res?.data ?? [];
+        setDoctorPosts(Array.isArray(items) ? items : []);
+      } catch (e) {
+        console.error('Failed to load doctor posts for homepage', e);
+      }
+    };
+    fetchDoctorPosts();
+  }, []);
+
+  useEffect(() => {
+    // Track views for newly loaded posts
+    doctorPosts.forEach((post: any) => {
+      if (post._id && !trackedPostIds.has(post._id)) {
+        // Mark as tracked
+        setTrackedPostIds(prev => new Set(prev).add(post._id));
+        
+        // Increment view count
+        const incrementView = async () => {
+          try {
+            await increaseDoctorPostView(post._id);
+            setViewCounts(prev => ({
+              ...prev,
+              [post._id]: (prev[post._id] ?? post?.viewCount ?? 0) + 1
+            }));
+          } catch (error) {
+            console.error('Failed to increment view:', error);
+          }
+        };
+        
+        incrementView();
+      }
+    });
+  }, [doctorPosts, trackedPostIds]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -108,7 +152,7 @@ export default function Home() {
             an toàn và hiệu quả.
           </p>
           <a
-            href="/about"
+            href="/gioi-thieu"
             className="px-6 py-3 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition"
           >
             Tìm hiểu thêm
@@ -168,32 +212,21 @@ export default function Home() {
         <h2 className="text-3xl font-bold text-center mb-10">Đội ngũ bác sĩ</h2>
         <Carousel>
           <CarouselContent>
-            {/* Render server-backed doctors if available, otherwise fallback to static list */}
-            {/**
-             * Each doctor object from API is expected to have at least:
-             * - doctorName
-             * - profile or profileId with avatarUrl, email
-             * - chuyenKhoaId?.name as specialty
-             */}
-            {/** Use local state `doctors` filled by effect below */}
             {(function renderDoctors() {
-              // Safe guard: window-only API lives in client component
-              // `apiDoctors` populated in useEffect
               return (apiDoctors.length ? apiDoctors : fallbackNames).map((d: any, idx: number) => {
                 const avatarUrl = d?.profile?.avatarUrl ?? d?.profileId?.avatarUrl ?? d?.avatar ?? null;
                 const name = d?.doctorName ?? d?.profile?.name ?? d?.profileId?.name ?? (typeof d === 'string' ? d : `Bác sĩ ${idx + 1}`);
-                const specialty = d?.chuyenKhoaId?.name ?? d?.specialty ?? 'Chuyên khoa';
+                const specialty = d?.chuyenKhoa?.name ?? d?.chuyenKhoaId?.name ?? d?.specialty ?? 'Chuyên khoa';
                 const fallbackImg = `/assets/bs/bs-${(name || '').toString().split(' ')[1] || `default-${idx}`}.jpg`;
                 return (
                   <CarouselItem key={d?._id ?? d?.id ?? `fallback-${idx}`} className="basis-1/1 md:basis-1/2 lg:basis-1/3">
-                    <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow text-center h-[320px] flex flex-col items-center justify-center">
-                      <div className="w-[200px] h-[200px] mb-4">
+                    <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow text-center h-[450px] flex flex-col items-center justify-center">
+                      <div className="w-[200px] h-[350px] mb-4">
                         {avatarUrl ? (
-                          // external avatar URL: use <img> to avoid Next.js domain config issues
-                          // ensure URL is a string
-                          <img src={String(avatarUrl)} alt={name} className="w-full h-full object-cover rounded-full" />
+
+                          <img src={String(avatarUrl)} alt={name} className="w-full h-full object-cover rounded-xl" />
                         ) : (
-                          <Image src={fallbackImg} alt={name} width={200} height={200} className="w-full h-full object-cover rounded-full" />
+                          <Image src={fallbackImg} alt={name} width={200} height={200} className="w-full h-full object-cover rounded-xl" />
                         )}
                       </div>
                       <h3 className="font-semibold text-lg">{name}</h3>
@@ -233,7 +266,73 @@ export default function Home() {
       </section>
 
       <section className="container mx-auto px-6 py-16">
-        <h2 className="text-3xl font-bold text-center mb-10">Tin tức & Sức khỏe</h2>
+        <h2 className="text-3xl font-bold text-center mb-10">Video & Bài viết từ Bác sĩ</h2>
+        <div className="flex justify-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {doctorPosts && doctorPosts.length > 0 ? (
+              doctorPosts.map((post: any) => {
+                const doctorName = post?.doctorId?.doctorName ?? 'Bác sĩ';
+                const title = post?.title ?? 'Không có tiêu đề';
+                const description = post?.description ?? '';
+                const videoUrl = post?.postLink ?? '';
+                const currentViewCount = viewCounts[post._id] ?? (post?.viewCount ?? 0);
+                
+                return (
+                  <div
+                    key={post._id}
+                    className="group bg-white dark:bg-gray-900 rounded-b-3xl shadow-lg hover:shadow-2xl transition overflow-hidden flex flex-col mx-auto w-full max-w-[320px] aspect-[8.94/19]"
+                  >
+                    <div className="relative flex-1 bg-gray-300 dark:bg-gray-800 overflow-hidden">
+                      {videoUrl ? (
+                        <iframe
+                          src={videoUrl}
+                          className="w-full h-full border-none"
+                          allow="autoplay; encrypted-media"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Play className="w-16 h-16 text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-4 flex flex-col gap-2">
+                      <div>
+                        <h3 className="font-bold text-sm mb-1 line-clamp-2 group-hover:text-blue-600 transition">
+                          {title}
+                        </h3>
+                        
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">
+                          {description}
+                        </p>
+                      </div>
+
+                      {/* Doctor Name & Stats */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 truncate">
+                          {doctorName}
+                        </p>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Eye className="w-3 h-3" />
+                          <span>{currentViewCount}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400 text-lg">Chưa có bài viết nào.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="container mx-auto px-6 py-16">
         <div className="grid md:grid-cols-3 gap-8">
           {(newsItems.length ? newsItems : []).map((n) => (
             <Link

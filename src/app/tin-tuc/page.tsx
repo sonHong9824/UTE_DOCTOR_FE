@@ -185,7 +185,7 @@ export default function TinTucPage() {
               {currentNews.map((item) => (
                 <Link
                   key={item._id}
-                  href={`/news/${item._id}`}
+                  href={`/tin-tuc/${item._id}`}
                   className="group bg-white dark:bg-gray-900 rounded-xl shadow hover:shadow-xl transition-all duration-300 overflow-hidden"
                 >
                   {/* Image */}
@@ -214,10 +214,10 @@ export default function TinTucPage() {
                         <Calendar className="h-3 w-3" />
                         <span>{formatDate(item.startDate)}</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      {/* <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         <span>Đến {formatDate(item.endDate)}</span>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
                 </Link>
