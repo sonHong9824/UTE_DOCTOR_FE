@@ -13,9 +13,18 @@ import NotificationList from "./notification-list";
 interface Props {
   email: string;
   pageSize?: number;
+  buttonClassName?: string;
+  iconClassName?: string;
+  badgeClassName?: string;
 }
 
-export default function NotificationBell({ email, pageSize = 10 }: Props) {
+export default function NotificationBell({
+  email,
+  pageSize = 10,
+  buttonClassName,
+  iconClassName,
+  badgeClassName,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [page, setPage] = useState(1);
@@ -95,15 +104,25 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
     paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
 
-    // When doctor cancels a shift
-    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, () => {
+    // Reuse one handler for all booking-related events to keep the bell in sync
+    const handleBookingUpdate = () => {
       refreshBell();
-    });
+    };
 
-    // When booking succeeds (via VnPay flow)
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, () => {
-      refreshBell();
-    });
+    // When doctor cancels a shift
+    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, handleBookingUpdate);
+
+    // Booking lifecycle events (match booking form listeners)
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
+
+    // Some flows emit via payment namespace (e.g., VNPAY popup)
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
 
     // Cleanup on unmount
     return () => {
@@ -150,6 +169,11 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
 
 
   // portal dropdown + overlay
+  const rect = bellRef.current?.getBoundingClientRect();
+  const dropdownTop = (rect?.bottom ?? 0) + window.scrollY;
+  const dropdownWidth = 320; // w-80 → 20rem → 320px
+  const dropdownLeft = Math.max(8, (rect?.right ?? 0) + window.scrollX - dropdownWidth);
+
   const dropdownElement = open ? (
     createPortal(
       <>
@@ -162,8 +186,8 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
         <div
           className="absolute z-50 w-80 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-3 max-h-80 overflow-y-auto animate-fadeIn"
          style={{
-            top: (bellRef.current?.getBoundingClientRect().bottom ?? 0) + window.scrollY,
-            left: (bellRef.current?.getBoundingClientRect().left ?? 0) + window.scrollX,
+            top: dropdownTop,
+            left: dropdownLeft,
             }}
         >
           <NotificationList
@@ -197,16 +221,26 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     )
   ) : null;
 
+  const mergedButtonClass = buttonClassName
+    ? buttonClassName
+    : "relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800";
+  const mergedIconClass = iconClassName
+    ? iconClassName
+    : "w-6 h-6 text-gray-700 dark:text-gray-300";
+  const mergedBadgeClass = badgeClassName
+    ? badgeClassName
+    : "absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center";
+
   return (
     <>
       <button
         ref={bellRef}
         onClick={() => setOpen((prev) => !prev)}
-        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+        className={mergedButtonClass}
       >
-        <Bell className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+        <Bell className={mergedIconClass} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className={mergedBadgeClass}>
             {unreadCount}
           </span>
         )}

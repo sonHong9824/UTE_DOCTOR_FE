@@ -1,4 +1,4 @@
-import { bookAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
+import { bookAppointment, cancelAppointment, getDoctorBySpecialty, getSpecialties, getTimeSlotsByDoctorAndDate } from '@/apis/appointment/appointment.api';
 import { getTimeslot } from '@/apis/timeslot/timeslot.api';
 import { getWalletBalance } from '@/apis/wallet/wallet.api';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -7,7 +7,7 @@ import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
 import { createAppointmentSocket, createPaymentVnPaySocket } from '@/services/socket/socket-client';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import "react-datepicker/dist/react-datepicker.css";
 
 type DoctorDto = {
@@ -91,6 +91,70 @@ export default function AppointmentForm() {
   // State cho coin balance
   const [coinBalance, setCoinBalance] = useState<number>(0);
   const [loadingCoin, setLoadingCoin] = useState(true);
+
+  const paymentWindowRef = useRef<Window | null>(null);
+  const paymentMonitorRef = useRef<number | null>(null);
+  const pendingAppointmentId = useRef<string | null>(null);
+  const bookingFinalizedRef = useRef(false);
+  const paymentSocketRef = useRef<any>(null);
+  const appointmentSocketRef = useRef<any>(null);
+  const windowOpenedAtRef = useRef<number | null>(null);
+  const paymentStatusReceivedRef = useRef(false);
+
+  const stopPaymentMonitor = () => {
+    if (paymentMonitorRef.current !== null) {
+      clearInterval(paymentMonitorRef.current);
+      paymentMonitorRef.current = null;
+    }
+  };
+
+  const cleanupPaymentSession = () => {
+    stopPaymentMonitor();
+    if (paymentWindowRef.current && !paymentWindowRef.current.closed) {
+      paymentWindowRef.current.close();
+    }
+    paymentWindowRef.current = null;
+    pendingAppointmentId.current = null;
+  };
+
+  const handlePaymentCancelledByUser = async () => {
+    if (bookingFinalizedRef.current) return;
+
+    bookingFinalizedRef.current = true;
+    stopPaymentMonitor();
+
+    try {
+      if (pendingAppointmentId.current) {
+        await cancelAppointment(pendingAppointmentId.current, formData.patientId);
+      }
+      setErrorMessage('Bạn đã đóng cửa sổ thanh toán. Lịch hẹn đã bị hủy.');
+    } catch (err) {
+      console.error('Failed to cancel appointment after closing payment window:', err);
+      setErrorMessage('Đóng cửa sổ thanh toán, nhưng không thể hủy lịch. Vui lòng liên hệ hỗ trợ.');
+    } finally {
+      paymentSocketRef.current?.disconnect();
+      appointmentSocketRef.current?.disconnect();
+      setShowErrorModal(true);
+      setResponse({ success: false, error: 'Thanh toán bị hủy bởi người dùng' });
+      pendingAppointmentId.current = null;
+      cleanupPaymentSession();
+    }
+  };
+
+  const startPaymentMonitor = () => {
+    stopPaymentMonitor();
+    paymentMonitorRef.current = window.setInterval(() => {
+      if (paymentWindowRef.current && paymentWindowRef.current.closed) {
+        const openedAt = windowOpenedAtRef.current ?? Date.now();
+        const elapsed = Date.now() - openedAt;
+        const cancelGraceMs = 3000; // wait at least 3s before auto-cancel
+
+        if (elapsed >= cancelGraceMs && !paymentStatusReceivedRef.current) {
+          handlePaymentCancelledByUser();
+        }
+      }
+    }, 800);
+  };
 
   // Load mock data
   useEffect(() => {
@@ -228,7 +292,9 @@ export default function AppointmentForm() {
         id: doc.id,
         name: doc.name,
         email: doc.email
-      }
+      },
+      // Clear timeslot to avoid stale value until new slots load
+      timeSlotId: ''
     }));
 
     // fetchTimeSlots(); // fetch timeslots for selected doctor
@@ -237,20 +303,36 @@ export default function AppointmentForm() {
   const handleSubmit = async () => {
     setLoading(true);
     setResponse(null);
+    bookingFinalizedRef.current = false;
+    pendingAppointmentId.current = null;
+    cleanupPaymentSession();
+    paymentStatusReceivedRef.current = false;
+    windowOpenedAtRef.current = null;
 
     console.log('Submitting appointment:', formData);
 
     try {
-      
-      let paymentWindow : any = null;
       // Socket connection for payment
       const paymentSocket = createPaymentVnPaySocket();
-      // Socket connection for appointment booking events
       const appointmentSocket = createAppointmentSocket();
+      paymentSocketRef.current = paymentSocket;
+      appointmentSocketRef.current = appointmentSocket;
+      // Socket connection for appointment booking events
     
-      paymentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
+      paymentSocket.once(SocketEventsEnum.ROOM_JOINED, async (data) => {
         console.log('[Socket] Joined payment room:', data);
-        bookAppointment(formData);
+        const res = await bookAppointment(formData);
+        if (!res) {
+          // Likely validation error (e.g., invalid/missing timeSlotId) → show friendly message
+          const msg = 'Invalid form information. Please check your date and time slot.';
+          setErrorMessage(msg);
+          setShowErrorModal(true);
+          setResponse({ success: false, error: msg });
+          cleanupPaymentSession();
+          paymentSocket.disconnect();
+          appointmentSocket.disconnect();
+          return;
+        }
       });
 
       appointmentSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
@@ -261,22 +343,29 @@ export default function AppointmentForm() {
         SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED,
         (data) => {
           console.log('[Socket] Received VnPay URL:', data.paymentUrl);
-          paymentWindow = window.open(data.paymentUrl, '_blank');
-          // paymentSocket.disconnect();
+          pendingAppointmentId.current = data.appointmentId;
+          paymentWindowRef.current = window.open(data.paymentUrl, '_blank');
+          windowOpenedAtRef.current = Date.now();
+
+          if (paymentWindowRef.current) {
+            startPaymentMonitor();
+          } else {
+            console.warn('Payment popup was blocked. Cancelling appointment.');
+            handlePaymentCancelledByUser();
+          }
         }
       );
 
       appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, (response: DataResponse<any>) => {
         console.log('[Socket] Appointment booking success:', response);
+        bookingFinalizedRef.current = true;
+        paymentStatusReceivedRef.current = true;
 
         setSuccessMessage('Lịch hẹn của bạn đã được đặt thành công!');
         setShowSuccessModal(true);
         setResponse({ success: true, data: response?.data });
-
-        // Đóng popup thanh toán
-        if (paymentWindow && !paymentWindow.closed) {
-          paymentWindow.close();
-        }
+        cleanupPaymentSession();
+        pendingAppointmentId.current = null;
 
         // Disconnect sau khi xử lý xong
         paymentSocket.disconnect();
@@ -285,15 +374,14 @@ export default function AppointmentForm() {
 
       appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, (response: DataResponse<any>) => {
         console.log('[Socket] Appointment booking pending:', response);
+        bookingFinalizedRef.current = true;
+        paymentStatusReceivedRef.current = true;
 
         setSuccessMessage('Lịch hẹn của bạn đang chờ xác nhận. Vui lòng chờ nhân viên lễ tân xác nhận.');
         setShowSuccessModal(true);
         setResponse({ success: true, data: response.data, status: 'PENDING' });
-
-        // Đóng popup thanh toán
-        if (paymentWindow && !paymentWindow.closed) {
-          paymentWindow.close();
-        }
+        cleanupPaymentSession();
+        pendingAppointmentId.current = null;
 
         // Disconnect sau khi xử lý xong
         paymentSocket.disconnect();
@@ -302,18 +390,35 @@ export default function AppointmentForm() {
 
       appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, (response: DataResponse<any>) => {
         console.log('[Socket] Appointment booking failed:', response);
+        bookingFinalizedRef.current = true;
+        paymentStatusReceivedRef.current = true;
 
         const failedMessage = response?.message || response?.data?.error || 'Đặt lịch hẹn thất bại. Vui lòng thử lại.';
         setErrorMessage(failedMessage);
         setShowErrorModal(true);
         setResponse({ success: false, error: failedMessage });
-
-        // Đóng popup thanh toán
-        if (paymentWindow && !paymentWindow.closed) {
-          paymentWindow.close();
-        }
+        cleanupPaymentSession();
+        pendingAppointmentId.current = null;
 
         // Disconnect sau khi xử lý xong
+        paymentSocket.disconnect();
+        appointmentSocket.disconnect();
+      });
+
+      // Listen for cancellation pushed from BE (e.g., user closed payment window or admin action)
+      appointmentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, (response: DataResponse<any>) => {
+        console.log('[Socket] Appointment cancelled:', response);
+        bookingFinalizedRef.current = true;
+        paymentStatusReceivedRef.current = true;
+
+        const cancelMsg = response?.message || 'Lịch hẹn đã bị hủy.';
+        setErrorMessage(cancelMsg);
+        setShowErrorModal(true);
+        setResponse({ success: false, data: response?.data, status: 'CANCELLED' });
+
+        cleanupPaymentSession();
+        pendingAppointmentId.current = null;
+
         paymentSocket.disconnect();
         appointmentSocket.disconnect();
       });
@@ -325,6 +430,9 @@ export default function AppointmentForm() {
     } catch (error: any) {
       setResponse({ success: false, error: error.message });
       console.error('❌ Error:', error);
+      cleanupPaymentSession();
+      paymentSocketRef.current?.disconnect();
+      appointmentSocketRef.current?.disconnect();
     } finally {
       setLoading(false);
     }
@@ -422,11 +530,33 @@ export default function AppointmentForm() {
         res = await getTimeslot();
       }
 
-      console.log("Fetched timeslots:", res);
-      setTimeSlots(res?.data || []);
+      const slots = res?.data || [];
+      console.log("Fetched timeslots:", slots);
+      setTimeSlots(slots);
+
+      // Ensure timeSlotId matches current slots; clear when none
+      if (formData.doctor?.id) {
+        if (slots.length === 0) {
+          setFormData(prev => ({ ...prev, timeSlotId: '' }));
+        } else {
+          const exists = slots.some(s => s.id === formData.timeSlotId);
+          if (!exists) {
+            // Default to first available slot for selected doctor
+            setFormData(prev => ({ ...prev, timeSlotId: slots[0].id }));
+          }
+        }
+      } else {
+        // No doctor selected: keep current if exists, otherwise choose first or clear
+        const exists = slots.some(s => s.id === formData.timeSlotId);
+        if (!exists) {
+          setFormData(prev => ({ ...prev, timeSlotId: slots.length ? slots[0].id : '' }));
+        }
+      }
     } catch (error) {
       console.error("Error fetching timeslots:", error);
       setTimeSlots([]);
+      // Clear selection when fetch fails
+      setFormData(prev => ({ ...prev, timeSlotId: '' }));
     }
   };
 
@@ -434,6 +564,15 @@ export default function AppointmentForm() {
   useEffect(() => {
     fetchTimeSlots();
   }, [formData.doctor, formData.date]);
+
+  useEffect(() => {
+    return () => {
+      cleanupPaymentSession();
+      stopPaymentMonitor();
+      paymentSocketRef.current?.disconnect();
+      appointmentSocketRef.current?.disconnect();
+    };
+  }, []);
 
 
   return (
@@ -566,7 +705,12 @@ export default function AppointmentForm() {
                         return;
                       }
                       const localDate = date.toLocaleDateString('en-CA');
-                      setFormData(prev => ({ ...prev, date: localDate }));
+                      setFormData(prev => ({
+                        ...prev,
+                        date: localDate,
+                        // If a doctor is selected, clear timeslot until re-fetched for the new date
+                        ...(prev.doctor ? { timeSlotId: '' } : {})
+                      }));
                     }}
                     limitDays={30}
                   />
@@ -710,7 +854,7 @@ export default function AppointmentForm() {
             {/* Submit button */}
             <button
               onClick={handleSubmit}
-              disabled={loading || !formData.timeSlotId}
+              disabled={loading}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Đang xử lý...' : 'Đặt Lịch Khám'}

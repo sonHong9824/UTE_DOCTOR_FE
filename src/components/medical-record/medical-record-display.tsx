@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
+import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import {
   BarElement,
   CategoryScale,
@@ -19,22 +19,20 @@ import VitalStatsCard from "../cards/vital-stat-card";
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
 interface MedicalRecordDisplayProps {
-  medicalRecord: MedicalRecordDto;
+  user: PatientProfileDto;
 }
 
-export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDisplayProps) {
-  const record: MedicalRecordDto = {
-    height: medicalRecord?.height || 0,
-    weight: medicalRecord?.weight || 0,
-    bloodType: medicalRecord?.bloodType,
-    medicalHistory: medicalRecord?.medicalHistory || [],
-    drugAllergies: medicalRecord?.drugAllergies || [],
-    foodAllergies: medicalRecord?.foodAllergies || [],
-    bloodPressure: medicalRecord?.bloodPressure || [],
-    heartRate: medicalRecord?.heartRate || [],
-  };
+export default function MedicalRecordDisplay({ user }: MedicalRecordDisplayProps) {
+  // Prioritize new medicalProfile over legacy medicalRecord
+  const height = user.medicalProfile?.height || user.medicalRecord?.height || 0;
+  const weight = user.medicalProfile?.weight || user.medicalRecord?.weight || 0;
+  const bloodType = user.medicalProfile?.bloodType || user.medicalRecord?.bloodType;
 
-  console.log("Received medical record: ", medicalRecord)
+  // Legacy fields (will be empty after refactor unless migrated)
+  const bloodPressure = user.medicalRecord?.bloodPressure || [];
+  const heartRate = user.medicalRecord?.heartRate || [];
+
+  console.log("Received user profile with new collections:", user)
 
   // Lấy màu từ CSS variables để hỗ trợ dark/light mode
   const rootStyle = getComputedStyle(document.documentElement);
@@ -49,24 +47,24 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
 
   // Chart huyết áp
   const bpChartData = useMemo(() => ({
-    labels: record.bloodPressure.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
+    labels: bloodPressure.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
     datasets: [
       {
         label: "Huyết áp tâm thu",
-        data: record.bloodPressure.map(r => (typeof r.value === "object" ? r.value.systolic : null)),
+        data: bloodPressure.map(r => (typeof r.value === "object" ? r.value.systolic : null)),
         borderColor: chartColors.systolic,
         backgroundColor: chartColors.systolic,
         tension: 0.3,
       },
       {
         label: "Huyết áp tâm trương",
-        data: record.bloodPressure.map(r => (typeof r.value === "object" ? r.value.diastolic : null)),
+        data: bloodPressure.map(r => (typeof r.value === "object" ? r.value.diastolic : null)),
         borderColor: chartColors.diastolic,
         backgroundColor: chartColors.diastolic,
         tension: 0.3,
       },
     ],
-  }), [record.bloodPressure, chartColors]);
+  }), [bloodPressure, chartColors]);
 
   const bpChartOptions = useMemo(() => ({
     scales: {
@@ -85,17 +83,17 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
 
   // Chart nhịp tim
   const hrChartData = useMemo(() => ({
-    labels: record.heartRate.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
+    labels: heartRate.map(r => new Date(r.dateRecord).toLocaleDateString("vi-VN")),
     datasets: [
       {
         label: "Nhịp tim (BPM)",
-        data: record.heartRate.map(r => (typeof r.value === "number" ? r.value : 0)),
+        data: heartRate.map(r => (typeof r.value === "number" ? r.value : 0)),
         borderColor: chartColors.hr,
         backgroundColor: chartColors.hr,
         tension: 0.3,
       },
     ],
-  }), [record.heartRate, chartColors]);
+  }), [heartRate, chartColors]);
 
   const hrChartOptions = useMemo(() => ({
     scales: {
@@ -111,8 +109,8 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
   }), [chartColors]);
 
   const bmi =
-    medicalRecord.weight && medicalRecord.height
-      ? Number((medicalRecord.weight / ((medicalRecord.height / 100) ** 2)).toFixed(1))
+    weight && height
+      ? Number((weight / ((height / 100) ** 2)).toFixed(1))
       : 0;
   function calculateHealthRank(): number {
     if (bmi < 18.5) return 40; // hơi thấp
@@ -127,9 +125,9 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
       <div className="grid grid-cols-10 gap-4 items-stretch">
       <div className="col-span-7">
         <VitalStatsCard
-          bloodType={record.bloodType}
-          height={record.height}
-          weight={record.weight}
+          bloodType={bloodType}
+          height={height}
+          weight={weight}
           bmi={bmi}
         />
       </div>
@@ -141,10 +139,10 @@ export default function MedicalRecordDisplay({ medicalRecord }: MedicalRecordDis
 
       <div className="flex flex-row justify-between gap-4">
         <Card className="p-4 shadow-md border w-[49%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
-          {record.bloodPressure.length > 0 ? <Line data={bpChartData} options={bpChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu huyết áp</p>}
+          {bloodPressure.length > 0 ? <Line data={bpChartData} options={bpChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu huyết áp</p>}
         </Card>
         <Card className="p-4 shadow-md border w-[49%]" style={{ backgroundColor: chartColors.cardBg, color: chartColors.text }}>
-          {record.heartRate.length > 0 ? <Line data={hrChartData} options={hrChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu nhịp tim</p>}
+          {heartRate.length > 0 ? <Line data={hrChartData} options={hrChartOptions} /> : <p className="italic text-muted text-center" style={{ color: chartColors.muted }}>Chưa có dữ liệu nhịp tim</p>}
         </Card>
       </div>
     </div>
