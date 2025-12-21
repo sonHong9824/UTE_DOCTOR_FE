@@ -22,13 +22,17 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
     (user.allergies && user.allergies.length > 0) ||
     (user.medicalHistory && user.medicalHistory.length > 0) ||
     user.medicalRecord;
-  
-  if (!hasData) {
-    return <p>Chưa có hồ sơ y tế</p>;
-  }
+  // Do not block the page for empty profiles; show tabs with components.
+  // Individual components handle empty states internally.
   
   return (
     <div className="flex-1 p-4">
+      {!hasData && (
+        <Card className="w-full mb-4 px-4 py-3 border">
+          <CardTitle className="text-base">Chưa có hồ sơ y tế</CardTitle>
+          <p className="text-sm text-gray-600">Bạn có thể cập nhật thông tin y tế trong mục "Chi tiết y tế".</p>
+        </Card>
+      )}
       {activeTab === "general-health" && <MedicalRecordDisplay user={user} />}
       
       {activeTab === "personal-info" && (
