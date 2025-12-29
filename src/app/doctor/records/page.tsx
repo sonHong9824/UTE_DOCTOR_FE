@@ -19,7 +19,6 @@ import {
 
 export default function RecordsPage() {
   const [appointments, setAppointments] = useState<CompletedAppointment[]>([]);
-  const [filteredAppointments, setFilteredAppointments] = useState<CompletedAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatientId, setSelectedPatientId] = useState("");
@@ -31,16 +30,12 @@ export default function RecordsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
-  const pageSize = 9;
+  const [pageSize, setPageSize] = useState(9);
 
   useEffect(() => {
     fetchAppointments();
     fetchAllPatients();
-  }, [currentPage, searchQuery, selectedPatientId]);
-
-  useEffect(() => {
-    handleFilter();
-  }, [searchQuery, selectedPatientId, appointments]);
+  }, [currentPage, searchQuery, selectedPatientId, pageSize]);
 
   const fetchAllPatients = async () => {
     try {
@@ -76,45 +71,15 @@ export default function RecordsPage() {
       });
 
       if (response?.data) {
-        setAppointments(response.data.items);
-        setFilteredAppointments(response.data.items);
-        setTotalPages(response.data.pagination.totalPages);
-        setTotalRecords(response.data.pagination.total);
+        setAppointments(response.data.items || []);
+        setTotalPages(response.data.pagination?.totalPages ?? 1);
+        setTotalRecords(response.data.pagination?.total ?? (response.data.items?.length ?? 0));
       }
     } catch (error) {
       console.error("Error fetching appointments:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFilter = () => {
-    let filtered = appointments;
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((appointment) => {
-        const patientName = appointment.patient.profile?.name.toLowerCase() || "";
-        const patientEmail = appointment.patient.profile?.email.toLowerCase() || "";
-        const patientPhone = appointment.patient.profile?.phone.toLowerCase() || "";
-        const diagnosis = appointment.appointmentMedicalRecord?.diagnosis?.toLowerCase() || "";
-
-        return (
-          patientName.includes(query) ||
-          patientEmail.includes(query) ||
-          patientPhone.includes(query) ||
-          diagnosis.includes(query)
-        );
-      });
-    }
-
-    // Filter by selected patient
-    if (selectedPatientId) {
-      filtered = filtered.filter((appointment) => appointment.patientId === selectedPatientId);
-    }
-
-    setFilteredAppointments(filtered);
   };
 
   const handleViewDetails = (appointment: CompletedAppointment) => {
@@ -151,7 +116,7 @@ export default function RecordsPage() {
               <Input
                 placeholder="Tìm kiếm theo tên, email, số điện thoại, chẩn đoán..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="pl-10"
               />
             </div>
@@ -159,7 +124,7 @@ export default function RecordsPage() {
             <div className="w-full md:w-64">
               <select
                 value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
+                onChange={(e) => { setSelectedPatientId(e.target.value); setCurrentPage(1); }}
                 className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
               >
                 <option value="">Tất cả bệnh nhân</option>
@@ -170,6 +135,29 @@ export default function RecordsPage() {
                 ))}
               </select>
             </div>
+
+              <div className="w-full md:w-40">
+                <select
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                >
+                  <option value={9}>9 mỗi trang</option>
+                  <option value={12}>12 mỗi trang</option>
+                  <option value={24}>24 mỗi trang</option>
+                </select>
+              </div>
+
+              {(searchQuery || selectedPatientId) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleResetFilter}
+                  className="md:ml-2"
+                >
+                  Xóa bộ lọc
+                </Button>
+              )}
           </div>
         </CardContent>
       </Card>
@@ -217,10 +205,10 @@ export default function RecordsPage() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : filteredAppointments.length > 0 ? (
+      ) : appointments.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredAppointments.map((appointment) => (
+            {appointments.map((appointment) => (
               <PatientRecordCard
                 key={appointment._id}
                 appointment={appointment}
@@ -279,6 +267,30 @@ export default function RecordsPage() {
               </Button>
             </div>
           )}
+
+          {/* Bottom Pagination Bar */}
+          <div className="flex items-center justify-between gap-4 mt-6">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {loading ? 'Đang tải...' : `Hiển thị trang ${currentPage} / ${totalPages} (${totalRecords} cuộc hẹn)`}
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => { setCurrentPage(1); setPageSize(Number(e.target.value)); }}
+                className="rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm"
+              >
+                <option value={10}>10 / trang</option>
+                <option value={20}>20 / trang</option>
+                <option value={50}>50 / trang</option>
+              </select>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}>
+                ‹ Trước
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                Sau ›
+              </Button>
+            </div>
+          </div>
         </>
       ) : (
         <Card>
@@ -287,8 +299,8 @@ export default function RecordsPage() {
               <FileX className="h-16 w-16 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">Không tìm thấy hồ sơ</h3>
               <p className="text-muted-foreground">
-                {searchQuery
-                  ? "Không có hồ sơ nào phù hợp với từ khóa tìm kiếm"
+                {searchQuery || selectedPatientId
+                  ? "Không có hồ sơ nào phù hợp với bộ lọc hiện tại"
                   : "Chưa có hồ sơ bệnh án nào được hoàn thành"}
               </p>
             </div>
