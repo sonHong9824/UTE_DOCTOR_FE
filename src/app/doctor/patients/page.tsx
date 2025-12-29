@@ -1,20 +1,19 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronDown, MoreHorizontal, CheckCircle2, Plus, Users, ArrowUpDown, Filter, FileText, UserRound, Calendar, Activity } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { getTodayAppointments, completeAppointment } from "@/apis/appointment/appointment.api";
-import { toast } from "sonner";
+import { completeAppointment, getTodayAppointments } from "@/apis/appointment/appointment.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { Calendar, CheckCircle2, FileText, Plus, UserRound, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 type Patient = {
   id: string;
@@ -705,14 +704,27 @@ export default function PatientsPage() {
                 if (apptId) {
                   try {
                     const payload = { appointmentId: apptId, diagnosis, note: notes, prescriptions };
-                    console.log('Completing appointment payload:', payload);
-                    await completeAppointment(payload);
+                    console.log('=== Completing appointment ===');
+                    console.log('Payload:', JSON.stringify(payload, null, 2));
+                    console.log('Prescriptions count:', prescriptions.length);
+                    console.log('Med list:', medList);
+                    
+                    const response = await completeAppointment(payload);
+                    console.log('Complete appointment response:', response);
+                    
+                    toast.success('Hoàn thành khám bệnh thành công');
+                    setOpen(false);
+                    setMedList([]);
+                    setDiagnosis('');
+                    setNotes('');
+                    
                     // local updates
                     const todayStr = formatDateLocal(new Date());
                     setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: todayStr } : p)));
                     setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
                   } catch (e) {
                     console.error('Failed completing appointment', e);
+                    console.error('Error details:', (e as any)?.response?.data);
                     const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi hoàn thành lịch hẹn';
                     toast.error(msg);
                   }

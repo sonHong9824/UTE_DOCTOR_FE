@@ -49,13 +49,13 @@ export function DatePicker({
           mode="single"
           selected={value}
           onSelect={(date) => {
-            // ✅ Nếu có giới hạn ngày → kiểm tra hợp lệ trước khi chọn
-            if (limitDays && date) {
-              if (date < today || (maxDate && date > maxDate)) {
-                alert("Ngày không hợp lệ!");
-                return;
-              }
-            }
+            // // ✅ Nếu có giới hạn ngày → kiểm tra hợp lệ trước khi chọn
+            // if (limitDays && date) {
+            //   if (date < today || (maxDate && date > maxDate)) {
+            //     alert("Ngày không hợp lệ!");
+            //     return;
+            //   }
+            // }
 
             onChange(date);
             setOpen(false);

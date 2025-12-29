@@ -85,6 +85,25 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<any>(null);
+  
+  // Debug state changes
+  useEffect(() => {
+    console.log('[State] pdfUrl changed to:', pdfUrl);
+  }, [pdfUrl]);
+  
+  useEffect(() => {
+    console.log('[State] selectedRecord changed:', selectedRecord?._id || selectedRecord?.diagnosis);
+  }, [selectedRecord]);
+  
+  // Debug render with current state
+  console.log('[Render] Current state:', { 
+    hasPdfUrl: !!pdfUrl, 
+    pdfUrl, 
+    pdfLoading, 
+    hasSelectedRecord: !!selectedRecord,
+    selectedRecordId: selectedRecord?._id 
+  });
+
   const [apptModalOpen, setApptModalOpen] = useState(false);
   const [apptLoading, setApptLoading] = useState(false);
   const [apptData, setApptData] = useState<any | null>(null);
@@ -318,12 +337,19 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
 
   // When modal opens (selectedRecord set) and current user is PATIENT, generate PDF automatically
   useEffect(() => {
+    console.debug('Selected record changed:', selectedRecord);
     let mounted = true;
     const run = async () => {
       if (!selectedRecord) return;
       if (typeof window === 'undefined') return;
-      if (localStorage.getItem('role') !== 'PATIENT') return;
+      if (localStorage.getItem('role') !== 'PATIENT') 
+        {
+          console.debug('Skipping PDF generation: role is not PATIENT');
+          console.log('Current role:', localStorage.getItem('role'));
+          return;
+        }
 
+      console.debug('Generating prescription PDF for record:', selectedRecord);
       setPdfLoading(true);
       setPdfError(null);
       setPdfUrl(null);
@@ -372,7 +398,6 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
 
         const resolvedPatientName = (
           user?.accountProfileDto?.name ??
-          user?.name ??
           (selectedRecord as any)?.patient?.name ??
           (medicalRecord as any)?.patient?.name ??
           (medicalRecord as any)?.patientName ??
@@ -403,22 +428,58 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
           doctorName: localStorage.getItem('name') || undefined,
         };
 
+        console.log('[PDF] Sending DTO:', dto);
         const res = await generatePrescriptionPdf(patientId, dto);
+        console.log('[PDF] API Full Response:', res);
+        console.log('[PDF] API Response Structure:', {
+          hasData: !!res?.data,
+          dataUrl: res?.data?.url,
+          rawUrl: res?.url,
+          fullPath: res?.data?.pdfPath || res?.pdfPath,
+          keys: res ? Object.keys(res) : [],
+          dataKeys: res?.data ? Object.keys(res.data) : [],
+        });
+        
         if (!mounted) return;
-        const url = res?.data?.url || null;
-        setPdfUrl(url);
-        console.log('generatePrescriptionPdf response', res);
+        
+        // Try multiple paths to get URL
+        const url = res?.data?.url || res?.url || res?.data?.pdfUrl || res?.pdfUrl || null;
+        console.log('[PDF] Extracted URL:', url);
+        
+        if (!url) {
+          console.warn('[PDF] No URL found in response, constructing from path');
+          const pdfPath = res?.data?.pdfPath || res?.pdfPath;
+          if (pdfPath) {
+            // Construct URL from path
+            const baseUrl = window.location.origin.replace(':3000', ':3001'); // Adjust port if needed
+            const constructedUrl = `${baseUrl}/${pdfPath.replace(/\\/g, '/')}`;
+            console.log('[PDF] Constructed URL:', constructedUrl);
+            setPdfUrl(constructedUrl);
+          } else {
+            console.error('[PDF] No URL or path found in response');
+            setPdfUrl(null);
+          }
+        } else {
+          console.log('[PDF] Setting pdfUrl to:', url);
+          setPdfUrl(url);
+        }
       } catch (err) {
         console.error('Failed to generate prescription PDF', err);
         setPdfError(err);
       } finally {
-        if (mounted) setPdfLoading(false);
+        if (mounted) {
+          console.log('[PDF] Setting loading to false');
+          setPdfLoading(false);
+        }
       }
     };
 
     run();
-    return () => { mounted = false; };
-  }, [selectedRecord]);
+    return () => { 
+      console.log('[PDF] Cleanup');
+      mounted = false; 
+    };
+  }, [selectedRecord, user, medicalRecord]);
 
   // Handler to submit rating using API
   const handleSubmitRating = async () => {
@@ -918,8 +979,12 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
       </Tabs>
 
       {/* Modal for any selected record details (e.g., prescription detail) */}
-      <Modal open={!!selectedRecord} onClose={() => setSelectedRecord(null)}>
+      <Modal open={!!selectedRecord} onClose={() => {
+        console.log('[Modal] Closing modal, clearing selectedRecord');
+        setSelectedRecord(null);
+      }}>
         {selectedRecord && (() => {
+          console.log('[Modal Render] Rendering modal content with pdfUrl:', pdfUrl, 'pdfLoading:', pdfLoading);
           const isHistory = !!(selectedRecord.conditionName || selectedRecord.diagnosisCode || selectedRecord.status || selectedRecord.source);
           const title = selectedRecord.conditionName || selectedRecord.diagnosis || selectedRecord.name || 'Chi tiết';
           const dateStr = (selectedRecord.diagnosedAt || selectedRecord.dateRecord) ? new Date(selectedRecord.diagnosedAt || selectedRecord.dateRecord).toLocaleString('vi-VN') : null;
@@ -971,43 +1036,67 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                         ))}
                       </div>
                       {typeof window !== 'undefined' && localStorage.getItem('role') === 'PATIENT' && (
-                        <div className="mt-4 flex items-center gap-3">
-                          <Button variant="outline" onClick={async () => {
-                            const apptId = selectedRecord.appointmentId || selectedRecord.apptId || selectedRecord._id;
-                            if (!apptId) {
-                              alert('Không tìm thấy thông tin lịch hẹn liên quan.');
-                              return;
-                            }
-                            try {
-                              setApptLoading(true);
-                              setApptData(null);
-                              setApptModalOpen(true);
-                              const resp = await getAppointmentById(apptId);
-                              const data = resp?.data ?? resp ?? null;
-                              setApptData(data);
-                            } catch (err) {
-                              console.error('Failed to load appointment', err);
-                              setApptData(null);
-                            } finally {
-                              setApptLoading(false);
-                            }
-                          }}>Xem chi tiết appointment</Button>
+                        <div className="mt-4 space-y-2">
+                          <div className="flex items-center gap-3">
+                            <Button variant="outline" onClick={async () => {
+                              const apptId = selectedRecord.appointmentId || selectedRecord.apptId || selectedRecord._id;
+                              if (!apptId) {
+                                alert('Không tìm thấy thông tin lịch hẹn liên quan.');
+                                return;
+                              }
+                              try {
+                                setApptLoading(true);
+                                setApptData(null);
+                                setApptModalOpen(true);
+                                const resp = await getAppointmentById(apptId);
+                                const data = resp?.data ?? resp ?? null;
+                                setApptData(data);
+                              } catch (err) {
+                                console.error('Failed to load appointment', err);
+                                setApptData(null);
+                              } finally {
+                                setApptLoading(false);
+                              }
+                            }}>Xem chi tiết appointment</Button>
+                          </div>
                           <div className="flex items-center gap-3">
                             <Button
                               onClick={() => {
-                                if (pdfUrl) window.open(pdfUrl, "_blank");
-                                else if (pdfLoading) console.debug('PDF is being generated');
-                                else alert('Đang chuẩn bị đơn thuốc...');
+                                console.log('[PDF Button] Current pdfUrl:', pdfUrl);
+                                if (pdfUrl) {
+                                  console.log('[PDF Button] Opening URL:', pdfUrl);
+                                  window.open(pdfUrl, "_blank");
+                                } else if (pdfLoading) {
+                                  console.debug('[PDF Button] Still loading...');
+                                  toast.info('Đang tạo PDF, vui lòng đợi...');
+                                } else {
+                                  console.error('[PDF Button] No URL available');
+                                  toast.error('Không có URL PDF. Vui lòng thử lại.');
+                                }
                               }}
                               disabled={pdfLoading || !pdfUrl}
+                              className={!pdfUrl && !pdfLoading ? 'opacity-50' : ''}
                             >
-                              {pdfLoading ? 'Đang tạo...' : 'Xem đơn thuốc'}
+                              {pdfLoading ? 'Đang tạo PDF...' : pdfUrl ? 'Xem đơn thuốc' : 'PDF chưa sẵn sàng'}
                             </Button>
                             {pdfUrl && (
-                              <div className="p-1 bg-white rounded shadow-sm">
-                                <QRCode value={pdfUrl} size={64} />
+                              <div className="flex items-center gap-2">
+                                <div className="p-1 bg-white rounded shadow-sm">
+                                  <QRCode value={pdfUrl} size={64} />
+                                </div>
+                                <div className="text-xs text-green-600">✓ PDF sẵn sàng</div>
                               </div>
                             )}
+                            {pdfLoading && <div className="text-xs text-blue-600 animate-pulse">⏳ Đang tạo...</div>}
+                            {!pdfUrl && !pdfLoading && <div className="text-xs text-red-600">✗ Chưa có PDF</div>}
+                          </div>
+                          {/* Debug info */}
+                          <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
+                            <div><strong>Debug Info:</strong></div>
+                            <div>PDF URL: {pdfUrl || 'null'}</div>
+                            <div>Loading: {pdfLoading ? 'true' : 'false'}</div>
+                            <div>Has prescriptions: {Array.isArray(selectedRecord.prescriptions) ? selectedRecord.prescriptions.length : 0}</div>
+                            {pdfError && <div className="text-red-600">Error: {String(pdfError?.message || pdfError)}</div>}
                           </div>
                         </div>
                       )}
@@ -1034,7 +1123,7 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>{apptData?.appointmentStatus ?? 'UNKNOWN'}</span>
               <div className="flex items-center gap-2">
                 {/* Hide rating button if an existing review is present */}
-                  {apptData?.appointmentStatus !== AppointmentStatus.COMPLETED &&
+                  {/* {apptData?.appointmentStatus !== AppointmentStatus.COMPLETED &&
                     apptData?.appointmentStatus !== AppointmentStatus.CANCELLED && (
                   <Button
                     size="sm"
@@ -1045,7 +1134,7 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                   >
                     Hủy buổi khám
                   </Button>
-                )}
+                )} */}
                 {!existingReview && apptData?.appointmentStatus === AppointmentStatus.COMPLETED && (
                   <Button size="sm" onClick={handleOpenRatingModal} disabled={!apptData}>Đánh giá buổi khám</Button>
                 )}
