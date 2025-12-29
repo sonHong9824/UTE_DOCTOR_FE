@@ -145,7 +145,7 @@ export default function DoctorDetailPage() {
         {/* Doctor Card */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           {/* Header Background */}
-          <div className="h-32 bg-gradient-to-r from-blue-000 via-blue-100 to-cyan-000"></div>
+          <div className="h-32 bg-gradient-to-r"></div>
 
           <div className="px-6 sm:px-8 pb-8">
             {/* Avatar Section */}
@@ -281,7 +281,7 @@ export default function DoctorDetailPage() {
               </div>
 
               {/* Specialty Info */}
-              <div>
+              {/* <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-4">
                   Chuyên ngành
                 </h3>
@@ -295,7 +295,7 @@ export default function DoctorDetailPage() {
                     </p>
                   )}
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Tabs Section */}
