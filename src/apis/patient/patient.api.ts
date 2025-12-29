@@ -136,4 +136,3 @@ export const getPatientsAdmin = async (params: {
     throw e;
   }
 };
-
