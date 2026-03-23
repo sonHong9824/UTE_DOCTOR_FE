@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResponseCode } from "@/enum/response-code.enum";
-import { SocketEventsEnum } from "@/enum/socket-events.enum";
-import { authSocket } from "@/services/socket/socket-client";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -58,32 +56,17 @@ export default function RegisterForm({ onSuccess }: RegisterFormProps) {
     const { confirmPassword, ...payload } = result.data;
     console.log("Register data:", payload);
 
-    // 👉 Bước 2: join room
-    authSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email: form.email });
-    console.log("Init socket for register user email: ", form.email);
-
-    // 👉 Bước 3: đăng ký listener 1 lần
-    authSocket.once(SocketEventsEnum.REGISTER_STATUS, (data: any) => {
-      console.log("Raw Data: ", JSON.stringify(data));
-
-      if (data.code === ResponseCode.SUCCESS) {
-        alert(`Đăng ký thành công: ${data.message}`);
-        if (onSuccess) onSuccess(data.code, form.email);
-        authSocket.disconnect();
-      } else {
-        alert(`Đăng ký thất bại: ${data.message}`);
-      }
-    });
-
-    // 👉 Bước 4: gửi request đăng ký
     try {
-      const res = await register(payload);
+      const res = await register({ ...payload, role: "PATIENT" });
 
-      if (res.code === ResponseCode.ERROR || res.code === ResponseCode.SERVER_ERROR) {
-        alert("Error when connecting to server!");
-        console.error("Register failed:", res.message || "Đăng ký thất bại");
+      if (res.code === ResponseCode.SUCCESS) {
+        alert(`Đăng ký thành công: ${res.message}`);
+        if (onSuccess) onSuccess(res.code, form.email);
+      } else {
+        alert(`Đăng ký thất bại: ${res.message}`);
       }
     } catch (err: any) {
+      alert("Error when connecting to server!");
       console.error("Register error:", err.message);
     }
   };

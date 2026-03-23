@@ -1,6 +1,7 @@
 "use client";
 
 import RegisterForm from "@/app/(auth)/register/register-form";
+import { verifyOtp } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,21 +35,20 @@ export default function Register() {
 
   const handleVerifyOtp = async () => {
     console.log("OTP nhập:", otp);
-    const baseApi = process.env.BASE_API || "http://localhost:3001";
-    const res = await fetch(`${baseApi}/api/auth/verify-otp`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp }),
-    });
-    console.log("Verify OTP response:", res);
-    if (!res.ok) {
-      alert("Xác thực OTP thất bại! Vui lòng thử lại.");
-      return;
-    } else {
+    try {
+      const res = await verifyOtp({ email, otp });
+      console.log("Verify OTP response:", res);
+      if (res.code !== ResponseCode.SUCCESS) {
+        alert("Xác thực OTP thất bại! Vui lòng thử lại.");
+        return;
+      }
       alert("Xác thực OTP thành công! Vui lòng đăng nhập.");
       router.push("/login");
+      setOpenOtpModal(false);
+    } catch (err) {
+      console.error("Verify OTP error:", err);
+      alert("Xác thực OTP thất bại! Vui lòng thử lại.");
     }
-    setOpenOtpModal(false);
   };
 
   return (

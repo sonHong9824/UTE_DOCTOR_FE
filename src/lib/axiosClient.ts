@@ -59,6 +59,7 @@ axiosClient.interceptors.response.use(
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            window.dispatchEvent(new Event("auth-logout"));
             window.location.href = "/login";
           }
           return Promise.reject(error);
@@ -119,6 +120,7 @@ axiosClient.interceptors.response.use(
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            window.dispatchEvent(new Event("auth-logout"));
             alert("Session hết hạn, vui lòng đăng nhập lại.");
             window.location.replace("/login");
           }
@@ -145,3 +147,4 @@ axiosClient.interceptors.response.use(
 );
 
 export default axiosClient;
+

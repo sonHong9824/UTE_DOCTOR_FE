@@ -23,7 +23,7 @@ export default function ProfilePage() {
   
     const fetchUserProfile = async () => {
       try {
-        const response = await GetPatientProfile({ email });
+        const response = await GetPatientProfile();
         // if (response?.code === rc.SUCCESS) setUser(response.data);
       } catch (err) {
         console.error(err);

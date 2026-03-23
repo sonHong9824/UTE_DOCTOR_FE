@@ -3,11 +3,10 @@ import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { DataResponse } from "@/types/apiDTO";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 
-export const GetPatientProfile = async(form: {email: string}) =>
+export const GetPatientProfile = async() =>
 {   
     try {
-        const res = await axiosClient.get<DataResponse<PatientProfileDto>>("/patients/me", 
-            { params: { email: form.email } });
+        const res = await axiosClient.get<DataResponse<PatientProfileDto>>("/patients/me");
         return res.data;
     }
     catch (e)
