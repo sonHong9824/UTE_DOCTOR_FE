@@ -1,7 +1,7 @@
 "use client";
 
 import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
-import { getDoctorByAccountId } from "@/apis/doctor/profile.api";
+import { getDoctorMe } from "@/apis/doctor/profile.api";
 import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -238,7 +238,22 @@ export default function SchedulePage() {
     fetchShifts();
   }, [now, doctorId]);
 
-  // Initialize doctorId from localStorage (account id -> doctor id)
+  const resolveDoctorId = async () => {
+    const res = await getDoctorMe();
+    const doc = res?.data;
+    const did = doc?._id || doc?.id || null;
+    if (did) {
+      setDoctorId(did);
+      try {
+        localStorage.setItem("doctorId", did);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return did;
+  };
+
+  // Initialize doctorId from localStorage (JWT -> doctor id)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const init = async () => {
@@ -248,21 +263,7 @@ export default function SchedulePage() {
           setDoctorId(stored);
           return;
         }
-
-        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
-        if (!accountId) return;
-
-        const res = await getDoctorByAccountId(accountId);
-        const doc = res?.data;
-        const did = doc?._id || doc?.id || null;
-        if (did) {
-          setDoctorId(did);
-          try {
-            localStorage.setItem("doctorId", did);
-          } catch (e) {
-            // ignore
-          }
-        }
+        await resolveDoctorId();
       } catch (err) {
         console.error("Failed to init doctorId:", err);
       }
@@ -299,31 +300,18 @@ export default function SchedulePage() {
       const stored = localStorage.getItem("doctorId");
       if (stored) did = stored;
       else {
-        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
-        if (accountId) {
-          try {
-            const res = await getDoctorByAccountId(accountId);
-            const doc = res?.data;
-            const resolved = doc?._id || doc?.id || null;
-            if (resolved) {
-              did = resolved;
-              setDoctorId(resolved);
-              try { localStorage.setItem("doctorId", resolved); } catch (e) {}
-            }
-          } catch (e) {
-            console.error("Failed resolving doctorId in addSlot:", e);
-          }
+        try {
+          const resolved = await resolveDoctorId();
+          if (resolved) did = resolved;
+        } catch (e) {
+          console.error("Failed resolving doctorId in addSlot:", e);
         }
       }
-    }
-    if (!did) {
-      toast.error("Không tìm thấy doctorId");
-      return;
     }
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
     try {
-      const res = await registerShift({ doctorId: did, date, shift });
+      const res = await registerShift({ date, shift });
       if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
         const payload: any = res as any;
         const newShift = payload?.data?.shift || payload?.shift || payload?.data || null;
@@ -1022,3 +1010,6 @@ export default function SchedulePage() {
     </div>
   );
 }
+
+
+

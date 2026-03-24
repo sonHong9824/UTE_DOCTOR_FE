@@ -146,11 +146,10 @@ export const rescheduleAppointment = async (data: {
   }
 };
 
-export const cancelAppointment = async (appointmentId: string, patientId?: string) => {
+export const cancelAppointment = async (appointmentId: string) => {
   try {
     const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", { 
-      appointmentId,
-      patientId: patientId || localStorage.getItem("patientId") || undefined
+      appointmentId
     });
     console.log("[Axios] Cancel appointment:", res.data);
     return res.data;

@@ -34,8 +34,6 @@ type AppointmentBookingDto = {
   serviceType: string;
   paymentMethod: string;
   amount?: number;
-  patientEmail: string;
-  patientId: string;
   reasonForAppointment: string;
   useCoin?: boolean; // Whether to use coins for payment
   coinsToUse?: number; // Number of coins to use
@@ -72,8 +70,6 @@ export default function AppointmentForm() {
     serviceType: 'KHAM_DICH_VU',
     paymentMethod: 'ONLINE',
     amount: 100000,
-    patientEmail: localStorage.getItem("email") || "",
-    patientId: localStorage.getItem("patientId") || "",
     reasonForAppointment: '',
     useCoin: false, // Default: don't use coins
     coinsToUse: 0, // Default: 0 coins
@@ -128,7 +124,7 @@ export default function AppointmentForm() {
 
     try {
       if (pendingAppointmentId.current) {
-        await cancelAppointment(pendingAppointmentId.current, formData.patientId);
+        await cancelAppointment(pendingAppointmentId.current);
       }
       setErrorMessage('Bạn đã đóng cửa sổ thanh toán. Lịch hẹn đã bị hủy.');
     } catch (err) {

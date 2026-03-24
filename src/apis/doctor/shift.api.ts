@@ -25,7 +25,6 @@ export const deleteShiftById = async (shiftId: string): Promise<{ code: number; 
 };
 
 export interface RegisterShiftDto {
-  doctorId: string;
   date: string; // YYYY-MM-DD
   shift: "morning" | "afternoon" | "extra";
 }
