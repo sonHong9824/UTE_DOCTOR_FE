@@ -92,6 +92,13 @@ Your primary goal is to:
 
 ---
 
+## Time Handling Rules
+
+- At client (this project), always use local time.
+- When sending request, convert it to UTC.
+
+---
+
 ## Authentication System Rules
 
 The backend uses JWT-based authentication.

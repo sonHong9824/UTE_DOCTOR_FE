@@ -4,6 +4,7 @@ import { getWalletBalance } from '@/apis/wallet/wallet.api';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SocketEventsEnum } from '@/enum/socket-events.enum';
 import { TimeSlotStatusEnum } from '@/enum/timeslot-status.enum';
+import { TimeHelper } from '@/lib/time';
 import { createAppointmentSocket, createPaymentVnPaySocket } from '@/services/socket/socket-client';
 import { DataResponse } from '@/types/apiDTO';
 import { TimeSlotDto } from '@/types/timeslot.dto';
@@ -60,8 +61,10 @@ export default function AppointmentForm() {
   const [showSuggestions, setShowSuggestions] = useState(false); // Prevent suggestion form double cliking
 
 
+  const getTodayLocalDate = () => new Date().toLocaleDateString("en-CA");
+
   const [formData, setFormData] = useState<AppointmentBookingDto>({
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayLocalDate(),
     hospitalName: 'Bệnh viện Đa khoa',
     specialty: '',
     timeSlotId: '',
@@ -154,6 +157,14 @@ export default function AppointmentForm() {
         }
       }
     }, 800);
+  };
+
+  const toUtcIsoDate = (localDateStr: string) => {
+    const [year, month, day] = localDateStr.split("-").map(Number);
+    if (!year || !month || !day) return localDateStr;
+    // Construct local midnight, then convert to UTC ISO string.
+    const localDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    return localDate.toISOString();
   };
 
   // Load mock data
@@ -309,7 +320,11 @@ export default function AppointmentForm() {
     paymentStatusReceivedRef.current = false;
     windowOpenedAtRef.current = null;
 
-    console.log('Submitting appointment:', formData);
+    const payload = formData.date
+      ? { ...formData, date: toUtcIsoDate(formData.date) }
+      : formData;
+
+    console.log('Submitting appointment:', payload);
 
     try {
       // Socket connection for payment
@@ -321,7 +336,7 @@ export default function AppointmentForm() {
     
       paymentSocket.once(SocketEventsEnum.ROOM_JOINED, async (data) => {
         console.log('[Socket] Joined payment room:', data);
-        const res = await bookAppointment(formData);
+        const res = await bookAppointment(payload);
         if (!res) {
           // Likely validation error (e.g., invalid/missing timeSlotId) → show friendly message
           const msg = 'Invalid form information. Please check your date and time slot.';
@@ -698,13 +713,14 @@ export default function AppointmentForm() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
-                    value={formData.date ? new Date(formData.date + 'T00:00:00') : undefined}
+                    value={formData.date ? TimeHelper.toSafeDate(formData.date) ?? undefined : undefined}
                     onChange={(date) => {
                       if (!date) {
                         alert("Vui lòng chọn ngày hợp lệ!");
                         return;
                       }
-                      const localDate = date.toLocaleDateString('en-CA');
+                      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                      const localDate = TimeHelper.formatLocalDateOnly(normalized, "en-CA");
                       setFormData(prev => ({
                         ...prev,
                         date: localDate,

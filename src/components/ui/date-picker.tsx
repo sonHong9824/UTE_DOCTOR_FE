@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { addDays, format, startOfDay } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -20,10 +20,9 @@ export function DatePicker({
 }) {
   const [open, setOpen] = React.useState(false);
 
-  const today = new Date();
-  const maxDate = limitDays
-    ? new Date(today.getTime() + limitDays * 24 * 60 * 60 * 1000)
-    : undefined;
+  // Normalize to local start-of-day so "today" remains selectable.
+  const today = startOfDay(new Date());
+  const maxDate = limitDays ? addDays(today, limitDays) : undefined;
 
   // ✅ Tạo rule disable động — chỉ áp dụng khi limitDays tồn tại
   const disabledRule = limitDays

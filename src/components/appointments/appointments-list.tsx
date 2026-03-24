@@ -3,6 +3,7 @@
 import { cancelAppointment } from "@/apis/appointment/appointment.api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { TimeHelper } from "@/lib/time";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -74,7 +75,7 @@ export default function AppointmentsList({
                 <div className="flex justify-between">
                   <span className="font-medium">Ngày khám:</span>
                   <span className="text-muted-foreground">
-                    {new Date(appt.date).toLocaleString("vi-VN")}
+                    {TimeHelper.formatLocalDateTime(appt.date, "vi-VN")}
                   </span>
                 </div>
 
