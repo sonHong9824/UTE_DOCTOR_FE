@@ -1,7 +1,5 @@
 "use client";
 
-import RegisterForm from "@/app/(auth)/register/register-form";
-import { verifyOtp } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +14,8 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { ResponseCode } from "@/enum/response-code.enum";
+import RegisterForm from "@/features/auth/components/RegisterForm";
+import { verifyOtp } from "@/features/auth/services/auth.api";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -214,3 +214,4 @@ export default function Register() {
     </div>
   );
 }
+

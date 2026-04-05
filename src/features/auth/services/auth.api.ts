@@ -1,3 +1,4 @@
+// Auth API layer (HTTP-only).
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { LoginResponse } from "@/types/authDTO/login.res.dto";
@@ -30,16 +31,11 @@ export const register = async (form: RegisterPayload) => {
 };
 
 export const refreshAccessToken = async (refreshToken: string) => {
-  try {
-    const res = await axiosClient.post<DataResponse<{ accessToken: string; refreshToken: string }>>(
-      "/auth/refresh",
-      { refreshToken }
-    );
-    return res.data;
-  } catch (error) {
-    console.error("Failed to refresh token:", error);
-    throw error;
-  }
+  const res = await axiosClient.post<DataResponse<{ accessToken: string; refreshToken: string }>>(
+    "/auth/refresh",
+    { refreshToken }
+  );
+  return res.data;
 };
 
 export const sendOtp = async (email: string) => {

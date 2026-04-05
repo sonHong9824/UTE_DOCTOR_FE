@@ -14,7 +14,7 @@ interface UserContentProps {
   activeTab: string;
 }
 
-export default function UserContent({ user, activeTab }: UserContentProps) {
+export default function UserContent({ user, activeTab, patientId, email }: UserContentProps) {
   // Check new collections first, fallback to legacy
   const hasData =
     user.medicalProfile ||
@@ -131,8 +131,9 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
         //     </Card>
         //   </div>
         // </div>
-        <WalletSection patientId={localStorage.getItem("patientId")!} email={localStorage.getItem("email")!} />
+        <WalletSection patientId={patientId || ""} email={email || ""} />
       )}
     </div>
   );
 }
+

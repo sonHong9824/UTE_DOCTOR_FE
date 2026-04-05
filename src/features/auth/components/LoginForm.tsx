@@ -1,78 +1,14 @@
 "use client";
 
-import { login } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ResponseCode as rc } from "@/enum/response-code.enum";
+import { useLogin } from "@/features/auth/hooks/useLogin";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 export default function LoginForm() {
-  const router = useRouter();
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    // remember: false,
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setForm({
-      ...form,
-      [name]: type === "checkbox" ? checked : value,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Login data:", form);
-    
-    try {
-      const res = await login(form);
-      console.log("Login response:", res);
-      if (res.code != rc.SUCCESS) {
-        alert("Đăng nhập thất bại! Vui lòng thử lại.");
-        console.log("Login failed:", res);
-        return;
-      } else {
-        alert("Đăng nhập thành công!");
-        localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("email", form.email);
-        localStorage.setItem("accessToken", res.data.accessToken);
-        localStorage.setItem("refreshToken", res.data.refreshToken);
-        localStorage.setItem("role", res.data.role);
-        localStorage.setItem("id", res.data.id);
-        localStorage.setItem("patientId", res.data.patientId || "");
-        localStorage.setItem("doctorId", res.data.doctorId || "");
-        localStorage.setItem("profileId", res.data.profileId || "");
-
-        // Notify ChatSocketProvider to connect socket after successful login
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('user-logged-in'));
-        }
-
-        console.log("Login successful:", res);
-
-        if (res.data.role === "DOCTOR") {
-          alert("xin chao bac si");
-          router.push("/doctor/patients");
-        } 
-        else if (res.data.role === "ADMIN") {
-          router.push("/admin/patients");
-        } 
-        else {
-          router.push("/");
-        }
-      }
-    } catch (err: any) {
-      console.error("Login error:", err);
-      const msg = err?.response?.data?.message || err?.message || "Lỗi khi gọi login";
-      alert(msg);
-      return;
-    }
-  };
+  // UI-only component: delegates business logic to the view-model hook.
+  const { form, loading, handleChange, handleSubmit } = useLogin();
 
   return (
     <div className="space-y-5">
@@ -127,9 +63,10 @@ export default function LoginForm() {
       <Button 
         type="submit"
         onClick={handleSubmit}
+        disabled={loading}
         className="w-full h-12 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white font-semibold shadow-lg shadow-blue-500/30"
       >
-        Đăng nhập
+        {loading ? "Đang đăng nhập..." : "Đăng nhập"}
       </Button>
 
       {/* <div className="flex items-center gap-3">
