@@ -1,5 +1,12 @@
-export * from "@/features/appointment/components/AppointmentDetailModal";
-export { default } from "@/features/appointment/components/AppointmentDetailModal";
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AppointmentStatus } from '@/enum/appointment-status.enum';
+import { Calendar, CheckCircle2, Clock, Coins, DollarSign, User } from 'lucide-react';
+import React from 'react';
 
 interface AppointmentDetailModalProps {
   isOpen: boolean;

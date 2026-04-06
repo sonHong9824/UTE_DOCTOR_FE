@@ -1,9 +1,9 @@
 
 import WalletSection from "@/components/wallet/wallet-section";
+import AppointmentForm from "@/features/appointment/components/AppointmentForm";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import UserInfoCard from "../cards/user-info-card";
 import ChangePasswordForm from "../forms/account/change-password-form";
-import AppointmentForm from "../forms/appointments/appointment-form.draft";
 import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
@@ -14,7 +14,7 @@ interface UserContentProps {
   activeTab: string;
 }
 
-export default function UserContent({ user, activeTab, patientId, email }: UserContentProps) {
+export default function UserContent({ user, activeTab }: UserContentProps) {
   // Check new collections first, fallback to legacy
   const hasData =
     user.medicalProfile ||

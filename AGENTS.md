@@ -227,6 +227,62 @@ If API behavior changes:
 
 ---
 
+## Feature Module Architecture Standard (MANDATORY)
+
+All new and refactored feature modules MUST follow this structure:
+
+```text
+src/features/<feature-name>/
+  components/   # Presentational UI only
+  hooks/        # View-model + orchestration logic
+  services/     # API communication only
+  types/        # Feature-local types and DTO contracts
+  utils/        # Pure helper functions/mappers/formatters
+  screens/      # Container components wiring hooks + UI
+```
+
+### Layer Responsibilities
+
+- `components/`
+  - MUST receive data and callbacks via props.
+  - MUST NOT call APIs directly.
+  - MUST NOT contain business workflows.
+
+- `hooks/`
+  - ARE the orchestration layer.
+  - Handle state, side effects, and workflow control.
+  - Call `services/` for data operations.
+
+- `services/`
+  - Handle API communication only.
+  - MUST NOT contain UI logic (toasts, dialogs, JSX concerns).
+
+- `types/`
+  - Centralize feature contracts to avoid duplicated inline types.
+
+- `utils/`
+  - Contain pure reusable logic only.
+
+- `screens/`
+  - Implement data flow: `screen -> hook -> service -> API`.
+  - Connect hooks and presentational components.
+
+### Naming Conventions
+
+- Hooks: `useXxx` (e.g., `useAppointmentBooking`)
+- Services: `xxxService` (e.g., `appointmentService`)
+- Screens: `XxxScreen` (e.g., `AppointmentBookingScreen`)
+- Types: `XxxDto`, `XxxModel`, `XxxPayload`, `XxxState`
+
+### Non-Negotiable Rules
+
+- No API calls inside components.
+- Business logic must not live in UI layer.
+- Feature modules must be self-contained and scalable.
+- Future code generation and refactors MUST follow this standard.
+
+---
+
 ## When Unsure
 
 - Prefer reading existing code over guessing
