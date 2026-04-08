@@ -74,7 +74,7 @@ export const useAppointmentBooking = () => {
 
   const openPaymentWindow = () => {
     if (!paymentUrl) return;
-    window.open(paymentUrl, "_blank", "noopener,noreferrer");
+    window.open(paymentUrl, "_blank");
   };
 
   const finalizeAsConfirmed = (appointment: AppointmentDetail) => {
@@ -130,6 +130,45 @@ export const useAppointmentBooking = () => {
       void pollAppointmentStatus(appointmentId);
     }, POLL_INTERVAL_MS);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handlePaymentResultMessage = (event: MessageEvent) => {
+      const data = event.data;
+
+      if (!data || typeof data !== "object" || data.type !== "PAYMENT_RESULT") {
+        return;
+      }
+
+      const resultOrderId = typeof data.orderId === "string" ? data.orderId : "";
+      const resultStatus = typeof data.status === "string" ? data.status : "";
+
+      if (!resultOrderId || resultOrderId !== pendingAppointmentId) {
+        return;
+      }
+
+      if (resultStatus === "COMPLETED") {
+        setBookingLifecycleState("CONFIRMED");
+        setSuccessMessage("Thanh toán thành công. Lịch hẹn của bạn đã được xác nhận.");
+        setShowSuccessModal(true);
+        void pollAppointmentStatus(resultOrderId);
+        return;
+      }
+
+      if (resultStatus === "FAILED") {
+        finalizeAsFailed("Thanh toán thất bại. Vui lòng thử lại hoặc chọn phương thức khác.");
+      }
+    };
+
+    window.addEventListener("message", handlePaymentResultMessage);
+
+    return () => {
+      window.removeEventListener("message", handlePaymentResultMessage);
+    };
+  }, [pendingAppointmentId]);
 
   const fetchTimeSlots = async (doctorId?: string, date?: string, currentTimeSlotId?: string) => {
     try {
@@ -253,7 +292,7 @@ export const useAppointmentBooking = () => {
         setShowSuccessModal(true);
 
         if (returnedPaymentUrl) {
-          window.open(returnedPaymentUrl, "_blank", "noopener,noreferrer");
+          window.open(returnedPaymentUrl, "_blank");
         }
 
         startStatusPolling(appointmentId);
