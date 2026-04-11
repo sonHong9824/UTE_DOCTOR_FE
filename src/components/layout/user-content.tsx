@@ -1,6 +1,6 @@
 
-import WalletSection from "@/components/wallet/wallet-section";
 import AppointmentForm from "@/features/appointment/components/AppointmentForm";
+import WalletScreen from "@/features/wallet/screens/WalletScreen";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import UserInfoCard from "../cards/user-info-card";
 import ChangePasswordForm from "../forms/account/change-password-form";
@@ -49,89 +49,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
       {activeTab === "medical-detail" && <MedicalRecordDetail user={user} />}
       {activeTab === "appointments" && <AppointmentForm />}
       {activeTab === "wallet" && (
-        // <div className="w-full space-y-6">
-        //   {/* Wallet Header */}
-        //   <div className="flex justify-between items-center">
-        //     <div>
-        //       <h2 className="text-3xl font-bold">Ví Điện Tử</h2>
-        //       <p className="text-gray-600 mt-1">Quản lý Coin và lịch sử giao dịch</p>
-        //     </div>
-        //     <WalletBalance />
-        //   </div>
-
-        //   {/* Wallet Tabs */}
-        //   <div className="space-y-4">
-        //     {/* Balance Details */}
-        //     <div>
-        //       <h3 className="text-xl font-semibold mb-3">Chi tiết số dư</h3>
-        //       <WalletDetailsCard/>
-        //     </div>
-        //   </div>
-
-        //   {/* Info Cards */}
-        //   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        //     {/* Coin Rules */}
-        //     <Card className="border border-gray-300">
-        //       <div className="px-6 py-4">
-        //         <CardTitle className="text-lg mb-4">Cách kiếm Coin</CardTitle>
-        //         <div className="space-y-3">
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">1️⃣</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Hoãn lịch hẹn</p>
-        //               <p className="text-xs text-gray-600">Nhận 80% phí tư vấn dưới dạng Coin</p>
-        //             </div>
-        //           </div>
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">2️⃣</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Hủy lịch hẹn</p>
-        //               <p className="text-xs text-gray-600">Nhận 100% phí tư vấn dưới dạng Coin</p>
-        //             </div>
-        //           </div>
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">3️⃣</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Ưu đãi khách hàng</p>
-        //               <p className="text-xs text-gray-600">Nhận Coin từ các chương trình khuyến mãi</p>
-        //             </div>
-        //           </div>
-        //         </div>
-        //       </div>
-        //     </Card>
-
-        //     {/* Coin Usage */}
-        //     <Card className="border border-gray-300">
-        //       <div className="px-6 py-4">
-        //         <CardTitle className="text-lg mb-4">Cách dùng Coin</CardTitle>
-        //         <div className="space-y-3">
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">💳</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Thanh toán lịch hẹn</p>
-        //               <p className="text-xs text-gray-600">Dùng Coin để thanh toán phí khám bệnh</p>
-        //             </div>
-        //           </div>
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">🎁</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Nhận quà tặng</p>
-        //               <p className="text-xs text-gray-600">Đổi Coin để nhận các quà tặng đặc biệt</p>
-        //             </div>
-        //           </div>
-        //           <div className="flex gap-3">
-        //             <div className="text-2xl">⭐</div>
-        //             <div>
-        //               <p className="font-medium text-sm">Nâng cấp VIP</p>
-        //               <p className="text-xs text-gray-600">Dùng Coin để nâng cấp thành viên VIP</p>
-        //             </div>
-        //           </div>
-        //         </div>
-        //       </div>
-        //     </Card>
-        //   </div>
-        // </div>
-        <WalletSection patientId={patientId || ""} email={email || ""} />
+        <WalletScreen />
       )}
     </div>
   );

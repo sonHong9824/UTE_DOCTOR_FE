@@ -8,7 +8,6 @@ export default function AppointmentBookingScreen() {
   const {
     formData,
     loading,
-    response,
     showSuccessModal,
     successMessage,
     showErrorModal,
@@ -206,7 +205,7 @@ export default function AppointmentBookingScreen() {
             <div className="bg-orange-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-orange-900 mb-4">Thông tin thanh toán</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Phương Thức Thanh Toán *</label>
                   <select
@@ -312,13 +311,6 @@ export default function AppointmentBookingScreen() {
               </div>
             )}
           </div>
-
-          {response && (
-            <div className={`mt-6 p-4 rounded-xl ${response.success ? "bg-green-100 border border-green-300" : "bg-red-100 border border-red-300"}`}>
-              <h3 className="font-semibold mb-2">{response.success ? "Success" : "Error"}</h3>
-              <pre className="text-sm overflow-auto">{JSON.stringify(response.data || response.error, null, 2)}</pre>
-            </div>
-          )}
 
           {showSuccessModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">

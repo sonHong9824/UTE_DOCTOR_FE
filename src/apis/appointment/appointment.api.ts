@@ -3,6 +3,7 @@ import { AppointmentBookingPayload } from "@/features/appointment/types/appointm
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
+import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.util";
 
 export type BookAppointmentResponse = DataResponse<{
   appointmentId?: string;
@@ -11,6 +12,7 @@ export type BookAppointmentResponse = DataResponse<{
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
+    assertValidISO(form.date);
     const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
     return res.data;
   } catch (e) {
@@ -83,8 +85,9 @@ export const completeAppointment = async (data: {
 export const getTimeSlotsByDoctorAndDate = async (params: { doctorId: string; date: string; status?: TimeSlotStatusEnum }) => {
   try {
     const status = params.status ?? TimeSlotStatusEnum.AVAILABLE; // default = 'available'
+    const encodedDate = encodeURIComponent(params.date);
     const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
-      `/doctors/doctor/${params.doctorId}/date/${params.date}`,
+      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`,
       {
         params: { status },
       }
@@ -142,7 +145,15 @@ export const rescheduleAppointment = async (data: {
   reason?: string;
 }) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", data);
+    const normalizedNewDate = ensureHasTimezone(data.newDate)
+      ? data.newDate
+      : buildZonedISO(data.newDate, "00:00");
+    assertValidISO(normalizedNewDate);
+
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
+      ...data,
+      newDate: normalizedNewDate,
+    });
     console.log("[Axios] Reschedule appointment:", res.data);
     return res.data;
   } catch (e) {

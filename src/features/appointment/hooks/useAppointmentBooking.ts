@@ -3,16 +3,16 @@
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
-    AppointmentBookingFormValues,
-    AppointmentDetail,
-    BookingLifecycleState,
-    DoctorOption,
-    DoctorPayload,
-    SpecialtyOption,
+  AppointmentBookingFormValues,
+  AppointmentDetail,
+  BookingLifecycleState,
+  DoctorOption,
+  DoctorPayload,
+  SpecialtyOption,
 } from "@/features/appointment/types/appointment.types";
-import { getTodayLocalDate, toUtcIsoDate } from "@/features/appointment/utils/appointment-date";
-import { TimeHelper } from "@/lib/time";
+import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
+import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput } from "@/utils/time.util";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 4000;
@@ -172,8 +172,10 @@ export const useAppointmentBooking = () => {
 
   const fetchTimeSlots = async (doctorId?: string, date?: string, currentTimeSlotId?: string) => {
     try {
+      const selectedDate = date || formData.date;
+
       const slots = doctorId
-        ? await appointmentService.getTimeSlotsByDoctorAndDate({ doctorId, date: date || formData.date })
+        ? await appointmentService.getTimeSlotsByDoctorAndDate({ doctorId, date: selectedDate })
         : await appointmentService.getAllTimeSlots();
 
       setTimeSlots(slots);
@@ -252,8 +254,7 @@ export const useAppointmentBooking = () => {
 
   const handleDateChange = async (date: Date | null) => {
     if (!date) return;
-    const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const localDate = TimeHelper.formatLocalDateOnly(normalized, "en-CA");
+    const localDate = toLocalDateInput(date);
 
     setFormData((prev) => ({
       ...prev,
@@ -275,7 +276,21 @@ export const useAppointmentBooking = () => {
     setPendingAppointmentId(null);
     setPaymentUrl(null);
 
-    const payload = { ...formData, date: toUtcIsoDate(formData.date) };
+    const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
+    if (!selectedSlot) {
+      setLoading(false);
+      setBookingLifecycleState("FAILED");
+      setErrorMessage("Vui lòng chọn khung giờ hợp lệ trước khi đặt lịch.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    const bookingDate = toLocalDateInput(new Date());
+    const bookingTime = getCurrentLocalTimeHHmm();
+    const bookingDateTime = buildZonedISO(bookingDate, bookingTime);
+    assertValidISO(bookingDateTime);
+
+    const payload = { ...formData, date: bookingDateTime };
 
     try {
       const res = await appointmentService.book(payload);
