@@ -1,21 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { getCompletedAppointmentsByDoctor } from "@/apis/appointment/appointment.api";
 import { getPatientsAdmin } from "@/apis/patient/patient.api";
-import { CompletedAppointment } from "@/types/medicalRecordDTO";
-import { PatientRecordCard } from "@/components/doctor/patient-record-card";
 import { MedicalRecordDetailModal } from "@/components/doctor/medical-record-detail-modal";
-import { Input } from "@/components/ui/input";
+import { PatientRecordCard } from "@/components/doctor/patient-record-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Search, 
-  Loader2, 
-  FileX,
-  ChevronLeft,
-  ChevronRight
+import { Input } from "@/components/ui/input";
+import { CompletedAppointment } from "@/types/medicalRecordDTO";
+import {
+    ChevronLeft,
+    ChevronRight,
+    FileX,
+    Loader2,
+    Search
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function RecordsPage() {
   const [appointments, setAppointments] = useState<CompletedAppointment[]>([]);
@@ -61,14 +61,7 @@ export default function RecordsPage() {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const doctorId = localStorage.getItem("doctorId");
-      if (!doctorId) {
-        console.error("Doctor ID not found");
-        return;
-      }
-
       const response = await getCompletedAppointmentsByDoctor({
-        doctorId,
         page: currentPage,
         limit: pageSize,
         keyword: searchQuery || undefined,

@@ -1,7 +1,7 @@
 "use client";
 
-import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
 import { getDoctorMe } from "@/apis/doctor/profile.api";
+import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
 import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { assertValidISO, buildZonedISO, toLocalDateInput } from "@/utils/time.util";
 import {
   AlertTriangle,
   Calendar,
@@ -24,7 +25,6 @@ import {
   ClipboardList,
   Clock,
   Loader2,
-  MoreVertical,
   Plus
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -156,10 +156,7 @@ export default function SchedulePage() {
   const [open, setOpen] = useState(false);
 
   function formatDateLocal(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return toLocalDateInput(date);
   }
 
   const monthStart = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -311,13 +308,22 @@ export default function SchedulePage() {
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
     try {
-      const res = await registerShift({ date, shift });
+      const startTime = buildZonedISO(date, s.start);
+      const endTime = buildZonedISO(date, s.end);
+      assertValidISO(startTime);
+      assertValidISO(endTime);
+
+      const res = await registerShift({
+        startTime,
+        endTime,
+        shift,
+      });
       if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
         const payload: any = res as any;
         const newShift = payload?.data?.shift || payload?.shift || payload?.data || null;
         const slotToAdd = {
           _id: newShift?._id,
-          date: newShift?.date ?? date,
+          date: newShift?.date ?? toLocalDateInput(startTime),
           shiftKey: (newShift?.shift as ShiftKey) ?? shift,
           start: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.start ?? s.start,
           end: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.end ?? s.end,

@@ -1,13 +1,5 @@
-import { cancelAppointment, rescheduleAppointment } from '@/apis/appointment/appointment.api';
-import { RescheduleAppointmentModal } from '@/components/modals/reschedule-appointment-modal';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AppointmentStatus } from '@/enum/appointment-status.enum';
-import { TimeSlotDto } from '@/types/timeslot.dto';
-import { AlertCircle, Calendar, Clock, Stethoscope, User } from 'lucide-react';
-import React, { useState } from 'react';
-import { toast } from 'sonner';
+export * from "@/features/appointment/components/AppointmentCard";
+export { default } from "@/features/appointment/components/AppointmentCard";
 
 interface AppointmentCardProps {
   appointment: {

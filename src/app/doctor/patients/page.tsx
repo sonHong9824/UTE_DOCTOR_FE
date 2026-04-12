@@ -252,8 +252,7 @@ export default function PatientsPage() {
     const fetch = async () => {
       try {
         setApptLoading(true);
-        const doctorId = localStorage.getItem("doctorId") || "68ec9bbb97af2916bddd47fa";
-        const res = await getTodayAppointments(doctorId);
+        const res = await getTodayAppointments();
         const items = res?.data || [];
         if (String(res?.code) === "SUCCESS") setTodayAppointments(items);
         else setTodayAppointments([]);

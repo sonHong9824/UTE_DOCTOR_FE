@@ -96,19 +96,27 @@ class SocketClient {
 
   // ============= Public API =============
 
-  emit<T>(event: SocketEventsEnum, data: T) {
-    this.socket.emit(event, data);
+  emit<T>(event: SocketEventsEnum, data?: T) {
+    if (typeof data === 'undefined') {
+      this.socket.emit(event);
+    } else {
+      this.socket.emit(event, data);
+    }
     console.log(`[Socket] Emitted: ${event}`);
   }
   
-  async emitSafe<T>(event: SocketEventsEnum, data: T) {
+  async emitSafe<T>(event: SocketEventsEnum, data?: T) {
     if (!this.socket.connected) {
       console.warn(`[Socket] Waiting for connection before emitting ${event}`);
       await new Promise<void>((resolve) => {
         this.socket.once("connect", () => resolve());
       });
     }
-    this.socket.emit(event, data);
+    if (typeof data === 'undefined') {
+      this.socket.emit(event);
+    } else {
+      this.socket.emit(event, data);
+    }
     console.log(`[Socket] Emitted safely: ${event}`);
   }
 
@@ -132,13 +140,9 @@ class SocketClient {
     console.log(`[Socket] Removed listener: ${event}`);
   }
 
-  async joinRoom(email: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.socket.emit(SocketEventsEnum.JOIN_ROOM, { email }, () => {
-        console.log(`[Socket] Joined room: ${email}`);
-        resolve();
-      });
-    });
+  async joinRoom(): Promise<void> {
+    await this.emitSafe(SocketEventsEnum.JOIN_ROOM);
+    console.log('[Socket] JOIN_ROOM emitted');
   }
 
   // ===== Extra helpers for providers =====
@@ -165,7 +169,8 @@ class SocketClient {
 
 // ============= Exports =============
 
-const BASE_API = process.env.NEXT_PUBLIC_BASE_API || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_BASE_API || 'http://localhost:3001/api';
+const BASE_API = API_BASE.replace(/\/api\/?$/, '');
 
 export const socketClient = new SocketClient(BASE_API);
 export const authSocket = new SocketClient(BASE_API, "/auth");

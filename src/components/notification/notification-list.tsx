@@ -1,4 +1,5 @@
 import { Notification } from "@/types/notification.dto";
+import { formatApiDateToLocalTime } from "@/utils/time.util";
 import { AlertTriangle, Bell, Calendar, MessageSquare } from "lucide-react";
 
 interface Props {
@@ -45,7 +46,7 @@ export default function NotificationList({ notifications, onLoadMore, hasMore, o
             <div className="flex items-center justify-between w-full">
               <p className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-1">{noti.title}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {new Date(noti.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                {formatApiDateToLocalTime(noti.createdAt)}
               </p>
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">{noti.message}</p>

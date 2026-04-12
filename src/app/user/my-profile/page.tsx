@@ -1,56 +1,19 @@
-"use client";
-import { GetPatientProfile } from "@/apis/user/user.api";
+﻿"use client";
+
 import Sidebar from "@/components/layout/side-bar";
 import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
-import { ResponseCode as rc } from "@/enum/response-code.enum";
-import { SocketEventsEnum } from "@/enum/socket-events.enum";
-import { createPatientProfileSocket } from "@/services/socket/socket-client";
-import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
+import { usePatientProfile } from "@/features/user-profile/hooks/usePatientProfile";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
 
 const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<PatientProfileDto | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("general-health");
+  // UI-only page: delegates data/side-effects to view-model hook.
+  const { user, loading, activeTab, setActiveTab, patientId, email } = usePatientProfile();
 
-  useEffect(() => {
-    const email = localStorage.getItem("email") || "";
-    if (!email) return;
-
-  
-    const fetchUserProfile = async () => {
-      try {
-        const response = await GetPatientProfile();
-        // if (response?.code === rc.SUCCESS) setUser(response.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    const patientProfileSocket = createPatientProfileSocket(); // Use the existing socketClient for patient profile
-    
-    patientProfileSocket.once(SocketEventsEnum.ROOM_JOINED, (data) => {
-      console.log("✅ Room joined confirmed, now calling API");
-      fetchUserProfile(); // Bây giờ mới call API
-    });
-
-    // Listen patient profile
-    patientProfileSocket.on(SocketEventsEnum.PATIENT_PROFILE, (data: any) => {
-        console.log("Patient profile received:", data);
-        if (data.code === rc.SUCCESS) setUser(data.data);
-    });
-
-    patientProfileSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email }); // Join room first
-    console.log("Emitted join room for email:", email);
-  //   return () => {
-  //   socketClient.disconnect();
-  // };
-  }, []);
-
-  if (!user) return <p className="text-center mt-8">Loading...</p>;
+  if (loading) return <p className="text-center mt-8">Loading...</p>;
+  if (!user) return <p className="text-center mt-8">Không tìm thấy hồ sơ</p>;
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,7 +30,7 @@ export default function ProfilePage() {
       {/* Main content area with offsets for navbar + sidebar */}
       <main className="pt-24 pl-64">
         <div className="p-6">
-          <UserContent user={user} activeTab={activeTab} />
+          <UserContent user={user} activeTab={activeTab} patientId={patientId} email={email} />
         </div>
       </main>
 

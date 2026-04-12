@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import NotificationList from "./notification-list";
 
 interface Props {
-  email: string;
+  email?: string;
   pageSize?: number;
   buttonClassName?: string;
   iconClassName?: string;
@@ -54,13 +54,13 @@ export default function NotificationBell({
     const fetchInitial = async () => {
         try {
         // 1. fetch tổng số chưa đọc
-        const countRes = await getUnreadNotificationCount(email);
+        const countRes = await getUnreadNotificationCount();
         if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === 'number') {
             setUnreadCount(countRes.data);
         }
 
         // 2. fetch page đầu tiên
-        const notifRes = await getNotificationsByEmail(email, { page: 1, limit: pageSize });
+        const notifRes = await getNotificationsByEmail({ page: 1, limit: pageSize });
         if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
             setNotifications(notifRes.data.data);
             setHasMore(notifRes.data.data.length === pageSize);
@@ -72,20 +72,18 @@ export default function NotificationBell({
     };
 
     fetchInitial();
-    }, [email]);
+    }, [pageSize]);
 
   // subscribe to socket events for real-time bell updates
   useEffect(() => {
-    if (!email) return;
-
     const appointmentSocket = createAppointmentSocket();
     const paymentSocket = createPaymentVnPaySocket();
 
     const refreshBell = async () => {
       try {
         const [countRes, notifRes] = await Promise.all([
-          getUnreadNotificationCount(email),
-          getNotificationsByEmail(email, { page: 1, limit: pageSize }),
+          getUnreadNotificationCount(),
+          getNotificationsByEmail({ page: 1, limit: pageSize }),
         ]);
         if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === 'number') {
           setUnreadCount(countRes.data);
@@ -100,9 +98,9 @@ export default function NotificationBell({
       }
     };
 
-    // Join room by email on both namespaces
-    appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
-    paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
+    // Join room resolved from JWT payload
+    appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM);
+    paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM);
 
     // Reuse one handler for all booking-related events to keep the bell in sync
     const handleBookingUpdate = () => {
@@ -119,22 +117,20 @@ export default function NotificationBell({
     appointmentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
 
     // Some flows emit via payment namespace (e.g., VNPAY popup)
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.PAYMENT_UPDATE, handleBookingUpdate);
 
     // Cleanup on unmount
     return () => {
       appointmentSocket.disconnect();
       paymentSocket.disconnect();
     };
-  }, [email, pageSize]);
+  }, [pageSize]);
 
 
   const loadNotifications = async (pageToLoad: number, replace = false) => {
     try {
-      const res = await getNotificationsByEmail(email, { page: pageToLoad, limit: pageSize });
+      const res = await getNotificationsByEmail({ page: pageToLoad, limit: pageSize });
       if (res?.code === ResponseCode.SUCCESS && res.data?.data) {
         const newData = res.data.data;
         setNotifications((prev) => (replace ? newData : [...prev, ...newData]));

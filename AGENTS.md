@@ -97,6 +97,14 @@ Your primary goal is to:
 - At client (this project), always use local time.
 - When sending request, convert it to UTC.
 
+### Datetime Contract Enforcement (Frontend)
+
+- Use `src/utils/time.util.ts` as the single source of truth for request datetime handling.
+- Never manually construct datetime strings in API payload code paths.
+- Never send datetime values without timezone (no bare `YYYY-MM-DD`, no bare `HH:mm`, no timezone-less ISO).
+- Frontend is responsible for timezone correctness before sending requests.
+- Backend must not infer timezone from missing payload timezone data.
+
 ---
 
 ## Authentication System Rules
@@ -204,6 +212,7 @@ git submodule update --remote
 ### Notes:
 - The main repo does NOT auto-update submodule
 - Always ensure contract is up-to-date before coding
+- Before debugging or implementing Socket.IO flows, ALWAYS run `git submodule update --remote` and re-check the `## WebSocket (Socket.IO)` section in `api-contract/api.md`.
 
 ---
 
@@ -224,6 +233,62 @@ If API behavior changes:
 - Reuse existing utilities before creating new ones
 - Avoid duplication
 - Keep functions small and focused
+
+---
+
+## Feature Module Architecture Standard (MANDATORY)
+
+All new and refactored feature modules MUST follow this structure:
+
+```text
+src/features/<feature-name>/
+  components/   # Presentational UI only
+  hooks/        # View-model + orchestration logic
+  services/     # API communication only
+  types/        # Feature-local types and DTO contracts
+  utils/        # Pure helper functions/mappers/formatters
+  screens/      # Container components wiring hooks + UI
+```
+
+### Layer Responsibilities
+
+- `components/`
+  - MUST receive data and callbacks via props.
+  - MUST NOT call APIs directly.
+  - MUST NOT contain business workflows.
+
+- `hooks/`
+  - ARE the orchestration layer.
+  - Handle state, side effects, and workflow control.
+  - Call `services/` for data operations.
+
+- `services/`
+  - Handle API communication only.
+  - MUST NOT contain UI logic (toasts, dialogs, JSX concerns).
+
+- `types/`
+  - Centralize feature contracts to avoid duplicated inline types.
+
+- `utils/`
+  - Contain pure reusable logic only.
+
+- `screens/`
+  - Implement data flow: `screen -> hook -> service -> API`.
+  - Connect hooks and presentational components.
+
+### Naming Conventions
+
+- Hooks: `useXxx` (e.g., `useAppointmentBooking`)
+- Services: `xxxService` (e.g., `appointmentService`)
+- Screens: `XxxScreen` (e.g., `AppointmentBookingScreen`)
+- Types: `XxxDto`, `XxxModel`, `XxxPayload`, `XxxState`
+
+### Non-Negotiable Rules
+
+- No API calls inside components.
+- Business logic must not live in UI layer.
+- Feature modules must be self-contained and scalable.
+- Future code generation and refactors MUST follow this standard.
 
 ---
 

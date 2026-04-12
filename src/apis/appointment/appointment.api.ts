@@ -1,29 +1,34 @@
 import { TimeSlotStatusEnum } from "@/enum/timeslot-status.enum";
+import { AppointmentBookingPayload } from "@/features/appointment/types/appointment.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
+import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.util";
 
-export const bookAppointment = async(form: any) =>
-{
-    try {
-        const res = await axiosClient.post<DataResponse<any>>("/appointment/book", form);
-        return res.data;
-    }
-    catch (e)
-    {
-        console.error("Failed to book appointment: " + e);
-    }
-}
+export type BookAppointmentResponse = DataResponse<{
+  appointmentId?: string;
+  paymentUrl?: string;
+} | null>;
 
-export const getSpecialties = async (email: string) => {
+export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
-    const res = await axiosClient.get<DataResponse<{ _id: string, name: string }[]>>('/chuyenkhoa', {
-      params: { email } 
-    });
+    assertValidISO(form.appointmentDate);
+    const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to book appointment: " + e);
+    throw e;
+  }
+};
+
+export const getSpecialties = async () => {
+  try {
+    const res = await axiosClient.get<DataResponse<{ _id: string; name: string }[]>>("/chuyenkhoa");
     console.log('[Axios] Get specialty field data', res);
     return res.data;
   } catch (e) {
     console.error("Failed to fetch field data", e);
+    throw e;
   }
 };
 
@@ -37,19 +42,19 @@ export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword:
     }
     catch (e) {
         console.error("Failed to fetch doctors by specialty", e);
+        throw e;
     }
 
 };
 
-export const getTodayAppointments = async (doctorId: string) => {
+export const getTodayAppointments = async () => {
   try {
-    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/today", {
-      params: { doctorId }
-    });
+    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/today");
     console.log('[Axios] Get today appointments:', res.data);
     return res.data;
   } catch (e) {
     console.error("Failed to fetch today's appointments:", e);
+    throw e;
   }
 };
 
@@ -80,8 +85,9 @@ export const completeAppointment = async (data: {
 export const getTimeSlotsByDoctorAndDate = async (params: { doctorId: string; date: string; status?: TimeSlotStatusEnum }) => {
   try {
     const status = params.status ?? TimeSlotStatusEnum.AVAILABLE; // default = 'available'
+    const encodedDate = encodeURIComponent(params.date);
     const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
-      `/doctors/doctor/${params.doctorId}/date/${params.date}`,
+      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`,
       {
         params: { status },
       }
@@ -101,6 +107,7 @@ export const getAppointmentById = async (id: string) => {
     return res.data;
   } catch (e) {
     console.error("Failed to fetch appointment by id:", e);
+    throw e;
   }
 };
 
@@ -126,6 +133,7 @@ export const getAppointments = async (
     return res.data;
   } catch (e) {
     console.error("Failed to fetch appointments:", e);
+    throw e;
   }
 };
 
@@ -137,7 +145,15 @@ export const rescheduleAppointment = async (data: {
   reason?: string;
 }) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", data);
+    const normalizedNewDate = ensureHasTimezone(data.newDate)
+      ? data.newDate
+      : buildZonedISO(data.newDate, "00:00");
+    assertValidISO(normalizedNewDate);
+
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
+      ...data,
+      newDate: normalizedNewDate,
+    });
     console.log("[Axios] Reschedule appointment:", res.data);
     return res.data;
   } catch (e) {
@@ -160,7 +176,6 @@ export const cancelAppointment = async (appointmentId: string) => {
 };
 
 export const getCompletedAppointmentsByDoctor = async (params: {
-  doctorId: string;
   page?: number;
   limit?: number;
   keyword?: string;
@@ -177,7 +192,7 @@ export const getCompletedAppointmentsByDoctor = async (params: {
           totalPages: number;
         };
       }>
-    >(`/appointment/completed/doctor/${params.doctorId}`, {
+    >(`/appointment/completed/doctor`, {
       params: {
         page: params.page ?? 1,
         limit: params.limit ?? 10,

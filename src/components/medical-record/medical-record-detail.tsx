@@ -11,13 +11,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AppointmentStatus from "@/enum/appointment-status.enum";
+import AppointmentsList from "@/features/appointment/components/AppointmentsList";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
-import AppointmentsList from "../appointments/appointments-list";
 
 
 // Custom TabsTrigger styled

@@ -1,10 +1,10 @@
 "use client";
 
-import { register } from "@/apis/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResponseCode } from "@/enum/response-code.enum";
+import { register } from "@/features/auth/services/auth.api";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

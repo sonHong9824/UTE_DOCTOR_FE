@@ -1,19 +1,16 @@
 "use client";
 
-import { UpdateUserProfile, UpdateUserProfileWithFile } from "@/apis/user/user.api";
 import EditUserInfoModal from "@/components/cards/edit-user-info-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AccountStatusEnum } from "@/enum/account-status.enum";
 import { GenderEnum } from "@/enum/gender.enum";
+import { useUserInfoCard } from "@/features/user-profile/hooks/useUserInfoCard";
 import { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import { Coins } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { JSX, useEffect, useState } from "react";
+import { useState } from "react";
 import { FaEdit } from "react-icons/fa";
 import { Skeleton } from "../ui";
-import { getWalletBalance } from "@/apis/wallet/wallet.api";
-
 interface UserInfoCardProps {
   user: AccountProfileDTO;
   onUserUpdated?: (updatedUser: AccountProfileDTO) => void;
@@ -26,52 +23,8 @@ interface Field {
 }
 
 export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps) {
-  const router = useRouter();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [coinBalance, setCoinBalance] = useState<number | null>(null);
-  const [loadingCoin, setLoadingCoin] = useState(true);
-
-  // Fetch coin balance on mount
-  useEffect(() => {
-    const fetchCoinBalance = async () => {
-      try {
-        const response = await getWalletBalance();
-        console.log("Wallet balance response:", response);
-        if (response?.data?.balance !== undefined) {
-          setCoinBalance(response.data.balance);
-        }
-      } catch (err) {
-        console.error("Failed to fetch coin balance:", err);
-      } finally {
-        setLoadingCoin(false);
-      }
-    };
-
-    fetchCoinBalance();
-  }, []);
-
-  const handleSaveUserInfo = async (updatedData: Partial<AccountProfileDTO>, avatarFile?: File) => {
-    try {
-      let response = null;
-      if (avatarFile) {
-        response = await UpdateUserProfileWithFile(updatedData, avatarFile);
-      } else {
-        response = await UpdateUserProfile(updatedData);
-      }
-      if (response?.data) {
-        onUserUpdated?.(response.data);
-        window.location.reload();
-        try {
-          router.refresh();
-        } catch (e) {
-          window.location.reload();
-        }
-      }
-    } catch (error) {
-      console.error("Error updating user info:", error);
-      throw error;
-    }
-  };
+  const { coinBalance, loadingCoin, handleSaveUserInfo } = useUserInfoCard(onUserUpdated);
   const fieldsBlock1: Field[] = [
     { label: "Tên", value: user.name || "Unknown" },
     { label: "Giới tính", value: user.gender || GenderEnum.OTHER },
@@ -187,3 +140,6 @@ export default function UserInfoCard({ user, onUserUpdated }: UserInfoCardProps)
     </>
   );
 }
+
+
+
