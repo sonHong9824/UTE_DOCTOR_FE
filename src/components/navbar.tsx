@@ -1,0 +1,108 @@
+"use client";
+
+
+import { ModeToggle } from "@/components/mode-toggle";
+import { Notification } from "@/types/notification.dto";
+import { Menu, User } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import NotificationBell from "./notification/notification-bell";
+import { useRouter } from "next/navigation";
+
+
+const Navbar = () => {
+  const [email, setEmail] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const router = useRouter();
+  
+  useEffect(() => {
+    const storeEmail = localStorage.getItem("email");
+    if (storeEmail) {
+      setEmail(storeEmail);
+        // getNotificationsByEmail(storeEmail, { page: 1, limit: 10 })
+        // .then((res) => {
+        //   if (res?.code === ResponseCode.SUCCESS && res.data?.data) {
+        //     setNotifications(res.data.data); // mảng notifications
+        //   }
+        // })
+        // .catch((err) => console.error("Failed to load notifications", err));
+    }
+  }, []);
+
+  return (
+    <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md sticky top-0">
+      <div className="max-w-screen-2xl h-full mx-auto px-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">
+            <Link href="/" className="hover:opacity-80 transition-opacity">
+              <span className="text-blue-600 dark:text-blue-400">Doctor+</span>
+            </Link>
+          </h1>
+        
+        <ul className="hidden lg:flex items-center gap-8 uppercase text-sm font-semibold text-foreground">
+          <li className="navbarLi">
+            <Link href="/gioi-thieu">GIỚI THIỆU</Link>
+          </li>
+          <li className="navbarLi">
+            <Link href="/chuyen-khoa">CHUYÊN KHOA</Link>
+          </li>
+          <li className="navbarLi">
+            <Link href="/chuyen-gia">CHUYÊN GIA - BÁC SĨ</Link>
+          </li>
+          <li className="navbarLi">
+            <Link href="/tin-tuc">TIN TỨC</Link>
+          </li>
+
+        </ul>
+        
+        <div className="hidden lg:flex gap-6 items-center">
+          <ModeToggle />
+          {email ? (
+            <div className="flex items-center gap-4">
+              <span className="font-semibold">
+                Xin chào, {email ? email.slice(0, 2).toUpperCase() : ""}
+              </span>
+              <Link href="/user/my-profile" aria-label="Hồ sơ bệnh nhân" className="text-foreground hover:text-blue-600 transition">
+                <User className="w-5 h-5" />
+              </Link>
+              <NotificationBell email={email} />
+              <button
+                onClick={() => {
+                  localStorage.removeItem("email");
+                  setEmail(null);
+                  router.push('/');
+                }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-500 text-red-500 hover:bg-red-100 transition"
+              >
+                Đăng xuất
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/register"
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition"
+              >
+                Đăng ký
+              </Link>
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-primary text-primary hover:bg-primary/10 transition"
+              >
+                Đăng nhập
+              </Link>
+            </>
+          )}
+          <button className="px-6 py-3 text-sm font-semibold rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/90 transition">
+            Đăng ký khám
+          </button>
+        </div>
+        
+        <div className="lg:hidden text-foreground">
+          <Menu className="w-7 h-7 cursor-pointer" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Navbar;

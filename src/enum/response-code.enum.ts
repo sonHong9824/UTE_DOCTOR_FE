@@ -1,0 +1,8 @@
+export enum ResponseCode
+{
+    USER_NOT_FOUND = "USER_NOT_FOUND",
+    SUCCESS = "SUCCESS",
+    INVALID_TOKEN = "INVALID_TOKEN",
+    SERVER_ERROR = "SERVER_ERROR",
+    ERROR = "ERROR"
+}
