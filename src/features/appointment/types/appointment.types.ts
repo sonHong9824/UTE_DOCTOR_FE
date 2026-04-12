@@ -23,7 +23,7 @@ export type SpecialtyOption = {
 export type AppointmentBookingFormValues = {
   hospitalName: string;
   specialty: string | null;
-  date: string;
+  appointmentDate: string;
   timeSlotId: string;
   doctor: DoctorPayload | null;
   serviceType: string;
@@ -34,7 +34,9 @@ export type AppointmentBookingFormValues = {
   coinsToUse?: number
 };
 
-export type AppointmentBookingPayload = AppointmentBookingFormValues;
+export type AppointmentBookingPayload = AppointmentBookingFormValues & {
+  bookingDate?: string;
+};
 
 export type BookingLifecycleState =
   | "IDLE"

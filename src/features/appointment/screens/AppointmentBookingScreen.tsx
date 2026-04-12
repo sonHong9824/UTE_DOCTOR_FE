@@ -151,7 +151,7 @@ export default function AppointmentBookingScreen() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
-                    value={formData.date ? TimeHelper.toSafeDate(formData.date) ?? undefined : undefined}
+                    value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
                     onChange={(date) => handleDateChange(date ?? null)}
                     limitDays={30}
                   />

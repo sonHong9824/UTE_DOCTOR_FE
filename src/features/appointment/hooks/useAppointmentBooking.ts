@@ -19,7 +19,7 @@ const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 6 * 60 * 1000;
 
 const initialForm = (): AppointmentBookingFormValues => ({
-  date: getTodayLocalDate(),
+  appointmentDate: getTodayLocalDate(),
   hospitalName: "Bệnh viện Đa khoa",
   specialty: "",
   timeSlotId: "",
@@ -172,7 +172,7 @@ export const useAppointmentBooking = () => {
 
   const fetchTimeSlots = async (doctorId?: string, date?: string, currentTimeSlotId?: string) => {
     try {
-      const selectedDate = date || formData.date;
+      const selectedDate = date || formData.appointmentDate;
 
       const slots = doctorId
         ? await appointmentService.getTimeSlotsByDoctorAndDate({ doctorId, date: selectedDate })
@@ -242,7 +242,7 @@ export const useAppointmentBooking = () => {
       timeSlotId: "",
     }));
 
-    await fetchTimeSlots(doc.id, formData.date, "");
+    await fetchTimeSlots(doc.id, formData.appointmentDate, "");
   };
 
   const handleDoctorBlur = () => {
@@ -258,7 +258,7 @@ export const useAppointmentBooking = () => {
 
     setFormData((prev) => ({
       ...prev,
-      date: localDate,
+      appointmentDate: localDate,
       ...(prev.doctor ? { timeSlotId: "" } : {}),
     }));
 
@@ -285,12 +285,18 @@ export const useAppointmentBooking = () => {
       return;
     }
 
+    const appointmentDateTime = buildZonedISO(formData.appointmentDate, selectedSlot.start);
     const bookingDate = toLocalDateInput(new Date());
     const bookingTime = getCurrentLocalTimeHHmm();
     const bookingDateTime = buildZonedISO(bookingDate, bookingTime);
+    assertValidISO(appointmentDateTime);
     assertValidISO(bookingDateTime);
 
-    const payload = { ...formData, date: bookingDateTime };
+    const payload = {
+      ...formData,
+      appointmentDate: appointmentDateTime,
+      bookingDate: bookingDateTime,
+    };
 
     try {
       const res = await appointmentService.book(payload);

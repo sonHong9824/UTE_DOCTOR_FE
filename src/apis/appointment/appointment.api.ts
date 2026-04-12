@@ -12,7 +12,7 @@ export type BookAppointmentResponse = DataResponse<{
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
-    assertValidISO(form.date);
+    assertValidISO(form.appointmentDate);
     const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
     return res.data;
   } catch (e) {
