@@ -1,10 +1,10 @@
 
 import AppointmentForm from "@/features/appointment/components/AppointmentForm";
+import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
 import WalletScreen from "@/features/wallet/screens/WalletScreen";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import UserInfoCard from "../cards/user-info-card";
 import ChangePasswordForm from "../forms/account/change-password-form";
-import MedicalRecordDetail from "../medical-record/medical-record-detail";
 import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
 
@@ -46,7 +46,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
         </Card>
       )}
 
-      {activeTab === "medical-detail" && <MedicalRecordDetail user={user} />}
+      {activeTab === "medical-detail" && <MedicalRecordDetailScreen user={user} />}
       {activeTab === "appointments" && <AppointmentForm />}
       {activeTab === "wallet" && (
         <WalletScreen />

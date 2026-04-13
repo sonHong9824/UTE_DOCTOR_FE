@@ -1,7 +1,6 @@
 "use client";
 import { completeAppointment, getTodayAppointments } from "@/apis/appointment/appointment.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
-import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
 import { cn } from "@/lib/utils";
 import { Calendar, CheckCircle2, FileText, Plus, UserRound, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -747,7 +747,7 @@ export default function PatientsPage() {
           </DialogHeader>
           <div>
             {selectedMedicalRecord ? (
-              <MedicalRecordDetail medicalRecord={selectedMedicalRecord} />
+              <MedicalRecordDetailScreen medicalRecord={selectedMedicalRecord} />
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">Không có hồ sơ</div>
             )}
