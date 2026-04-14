@@ -59,6 +59,7 @@ axiosClient.interceptors.response.use(
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            window.dispatchEvent(new Event("auth-logout"));
             window.location.href = "/login";
           }
           return Promise.reject(error);
@@ -103,6 +104,12 @@ axiosClient.interceptors.response.use(
             axiosClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
+            // Notify all sockets to reconnect with new token
+            if (typeof window !== 'undefined') {
+              const event = new Event('token-refreshed');
+              window.dispatchEvent(event);
+            }
+
             processQueue(null, newAccessToken);
             return axiosClient(originalRequest);
           }
@@ -113,6 +120,7 @@ axiosClient.interceptors.response.use(
           if (typeof window !== "undefined") {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            window.dispatchEvent(new Event("auth-logout"));
             alert("Session hết hạn, vui lòng đăng nhập lại.");
             window.location.replace("/login");
           }
@@ -139,3 +147,4 @@ axiosClient.interceptors.response.use(
 );
 
 export default axiosClient;
+

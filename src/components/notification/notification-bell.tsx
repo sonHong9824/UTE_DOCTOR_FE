@@ -11,11 +11,20 @@ import { createPortal } from "react-dom";
 import NotificationList from "./notification-list";
 
 interface Props {
-  email: string;
+  email?: string;
   pageSize?: number;
+  buttonClassName?: string;
+  iconClassName?: string;
+  badgeClassName?: string;
 }
 
-export default function NotificationBell({ email, pageSize = 10 }: Props) {
+export default function NotificationBell({
+  email,
+  pageSize = 10,
+  buttonClassName,
+  iconClassName,
+  badgeClassName,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [page, setPage] = useState(1);
@@ -45,13 +54,13 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     const fetchInitial = async () => {
         try {
         // 1. fetch tổng số chưa đọc
-        const countRes = await getUnreadNotificationCount(email);
+        const countRes = await getUnreadNotificationCount();
         if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === 'number') {
             setUnreadCount(countRes.data);
         }
 
         // 2. fetch page đầu tiên
-        const notifRes = await getNotificationsByEmail(email, { page: 1, limit: pageSize });
+        const notifRes = await getNotificationsByEmail({ page: 1, limit: pageSize });
         if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
             setNotifications(notifRes.data.data);
             setHasMore(notifRes.data.data.length === pageSize);
@@ -63,20 +72,18 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     };
 
     fetchInitial();
-    }, [email]);
+    }, [pageSize]);
 
   // subscribe to socket events for real-time bell updates
   useEffect(() => {
-    if (!email) return;
-
     const appointmentSocket = createAppointmentSocket();
     const paymentSocket = createPaymentVnPaySocket();
 
     const refreshBell = async () => {
       try {
         const [countRes, notifRes] = await Promise.all([
-          getUnreadNotificationCount(email),
-          getNotificationsByEmail(email, { page: 1, limit: pageSize }),
+          getUnreadNotificationCount(),
+          getNotificationsByEmail({ page: 1, limit: pageSize }),
         ]);
         if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === 'number') {
           setUnreadCount(countRes.data);
@@ -91,31 +98,39 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
       }
     };
 
-    // Join room by email on both namespaces
-    appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
-    paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
+    // Join room resolved from JWT payload
+    appointmentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM);
+    paymentSocket.emitSafe(SocketEventsEnum.JOIN_ROOM);
+
+    // Reuse one handler for all booking-related events to keep the bell in sync
+    const handleBookingUpdate = () => {
+      refreshBell();
+    };
 
     // When doctor cancels a shift
-    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, () => {
-      refreshBell();
-    });
+    appointmentSocket.on(SocketEventsEnum.SHIFT_CANCELLED, handleBookingUpdate);
 
-    // When booking succeeds (via VnPay flow)
-    paymentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, () => {
-      refreshBell();
-    });
+    // Booking lifecycle events (match booking form listeners)
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_SUCCESS, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_PENDING, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_BOOKING_FAILED, handleBookingUpdate);
+    appointmentSocket.on(SocketEventsEnum.APPOINTMENT_CANCELLED, handleBookingUpdate);
+
+    // Some flows emit via payment namespace (e.g., VNPAY popup)
+    paymentSocket.on(SocketEventsEnum.PAYMENT_VNPAY_URL_CREATED, handleBookingUpdate);
+    paymentSocket.on(SocketEventsEnum.PAYMENT_UPDATE, handleBookingUpdate);
 
     // Cleanup on unmount
     return () => {
       appointmentSocket.disconnect();
       paymentSocket.disconnect();
     };
-  }, [email, pageSize]);
+  }, [pageSize]);
 
 
   const loadNotifications = async (pageToLoad: number, replace = false) => {
     try {
-      const res = await getNotificationsByEmail(email, { page: pageToLoad, limit: pageSize });
+      const res = await getNotificationsByEmail({ page: pageToLoad, limit: pageSize });
       if (res?.code === ResponseCode.SUCCESS && res.data?.data) {
         const newData = res.data.data;
         setNotifications((prev) => (replace ? newData : [...prev, ...newData]));
@@ -150,6 +165,11 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
 
 
   // portal dropdown + overlay
+  const rect = bellRef.current?.getBoundingClientRect();
+  const dropdownTop = (rect?.bottom ?? 0) + window.scrollY;
+  const dropdownWidth = 320; // w-80 → 20rem → 320px
+  const dropdownLeft = Math.max(8, (rect?.right ?? 0) + window.scrollX - dropdownWidth);
+
   const dropdownElement = open ? (
     createPortal(
       <>
@@ -162,8 +182,8 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
         <div
           className="absolute z-50 w-80 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 p-3 max-h-80 overflow-y-auto animate-fadeIn"
          style={{
-            top: (bellRef.current?.getBoundingClientRect().bottom ?? 0) + window.scrollY,
-            left: (bellRef.current?.getBoundingClientRect().left ?? 0) + window.scrollX,
+            top: dropdownTop,
+            left: dropdownLeft,
             }}
         >
           <NotificationList
@@ -197,16 +217,26 @@ export default function NotificationBell({ email, pageSize = 10 }: Props) {
     )
   ) : null;
 
+  const mergedButtonClass = buttonClassName
+    ? buttonClassName
+    : "relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800";
+  const mergedIconClass = iconClassName
+    ? iconClassName
+    : "w-6 h-6 text-gray-700 dark:text-gray-300";
+  const mergedBadgeClass = badgeClassName
+    ? badgeClassName
+    : "absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center";
+
   return (
     <>
       <button
         ref={bellRef}
         onClick={() => setOpen((prev) => !prev)}
-        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+        className={mergedButtonClass}
       >
-        <Bell className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+        <Bell className={mergedIconClass} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className={mergedBadgeClass}>
             {unreadCount}
           </span>
         )}

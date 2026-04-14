@@ -1,20 +1,20 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import { Search, ChevronDown, MoreHorizontal, CheckCircle2, Plus, Users, ArrowUpDown, Filter, FileText, UserRound, Calendar, Activity } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { getTodayAppointments, completeAppointment } from "@/apis/appointment/appointment.api";
-import { toast } from "sonner";
+import { completeAppointment, getTodayAppointments } from "@/apis/appointment/appointment.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
+import { cn } from "@/lib/utils";
+import { formatApiDateToLocalTime, parseApiDateTimeToLocal } from "@/utils/time.util";
+import { Calendar, CheckCircle2, FileText, Plus, UserRound, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 type Patient = {
   id: string;
@@ -46,6 +46,41 @@ const formatDateLocal = (d: Date) => {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatLastVisitDate = (value?: string | number | Date) => {
+  const parsed = value !== undefined ? parseApiDateTimeToLocal(value) : null;
+  return formatDateLocal(parsed ?? new Date());
+};
+
+const formatDateDisplay = (value?: string | number | Date | null) => {
+  if (value === undefined || value === null) return "-";
+  const parsed = parseApiDateTimeToLocal(value);
+  return parsed ? parsed.toLocaleDateString("vi-VN") : "-";
+};
+
+const formatTimeValue = (value?: string | number | null) => {
+  if (value === undefined || value === null) return "--:--";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "--:--";
+
+    // Preserve backend HH:mm format while normalizing single-digit hour.
+    const hhmmMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmmMatch) {
+      return `${hhmmMatch[1].padStart(2, "0")}:${hhmmMatch[2]}`;
+    }
+  }
+
+  const formatted = formatApiDateToLocalTime(value);
+  return formatted || "--:--";
+};
+
+const formatTimeRange = (startTime?: string | number | null, endTime?: string | number | null) => {
+  const start = formatTimeValue(startTime);
+  const end = formatTimeValue(endTime);
+  if (start === "--:--" && end === "--:--") return undefined;
+  return `${start} - ${end}`;
 };
 
 const formatPatientId = (id?: string | null) => {
@@ -96,10 +131,10 @@ export default function PatientsPage() {
             name: p.name || "Bệnh nhân",
             age: p.age || 0,
             gender: p.gender || "Nam",
-            lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+            lastVisit: formatLastVisitDate(a?.date),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: "pending",
-            avatar: p.avatar || undefined,
+            avatar: p.profileId?.avatarUrl || undefined,
           } as Patient;
         });
 
@@ -150,7 +185,7 @@ export default function PatientsPage() {
         const med = a.patient?.medicalRecord || prof?.medicalRecord || undefined;
         return ({
           rowId: a._id,
-          time: a.startTime && a.endTime ? `${a.startTime} - ${a.endTime}` : undefined,
+          time: formatTimeRange(a.startTime, a.endTime),
           patientId: a.patient?._id || a.patient?.id || (prof && prof._id) || `APPT_${a._id}`,
           patientName: prof?.name || a.patient?.name || "Bệnh nhân",
           patientPhone: prof?.phone || a.patient?.phone,
@@ -163,10 +198,10 @@ export default function PatientsPage() {
             name: prof?.name || a.patient?.name || "Bệnh nhân",
             age: a.patient?.age || 0,
             gender: a.patient?.gender || "Nam",
-            lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+            lastVisit: formatLastVisitDate(a?.date),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-            avatar: a.patient?.avatar || undefined,
+            avatar: a.patient?.profileId?.avatarUrl || undefined,
           },
         } as PendingRow);
       });
@@ -253,8 +288,7 @@ export default function PatientsPage() {
     const fetch = async () => {
       try {
         setApptLoading(true);
-        const doctorId = localStorage.getItem("doctorId") || "68ec9bbb97af2916bddd47fa";
-        const res = await getTodayAppointments(doctorId);
+        const res = await getTodayAppointments();
         const items = res?.data || [];
         if (String(res?.code) === "SUCCESS") setTodayAppointments(items);
         else setTodayAppointments([]);
@@ -270,10 +304,10 @@ export default function PatientsPage() {
                 name: p.name || "Bệnh nhân",
                 age: p.age || 0,
                 gender: p.gender || "Nam",
-                lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+                lastVisit: formatLastVisitDate(a?.date),
                 condition: a?.reasonForAppointment || a?.serviceType || "",
                 status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-                avatar: p.avatar || undefined,
+                avatar: p.profileId?.avatarUrl || undefined,
               } as Patient;
             });
 
@@ -330,8 +364,8 @@ export default function PatientsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Quản lý bệnh nhân</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Theo dõi và quản lý thông tin bệnh nhân</p>
+          {/* <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Quản lý bệnh nhân</h1> */}
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Theo dõi và thăm khám bệnh nhân</p>
         </div>
         {/* <div className="flex items-center gap-3">
           <DropdownMenu>
@@ -502,8 +536,8 @@ export default function PatientsPage() {
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Họ tên</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Tuổi</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Giới tính</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Ngày khám</th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Chẩn đoán</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Hành động</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -530,11 +564,6 @@ export default function PatientsPage() {
                           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800">
                             {p.condition}
                           </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
-                            <FileText className="h-4 w-4" />
-                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -710,14 +739,27 @@ export default function PatientsPage() {
                 if (apptId) {
                   try {
                     const payload = { appointmentId: apptId, diagnosis, note: notes, prescriptions };
-                    console.log('Completing appointment payload:', payload);
-                    await completeAppointment(payload);
+                    console.log('=== Completing appointment ===');
+                    console.log('Payload:', JSON.stringify(payload, null, 2));
+                    console.log('Prescriptions count:', prescriptions.length);
+                    console.log('Med list:', medList);
+                    
+                    const response = await completeAppointment(payload);
+                    console.log('Complete appointment response:', response);
+                    
+                    toast.success('Hoàn thành khám bệnh thành công');
+                    setOpen(false);
+                    setMedList([]);
+                    setDiagnosis('');
+                    setNotes('');
+                    
                     // local updates
                     const todayStr = formatDateLocal(new Date());
                     setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: todayStr } : p)));
                     setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
                   } catch (e) {
                     console.error('Failed completing appointment', e);
+                    console.error('Error details:', (e as any)?.response?.data);
                     const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi hoàn thành lịch hẹn';
                     toast.error(msg);
                   }
@@ -741,7 +783,7 @@ export default function PatientsPage() {
           </DialogHeader>
           <div>
             {selectedMedicalRecord ? (
-              <MedicalRecordDetail medicalRecord={selectedMedicalRecord} />
+              <MedicalRecordDetailScreen medicalRecord={selectedMedicalRecord} />
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">Không có hồ sơ</div>
             )}
@@ -765,7 +807,7 @@ export default function PatientsPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={selectedAppt.patient?.profileId?.avatar || selectedAppt.patient?.avatar} alt={selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name} />
+                      <AvatarImage src={selectedAppt.patient?.profileId?.avatarUrl} alt={selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name} />
                       <AvatarFallback>{((selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name) || "B").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div>
@@ -793,7 +835,7 @@ export default function PatientsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Ngày sinh</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.dob ? new Date(selectedAppt.patient.profileId.dob).toLocaleDateString('vi-VN') : '-'}</span>
+                      <span className="font-medium">{formatDateDisplay(selectedAppt.patient?.profileId?.dob)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Chiều cao</span>
@@ -819,7 +861,7 @@ export default function PatientsPage() {
                       <div>
                         <div className="text-sm text-muted-foreground">Lịch hẹn</div>
                         <h4 className="text-lg font-semibold mt-1 text-gray-900 dark:text-white">{selectedAppt.label ?? selectedAppt.serviceType ?? 'Lịch hẹn khám'}</h4>
-                        <div className="text-sm text-muted-foreground mt-1">{selectedAppt.date ? new Date(selectedAppt.date).toLocaleDateString('vi-VN') : '-'} • {selectedAppt.startTime ?? '-'} - {selectedAppt.endTime ?? '-'}</div>
+                        <div className="text-sm text-muted-foreground mt-1">{formatDateDisplay(selectedAppt.date)} • {formatTimeValue(selectedAppt.startTime)} - {formatTimeValue(selectedAppt.endTime)}</div>
                       </div>
                       <div className="flex items-center gap-3">
                         <Badge className={cn('px-3 py-1 rounded-full text-sm', selectedAppt.appointmentStatus === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>

@@ -1,12 +1,5 @@
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { TimeSlotDto } from '@/types/timeslot.dto';
-import { AlertCircle, CheckCircle } from 'lucide-react';
-import React, { useState } from 'react';
+export * from "@/features/appointment/components/RescheduleAppointmentModal";
+export { default } from "@/features/appointment/components/RescheduleAppointmentModal";
 
 interface RescheduleAppointmentModalProps {
     isOpen: boolean;

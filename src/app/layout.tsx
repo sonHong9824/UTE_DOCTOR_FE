@@ -1,4 +1,5 @@
 import { ThemeProvider } from "@/components/theme-provider";
+import { ChatSocketProvider } from "@/contexts/ChatSocketContext";
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
@@ -31,7 +32,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <ChatSocketProvider>
+            {children}
+          </ChatSocketProvider>
         </ThemeProvider>
       </body>
     </html>

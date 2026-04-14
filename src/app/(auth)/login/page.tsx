@@ -1,4 +1,4 @@
-import LoginForm from "@/app/(auth)/login/login-form";
+import LoginForm from "@/features/auth/components/LoginForm";
 
 export default function Login() {
   return (
@@ -83,13 +83,13 @@ export default function Login() {
               {/* Feature pills */}
               <div className="flex flex-wrap justify-center gap-3">
                 <div className="px-5 py-2.5 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
-                  ⚡ Nhanh chóng
+                  Nhanh chóng
                 </div>
                 <div className="px-5 py-2.5 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
-                  🔒 Bảo mật
+                  Bảo mật
                 </div>
                 <div className="px-5 py-2.5 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
-                  📱 Tiện lợi
+                  Tiện lợi
                 </div>
               </div>
 

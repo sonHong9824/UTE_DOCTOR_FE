@@ -63,7 +63,7 @@ export interface CreatePrescriptionPdfDto {
   diagnosis: string;
   prescriptions: PrescriptionItemDto[];
   note?: string;
-  dateRecord: Date;
+  dateRecord: string;
   patientName?: string;
   patientAge?: number;
   doctorName?: string;

@@ -1,4 +1,1 @@
-export interface RegisterResponse
-{
-    
-}
+export type RegisterResponse = null;

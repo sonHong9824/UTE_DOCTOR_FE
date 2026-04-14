@@ -1,5 +1,6 @@
 import axiosClient from "@/lib/axiosClient";
 import { ShiftResponseDto } from "@/types/shift.dto";
+import { assertValidISO } from "@/utils/time.util";
 
 
 export const getShiftsByDoctorMonth = async (
@@ -25,17 +26,22 @@ export const deleteShiftById = async (shiftId: string): Promise<{ code: number; 
 };
 
 export interface RegisterShiftDto {
-  doctorId: string;
-  date: string; // YYYY-MM-DD
+  startTime: string;
+  endTime: string;
+  legacyAllowMissingTimezone?: boolean;
   shift: "morning" | "afternoon" | "extra";
 }
 
 export const registerShift = async (
   data: RegisterShiftDto
 ): Promise<{ code: number; message: string }> => {
-  console.log("Sending shift register request:", data);
+  assertValidISO(data.startTime);
+  assertValidISO(data.endTime);
+  const payload = { ...data };
 
-  const res = await axiosClient.post(`/shift/register`, data);
+  console.log("Sending shift register request:", payload);
+
+  const res = await axiosClient.post(`/shift/register`, payload);
 
   console.log("Received response:", res.data);
 

@@ -1,29 +1,37 @@
 import { TimeSlotStatusEnum } from "@/enum/timeslot-status.enum";
+import { AppointmentBookingPayload } from "@/features/appointment/types/appointment.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
+import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.util";
 
-export const bookAppointment = async(form: any) =>
-{
-    try {
-        const res = await axiosClient.post<DataResponse<any>>("/appointment/book", form);
-        return res.data;
-    }
-    catch (e)
-    {
-        console.error("Failed to book appointment: " + e);
-    }
-}
+export type BookAppointmentResponse = DataResponse<{
+  appointmentId?: string;
+  paymentUrl?: string;
+  originalAmount?: number;
+  discountAmount?: number;
+  finalAmount?: number;
+} | null>;
 
-export const getSpecialties = async (email: string) => {
+export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
-    const res = await axiosClient.get<DataResponse<{ _id: string, name: string }[]>>('/chuyenkhoa', {
-      params: { email } 
-    });
+    assertValidISO(form.appointmentDate);
+    const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to book appointment: " + e);
+    throw e;
+  }
+};
+
+export const getSpecialties = async () => {
+  try {
+    const res = await axiosClient.get<DataResponse<{ _id: string; name: string }[]>>("/chuyenkhoa");
     console.log('[Axios] Get specialty field data', res);
     return res.data;
   } catch (e) {
     console.error("Failed to fetch field data", e);
+    throw e;
   }
 };
 
@@ -37,19 +45,19 @@ export const getDoctorBySpecialty = async(params: {specialtyId: string, keyword:
     }
     catch (e) {
         console.error("Failed to fetch doctors by specialty", e);
+        throw e;
     }
 
 };
 
-export const getTodayAppointments = async (doctorId: string) => {
+export const getTodayAppointments = async () => {
   try {
-    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/today", {
-      params: { doctorId }
-    });
+    const res = await axiosClient.get<DataResponse<any[]>>("/appointment/today");
     console.log('[Axios] Get today appointments:', res.data);
     return res.data;
   } catch (e) {
     console.error("Failed to fetch today's appointments:", e);
+    throw e;
   }
 };
 
@@ -80,8 +88,9 @@ export const completeAppointment = async (data: {
 export const getTimeSlotsByDoctorAndDate = async (params: { doctorId: string; date: string; status?: TimeSlotStatusEnum }) => {
   try {
     const status = params.status ?? TimeSlotStatusEnum.AVAILABLE; // default = 'available'
+    const encodedDate = encodeURIComponent(params.date);
     const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
-      `/doctors/doctor/${params.doctorId}/date/${params.date}`,
+      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`,
       {
         params: { status },
       }
@@ -101,6 +110,7 @@ export const getAppointmentById = async (id: string) => {
     return res.data;
   } catch (e) {
     console.error("Failed to fetch appointment by id:", e);
+    throw e;
   }
 };
 
@@ -120,12 +130,75 @@ export const getAppointments = async (
         page,
         limit
       }
-    });
+      });
 
     console.log("[Axios] Get appointments:", res.data);
     return res.data;
   } catch (e) {
     console.error("Failed to fetch appointments:", e);
+    throw e;
+  }
+};
+
+export type RescheduleV2Payload = {
+  appointmentDate: string;
+  timeSlotId: string;
+};
+
+export const getAppointmentDetailForReschedule = async (id: string) => {
+  try {
+    const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
+    return res.data;
+  } catch {
+    const res = await axiosClient.get<DataResponse<any>>(`/appointments/${id}`);
+    return res.data;
+  }
+};
+
+export const getAvailableTimeSlotsForReschedule = async (params: {
+  doctorId: string;
+  date: string;
+}) => {
+  try {
+    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>("/time-slots", {
+      params,
+    });
+    return res.data;
+  } catch {
+    const encodedDate = encodeURIComponent(params.date);
+    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
+      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`
+    );
+    return res.data;
+  }
+};
+
+export const rescheduleAppointmentById = async (
+  appointmentId: string,
+  payload: RescheduleV2Payload
+) => {
+  const normalizedDate = ensureHasTimezone(payload.appointmentDate)
+    ? payload.appointmentDate
+    : buildZonedISO(payload.appointmentDate, "00:00");
+
+  assertValidISO(normalizedDate);
+
+  try {
+    const res = await axiosClient.patch<DataResponse<any>>(
+      `/appointments/${appointmentId}/reschedule`,
+      {
+        appointmentDate: normalizedDate,
+        timeSlotId: payload.timeSlotId,
+      }
+    );
+    return res.data;
+  } catch {
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
+      appointmentId,
+      newDate: normalizedDate,
+      newTimeSlotId: payload.timeSlotId,
+    });
+    return res.data;
   }
 };
 
@@ -137,7 +210,15 @@ export const rescheduleAppointment = async (data: {
   reason?: string;
 }) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", data);
+    const normalizedNewDate = ensureHasTimezone(data.newDate)
+      ? data.newDate
+      : buildZonedISO(data.newDate, "00:00");
+    assertValidISO(normalizedNewDate);
+
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
+      ...data,
+      newDate: normalizedNewDate,
+    });
     console.log("[Axios] Reschedule appointment:", res.data);
     return res.data;
   } catch (e) {
@@ -146,11 +227,10 @@ export const rescheduleAppointment = async (data: {
   }
 };
 
-export const cancelAppointment = async (appointmentId: string, patientId?: string) => {
+export const cancelAppointment = async (appointmentId: string) => {
   try {
     const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", { 
-      appointmentId,
-      patientId: patientId || localStorage.getItem("patientId") || undefined
+      appointmentId
     });
     console.log("[Axios] Cancel appointment:", res.data);
     return res.data;
@@ -159,6 +239,46 @@ export const cancelAppointment = async (appointmentId: string, patientId?: strin
     throw e;
   }
 };
+
+export const getCompletedAppointmentsByDoctor = async (params: {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+  patientId?: string;
+}) => {
+  try {
+    const res = await axiosClient.get<
+      DataResponse<{
+        items: any[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      }>
+    >(`/appointment/completed/doctor`, {
+      params: {
+        page: params.page ?? 1,
+        limit: params.limit ?? 10,
+        keyword: params.keyword || undefined,
+        patientId: params.patientId || undefined,
+      },
+    });
+
+    console.log(
+      "[Axios] Get completed appointments by doctor",
+      res.data
+    );
+
+    return res.data;
+  } catch (e) {
+    console.error("❌ Failed to fetch completed appointments", e);
+    throw e;
+  }
+};
+
+
 
 
 

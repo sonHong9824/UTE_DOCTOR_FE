@@ -1,6 +1,5 @@
 import axiosClient from "@/lib/axiosClient";
-import axios from "axios";
-import {DataResponse } from "@/types/apiDTO";
+import { DataResponse } from "@/types/apiDTO";
 
 export interface Patient {
   _id: string;
@@ -63,3 +62,77 @@ export const getPatientProfile = async (
   }
 };
 
+// --- New medical record APIs ---
+
+export interface MedicalProfilePayload {
+  height?: number;
+  weight?: number;
+  bloodType?: string;
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export interface AllergyPayload {
+  type: "DRUG" | "FOOD";
+  substance: string;
+  reaction?: string;
+  severity?: string;
+  reportedBy?: "PATIENT" | "DOCTOR";
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export interface MedicalHistoryPayload {
+  conditionName: string;
+  diagnosisCode?: string;
+  diagnosedAt?: string | Date;
+  status?: "ONGOING" | "RESOLVED";
+  source?: "PATIENT" | "DOCTOR";
+  verifiedByDoctor?: boolean;
+  createdByRole?: string;
+  createdByAccountId?: string;
+}
+
+export const upsertMedicalProfile = async (patientId: string, payload: MedicalProfilePayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/medical-profile`, payload);
+  return res.data;
+};
+
+export const createAllergyRecord = async (patientId: string, payload: AllergyPayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/allergies`, payload);
+  return res.data;
+};
+
+export const createMedicalHistoryRecord = async (patientId: string, payload: MedicalHistoryPayload) => {
+  const res = await axiosClient.post(`/patients/${patientId}/medical-history`, payload);
+  return res.data;
+};
+
+export const getPatientsAdmin = async (params: {
+  page?: number;
+  limit?: number;
+  keyword?: string;
+}) => {
+  try {
+    const res = await axiosClient.get<DataResponse<any>>("/patients/admin", {
+      params,
+    });
+
+    console.log("[Axios] Get patients admin:", res.data);
+    return res.data;
+  } catch (e) {
+    try {
+      const err: any = e;
+      if (err?.response) {
+        console.error("Failed to fetch patients admin - response:", err.response.status, err.response.data);
+      } else if (err?.request) {
+        console.error("Failed to fetch patients admin - no response:", err.request);
+      } else {
+        console.error("Failed to fetch patients admin - error:", err.message || err);
+      }
+    } catch (logErr) {
+      console.error("Error logging fetch patients admin error", logErr);
+    }
+    throw e;
+  }
+};

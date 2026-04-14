@@ -1,49 +1,18 @@
 "use client";
-import { Bell, Search, Settings, Moon, Sun, Calendar, Menu, MessageSquare } from "lucide-react";
+import NotificationBell from "@/components/notification/notification-bell";
 import { Button } from "@/components/ui/button";
+import { Menu, MessageSquare, Moon, Search, Settings, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useState } from "react";
 
-export default function Topbar() {
+type TopbarProps = {
+  email?: string;
+};
+
+export default function Topbar({ email = localStorage.getItem("email") || "" }: TopbarProps) {
   const { theme, setTheme } = useTheme();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-
-  const notifications = [
-    {
-      id: 1,
-      title: "Lịch hẹn mới",
-      message: "Bệnh nhân Nguyễn Thị Hoa đã đặt lịch khám vào 14:00",
-      time: "5 phút trước",
-      type: "appointment",
-      read: false
-    },
-    {
-      id: 2,
-      title: "Tin nhắn mới",
-      message: "Bạn có tin nhắn mới từ Dr. Trần Văn Nam",
-      time: "30 phút trước",
-      type: "message",
-      read: false
-    },
-    {
-      id: 3,
-      title: "Nhắc nhở",
-      message: "Cuộc họp khoa sẽ diễn ra vào 15:00 hôm nay",
-      time: "1 giờ trước",
-      type: "reminder",
-      read: true
-    }
-  ];
 
   return (
     <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm z-30 sticky top-0 flex items-center">
@@ -119,61 +88,13 @@ export default function Topbar() {
           </Link>
 
           {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative w-9 h-9 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-[10px] font-medium text-white rounded-full flex items-center justify-center">
-                  3
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Thông báo</span>
-                <Button variant="ghost" size="sm" className="h-auto py-1 px-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                  Đánh dấu tất cả đã đọc
-                </Button>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              
-              {notifications.map((notification) => (
-                <DropdownMenuItem key={notification.id} className={cn(
-                  "flex flex-col items-start p-3 cursor-pointer",
-                  !notification.read && "bg-blue-50 dark:bg-blue-900/20"
-                )}>
-                  <div className="flex items-start gap-3 w-full">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                      notification.type === 'appointment' && "bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400",
-                      notification.type === 'message' && "bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-400",
-                      notification.type === 'reminder' && "bg-amber-100 dark:bg-amber-800 text-amber-600 dark:text-amber-400"
-                    )}>
-                      {notification.type === 'appointment' && <Calendar className="w-4 h-4" />}
-                      {notification.type === 'message' && <MessageSquare className="w-4 h-4" />}
-                      {notification.type === 'reminder' && <Bell className="w-4 h-4" />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between w-full">
-                        <p className="font-medium text-sm text-gray-900 dark:text-white">{notification.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{notification.time}</p>
-                      </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{notification.message}</p>
-                    </div>
-                  </div>
-                </DropdownMenuItem>
-              ))}
-              
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="h-10 flex items-center justify-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                Xem tất cả thông báo
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell
+            email={email}
+            pageSize={10}
+            buttonClassName="relative w-9 h-9 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            iconClassName="w-5 h-5"
+            badgeClassName="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-[10px] font-medium text-white rounded-full flex items-center justify-center"
+          />
 
           {/* Theme Toggle */}
           <Button

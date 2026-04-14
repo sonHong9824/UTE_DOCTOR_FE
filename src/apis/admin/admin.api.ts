@@ -188,6 +188,17 @@ export const getActiveDoctors = async (params: {
   }
 };
 
+export const getDoctorById = async (id: string) => {
+  try {
+    const response = await axiosClient.get(`/doctors/${id}`);
+    console.log("[Axios] Get doctor by id:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Lỗi khi lấy chi tiết bác sĩ:", error);
+    throw error;
+  }
+};
+
 
 
 

@@ -1,7 +1,7 @@
 "use client";
 
+import { getDoctorMe } from "@/apis/doctor/profile.api";
 import { cancelShiftById, deleteShiftById, getShiftsByDoctorMonth, registerShift } from "@/apis/doctor/shift.api";
-import { getDoctorByAccountId } from "@/apis/doctor/profile.api";
 import CancelShiftModal from "@/components/doctor/cancel-shift-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { assertValidISO, buildZonedISO, toLocalDateInput } from "@/utils/time.util";
 import {
   AlertTriangle,
   Calendar,
@@ -24,7 +25,6 @@ import {
   ClipboardList,
   Clock,
   Loader2,
-  MoreVertical,
   Plus
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -156,10 +156,7 @@ export default function SchedulePage() {
   const [open, setOpen] = useState(false);
 
   function formatDateLocal(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return toLocalDateInput(date);
   }
 
   const monthStart = formatDateLocal(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -238,7 +235,22 @@ export default function SchedulePage() {
     fetchShifts();
   }, [now, doctorId]);
 
-  // Initialize doctorId from localStorage (account id -> doctor id)
+  const resolveDoctorId = async () => {
+    const res = await getDoctorMe();
+    const doc = res?.data;
+    const did = doc?._id || doc?.id || null;
+    if (did) {
+      setDoctorId(did);
+      try {
+        localStorage.setItem("doctorId", did);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return did;
+  };
+
+  // Initialize doctorId from localStorage (JWT -> doctor id)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const init = async () => {
@@ -248,21 +260,7 @@ export default function SchedulePage() {
           setDoctorId(stored);
           return;
         }
-
-        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
-        if (!accountId) return;
-
-        const res = await getDoctorByAccountId(accountId);
-        const doc = res?.data;
-        const did = doc?._id || doc?.id || null;
-        if (did) {
-          setDoctorId(did);
-          try {
-            localStorage.setItem("doctorId", did);
-          } catch (e) {
-            // ignore
-          }
-        }
+        await resolveDoctorId();
       } catch (err) {
         console.error("Failed to init doctorId:", err);
       }
@@ -299,37 +297,33 @@ export default function SchedulePage() {
       const stored = localStorage.getItem("doctorId");
       if (stored) did = stored;
       else {
-        const accountId = localStorage.getItem("id") || localStorage.getItem("accountId") || localStorage.getItem("userId") || null;
-        if (accountId) {
-          try {
-            const res = await getDoctorByAccountId(accountId);
-            const doc = res?.data;
-            const resolved = doc?._id || doc?.id || null;
-            if (resolved) {
-              did = resolved;
-              setDoctorId(resolved);
-              try { localStorage.setItem("doctorId", resolved); } catch (e) {}
-            }
-          } catch (e) {
-            console.error("Failed resolving doctorId in addSlot:", e);
-          }
+        try {
+          const resolved = await resolveDoctorId();
+          if (resolved) did = resolved;
+        } catch (e) {
+          console.error("Failed resolving doctorId in addSlot:", e);
         }
       }
-    }
-    if (!did) {
-      toast.error("Không tìm thấy doctorId");
-      return;
     }
     if (date < monthStart || date > monthEnd) return;
     const s = SHIFTS.find((x) => x.key === shift)!;
     try {
-      const res = await registerShift({ doctorId: did, date, shift });
+      const startTime = buildZonedISO(date, s.start);
+      const endTime = buildZonedISO(date, s.end);
+      assertValidISO(startTime);
+      assertValidISO(endTime);
+
+      const res = await registerShift({
+        startTime,
+        endTime,
+        shift,
+      });
       if (String(res?.code) === "SUCCESS" || String(res?.code) === "200") {
         const payload: any = res as any;
         const newShift = payload?.data?.shift || payload?.shift || payload?.data || null;
         const slotToAdd = {
           _id: newShift?._id,
-          date: newShift?.date ?? date,
+          date: newShift?.date ?? toLocalDateInput(startTime),
           shiftKey: (newShift?.shift as ShiftKey) ?? shift,
           start: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.start ?? s.start,
           end: SHIFTS.find((x) => x.key === ((newShift?.shift as ShiftKey) ?? shift))?.end ?? s.end,
@@ -598,7 +592,7 @@ export default function SchedulePage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Lịch làm việc</h1>
+          {/* <h1 className="text-3xl font-bold tracking-tight">Lịch làm việc</h1> */}
           <p className="text-muted-foreground">Quản lý và đăng ký lịch làm việc của bạn</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -1022,3 +1016,6 @@ export default function SchedulePage() {
     </div>
   );
 }
+
+
+

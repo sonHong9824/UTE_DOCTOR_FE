@@ -1,11 +1,56 @@
+import { WalletCoinBreakdownItem, WalletTransactionApiDto } from "@/features/wallet/types/wallet.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 
+export type WalletBalanceApiResponse = DataResponse<{
+  balance: number;
+  coinBalance: number;
+  creditBalance: number;
+}>;
+
+export type WalletDetailsApiResponse = DataResponse<{
+  coinBalance: number;
+  totalCoinEarned: number;
+  totalCoinUsed: number;
+  totalCoinExpired?: number;
+  creditBalance: number;
+  totalCredited?: number;
+  totalDebited?: number;
+  transactions: WalletTransactionApiDto[];
+  creditTransactions: WalletTransactionApiDto[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  creditPagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}>;
+
+export type WalletCoinSummaryApiResponse = DataResponse<{
+  totalBalance: number;
+  usableCoin: number;
+  expiredCoin: number;
+  expiringSoon: number;
+  breakdown: Array<{
+    transactionId: string;
+    amount: number;
+    used: number;
+    remaining: number;
+    expiresAt?: string;
+    category: WalletCoinBreakdownItem["category"];
+    isExpiringSoon: boolean;
+  }>;
+}>;
+
 export const getWalletBalance = async () => {
   try {
-    const res = await axiosClient.get<DataResponse<{
-      balance: number;
-    }>>("/wallet/balance");
+    const res = await axiosClient.get<WalletBalanceApiResponse>("/wallet/balance");
 
     return res.data;
   } catch (e) {
@@ -16,27 +61,7 @@ export const getWalletBalance = async () => {
 
 export const getWalletDetails = async (page: number = 1, limit: number = 10) => {
   try {
-    const res = await axiosClient.get<DataResponse<{
-      coinBalance: number;
-      totalCoinEarned: number;
-      totalCoinUsed: number;
-      transactions: Array<{
-        _id: string;
-        type: 'earn' | 'spend';
-        amount: number;
-        reason: string;
-        description?: string;
-        appointmentId?: string;
-        status?: 'pending' | 'completed' | 'failed';
-        createdAt: string;
-      }>;
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-      };
-    }>>(`/wallet/details?page=${page}&limit=${limit}`);
+    const res = await axiosClient.get<WalletDetailsApiResponse>(`/wallet/details?page=${page}&limit=${limit}`);
 
     return res.data;
   } catch (e) {
@@ -45,7 +70,18 @@ export const getWalletDetails = async (page: number = 1, limit: number = 10) => 
   }
 };
 
+export const getWalletCoinSummary = async () => {
+  try {
+    const res = await axiosClient.get<WalletCoinSummaryApiResponse>("/wallet/coin/summary");
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch wallet coin summary:", e);
+    throw e;
+  }
+};
+
 export default {
   getWalletBalance,
   getWalletDetails,
+  getWalletCoinSummary,
 };

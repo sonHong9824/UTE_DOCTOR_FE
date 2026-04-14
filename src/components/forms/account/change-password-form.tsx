@@ -1,46 +1,17 @@
-import { useState } from "react";
-import { ChangePassword } from "@/apis/user/user.api";
+﻿import { useChangePassword } from "@/features/user-profile/hooks/useChangePassword";
 
 export default function ChangePasswordForm() {
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPassword || !newPassword) {
-      alert("Vui lòng điền đầy đủ mật khẩu");
-      return;
-    }
-    if (newPassword.length < 6) {
-      alert("Mật khẩu mới phải có ít nhất 6 ký tự");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      alert("Mật khẩu mới và xác nhận không khớp");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await ChangePassword({ currentPassword, newPassword });
-      if (res?.code === 0 || res?.code === 200 || res?.code === undefined) {
-        alert("Đổi mật khẩu thành công");
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        alert(res?.message || "Đổi mật khẩu thất bại");
-      }
-    } catch (err: any) {
-      console.error(err);
-      const msg = err?.response?.data?.message || err?.message || "Lỗi khi đổi mật khẩu";
-      alert(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // UI-only component: delegates logic to view-model hook.
+  const {
+    currentPassword,
+    newPassword,
+    confirmPassword,
+    loading,
+    setCurrentPassword,
+    setNewPassword,
+    setConfirmPassword,
+    handleSubmit,
+  } = useChangePassword();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 w-full md:w-3/4">
