@@ -3,6 +3,8 @@
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAppointmentBooking } from "@/features/appointment/hooks/useAppointmentBooking";
 import { TimeHelper } from "@/lib/time";
+import { formatCoin, formatCurrency } from "@/utils/money.util";
+import { Coins } from "lucide-react";
 
 export default function AppointmentBookingScreen() {
   const {
@@ -14,17 +16,22 @@ export default function AppointmentBookingScreen() {
     errorMessage,
     timeSlots,
     coinBalance,
-    loadingCoin,
+    creditBalance,
     specialtySearchTerm,
     specialtySuggestions,
     doctorSearchTerm,
     doctorSuggestions,
     isDoctorFocused,
     showSpecialtySuggestions,
-    canUseCoinPayment,
+    hasPendingPayment,
     bookingLifecycleState,
     pendingAppointmentId,
     paymentUrl,
+    isPaymentInteractionLocked,
+    originalAmount,
+    discountAmount,
+    finalAmount,
+    maxCoinDiscount,
 
     setShowSuccessModal,
     setShowErrorModal,
@@ -41,6 +48,7 @@ export default function AppointmentBookingScreen() {
     handleDoctorBlur,
     handleSubmit,
     handleRetryStatusCheck,
+    handleCancelPendingPayment,
     openPaymentWindow,
     getTimeSlotDisplay,
   } = useAppointmentBooking();
@@ -205,6 +213,17 @@ export default function AppointmentBookingScreen() {
             <div className="bg-orange-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-orange-900 mb-4">Thông tin thanh toán</h3>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Coin hiện có</p>
+                  <p className="mt-1 text-xl font-bold text-amber-900">{formatCoin(coinBalance)}</p>
+                </div>
+                <div className="rounded-xl border border-sky-200 bg-white/80 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Credit hiện có</p>
+                  <p className="mt-1 text-xl font-bold text-sky-900">{formatCurrency(creditBalance)}</p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Phương Thức Thanh Toán *</label>
@@ -213,11 +232,9 @@ export default function AppointmentBookingScreen() {
                     onChange={(e) => handleChange("paymentMethod", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option value="ONLINE">VNPay (Sandbox)</option>
-                    <option value="COIN">
-                      Dùng Coin
-                      {!loadingCoin && coinBalance > 0 && ` (${coinBalance.toLocaleString("vi-VN")} coins)`}
-                    </option>
+                    <option value="ONLINE">VNPay (online)</option>
+                    <option value="VNPAY">VNPay (gateway)</option>
+                    <option value="CREDIT">Credit wallet</option>
                     <option value="OFFLINE">Thanh toán tại bệnh viện</option>
                   </select>
                 </div>
@@ -243,44 +260,86 @@ export default function AppointmentBookingScreen() {
                 </div> */}
               </div>
 
-              {canUseCoinPayment && (
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-semibold text-blue-900 mb-3">Thanh toán bằng Coin</h4>
+              <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-white/80 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-amber-900">Dùng coin để giảm giá</h4>
+                    <p className="text-sm text-amber-700">Coin chỉ được dùng như khoản giảm trừ cho hóa đơn, không còn là phương thức thanh toán riêng.</p>
+                  </div>
 
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.useCoin)}
+                      onChange={(e) => handleChange("useCoin", e.target.checked)}
+                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                    />
+                    Use coin
+                  </label>
+                </div>
+
+                {Boolean(formData.useCoin) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Số Coin hiện có: <span className="text-blue-600 font-bold">{coinBalance}</span>
-                      </label>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Số Coin để dùng *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Số coin muốn dùng</label>
                       <input
                         type="number"
                         value={formData.coinsToUse || 0}
                         onChange={(e) => {
-                          const value = Math.min(Number(e.target.value) || 0, coinBalance);
-                          handleChange("coinsToUse", value);
-                          handleChange("useCoin", value > 0);
+                          const nextValue = Math.max(0, Math.min(Number(e.target.value) || 0, maxCoinDiscount));
+                          handleChange("coinsToUse", nextValue);
                         }}
-                        max={coinBalance}
+                        max={maxCoinDiscount}
                         min={0}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                         placeholder="Nhập số coin muốn dùng"
                       />
+                      <p className="mt-2 text-xs text-gray-500">
+                        Tối đa {formatCoin(maxCoinDiscount)} trong giao dịch này.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                        <Coins className="h-4 w-4" />
+                        Xem trước giảm giá
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div className="flex items-center justify-between text-gray-700">
+                          <span>Original</span>
+                          <span className="font-semibold">{formatCurrency(originalAmount)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-rose-700">
+                          <span>Discount (coin)</span>
+                          <span className="font-semibold">-{formatCurrency(discountAmount)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-amber-200 pt-2 text-emerald-700">
+                          <span className="font-semibold">Final</span>
+                          <span className="text-base font-bold">{formatCurrency(finalAmount)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {!formData.useCoin && (
+                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    Bật <span className="font-semibold">Use coin</span> để áp dụng giảm giá cho hóa đơn.
+                  </div>
+                )}
+              </div>
             </div>
 
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || hasPendingPayment}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Đang xử lý..." : bookingLifecycleState === "PENDING_PAYMENT" ? "Đang chờ thanh toán" : "Đặt Lịch Khám"}
+              {loading
+                ? "Đang xử lý..."
+                : hasPendingPayment
+                  ? "Hoàn tất thanh toán trước khi đặt lịch mới"
+                  : "Đặt Lịch Khám"}
             </button>
 
             {bookingLifecycleState === "PENDING_PAYMENT" && pendingAppointmentId && (
@@ -307,6 +366,12 @@ export default function AppointmentBookingScreen() {
                       Mở lại cổng thanh toán
                     </button>
                   )}
+                  <button
+                    onClick={handleCancelPendingPayment}
+                    className="px-3 py-2 text-sm rounded-lg bg-white border border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    Hủy phiên chờ thanh toán
+                  </button>
                 </div>
               </div>
             )}
@@ -320,6 +385,9 @@ export default function AppointmentBookingScreen() {
                 <div className="flex justify-end">
                   <button
                     onClick={() => {
+                      if (bookingLifecycleState === "PENDING_PAYMENT" && paymentUrl) {
+                        openPaymentWindow();
+                      }
                       setShowSuccessModal(false);
                     }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
@@ -343,6 +411,20 @@ export default function AppointmentBookingScreen() {
                   >
                     Đóng
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isPaymentInteractionLocked && (
+            <div className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]">
+              <div className="flex h-full items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-2xl border border-white/30 bg-white/95 p-6 text-center shadow-2xl">
+                  <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+                  <h4 className="text-lg font-semibold text-gray-900">Đang chờ kết quả thanh toán</h4>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Vui lòng hoàn tất giao dịch trên cửa sổ VNPay. Hệ thống sẽ tự động mở lại thao tác khi có kết quả hoặc khi bạn đóng cửa sổ thanh toán.
+                  </p>
                 </div>
               </div>
             </div>

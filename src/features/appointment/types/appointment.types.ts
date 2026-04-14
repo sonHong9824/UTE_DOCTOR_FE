@@ -20,6 +20,12 @@ export type SpecialtyOption = {
   name: string;
 };
 
+export type WalletBalanceData = {
+  balance: number;
+  coinBalance: number;
+  creditBalance: number;
+};
+
 export type AppointmentBookingFormValues = {
   hospitalName: string;
   specialty: string | null;
@@ -27,11 +33,11 @@ export type AppointmentBookingFormValues = {
   timeSlotId: string;
   doctor: DoctorPayload | null;
   serviceType: string;
-  paymentMethod: string;
+  paymentMethod: "ONLINE" | "VNPAY" | "CREDIT" | "OFFLINE";
   amount?: number;
   reasonForAppointment: string;
   useCoin?: boolean;
-  coinsToUse?: number
+  coinsToUse?: number;
 };
 
 export type AppointmentBookingPayload = AppointmentBookingFormValues & {
@@ -48,6 +54,9 @@ export type BookingLifecycleState =
 export type AppointmentBookingResult = DataResponse<{
   appointmentId?: string;
   paymentUrl?: string;
+  originalAmount?: number;
+  discountAmount?: number;
+  finalAmount?: number;
 } | null>;
 
 export type AppointmentDetail = {
@@ -111,4 +120,8 @@ export type AppointmentBookingState = {
   bookingLifecycleState: BookingLifecycleState;
   pendingAppointmentId: string | null;
   paymentUrl: string | null;
+  originalAmount: number;
+  discountAmount: number;
+  finalAmount: number;
+  maxCoinDiscount: number;
 };

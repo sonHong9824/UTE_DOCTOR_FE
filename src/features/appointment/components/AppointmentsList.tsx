@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { AppointmentListModel } from "@/features/appointment/types/appointment.types";
 import { TimeHelper } from "@/lib/time";
+import { useRouter } from "next/navigation";
 
 interface AppointmentsListProps {
   appointments: AppointmentListModel[];
@@ -27,6 +28,7 @@ export default function AppointmentsList({
   totalPages = 1,
   onPageChange,
 }: AppointmentsListProps) {
+  const router = useRouter();
   const { cancelLoading, cancelAppointmentById } = useAppointmentActions();
 
   const handleCancel = async (appt: AppointmentListModel) => {
@@ -84,6 +86,20 @@ export default function AppointmentsList({
                 </div>
 
                 <div className="mt-3 flex items-center justify-end gap-2">
+                  {(appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const appointmentId = appt._id || appt.id;
+                        if (!appointmentId) return;
+                        router.push(`/appointments/reschedule/${encodeURIComponent(String(appointmentId))}`);
+                      }}
+                      disabled={loading}
+                    >
+                      Đổi lịch
+                    </Button>
+                  )}
                   {appt.appointmentStatus !== "CANCELLED" && (
                     <Button
                       size="sm"

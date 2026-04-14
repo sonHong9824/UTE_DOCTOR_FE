@@ -17,6 +17,7 @@ import {
     DoctorOption,
     ReschedulePayload,
     SpecialtyOption,
+    WalletBalanceData,
 } from "@/features/appointment/types/appointment.types";
 
 export const appointmentService = {
@@ -63,6 +64,10 @@ export const appointmentService = {
 
   async getWalletBalance() {
     const res = await getWalletBalance();
-    return res?.data?.balance ?? 0;
+    return {
+      balance: res?.data?.balance ?? 0,
+      coinBalance: res?.data?.coinBalance ?? res?.data?.balance ?? 0,
+      creditBalance: res?.data?.creditBalance ?? 0,
+    } satisfies WalletBalanceData;
   },
 };
