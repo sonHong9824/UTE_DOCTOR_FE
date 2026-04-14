@@ -1,4 +1,4 @@
-import { WalletTransactionApiDto } from "@/features/wallet/types/wallet.types";
+import { WalletCoinBreakdownItem, WalletTransactionApiDto } from "@/features/wallet/types/wallet.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 
@@ -32,6 +32,22 @@ export type WalletDetailsApiResponse = DataResponse<{
   };
 }>;
 
+export type WalletCoinSummaryApiResponse = DataResponse<{
+  totalBalance: number;
+  usableCoin: number;
+  expiredCoin: number;
+  expiringSoon: number;
+  breakdown: Array<{
+    transactionId: string;
+    amount: number;
+    used: number;
+    remaining: number;
+    expiresAt?: string;
+    category: WalletCoinBreakdownItem["category"];
+    isExpiringSoon: boolean;
+  }>;
+}>;
+
 export const getWalletBalance = async () => {
   try {
     const res = await axiosClient.get<WalletBalanceApiResponse>("/wallet/balance");
@@ -54,7 +70,18 @@ export const getWalletDetails = async (page: number = 1, limit: number = 10) => 
   }
 };
 
+export const getWalletCoinSummary = async () => {
+  try {
+    const res = await axiosClient.get<WalletCoinSummaryApiResponse>("/wallet/coin/summary");
+    return res.data;
+  } catch (e) {
+    console.error("Failed to fetch wallet coin summary:", e);
+    throw e;
+  }
+};
+
 export default {
   getWalletBalance,
   getWalletDetails,
+  getWalletCoinSummary,
 };

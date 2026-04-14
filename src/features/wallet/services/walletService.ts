@@ -1,4 +1,4 @@
-import { getWalletBalance, getWalletDetails } from "@/apis/wallet/wallet.api";
+import { getWalletBalance, getWalletCoinSummary, getWalletDetails } from "@/apis/wallet/wallet.api";
 import {
   WalletAccountType,
   WalletBalanceData,
@@ -72,7 +72,12 @@ const getBalance = async (): Promise<WalletBalanceData> => {
 };
 
 const getDetails = async (page = 1, limit = 10): Promise<WalletDetails> => {
-  const response = await getWalletDetails(page, limit);
+  const [response, coinSummaryResponse] = await Promise.all([
+    getWalletDetails(page, limit),
+    getWalletCoinSummary(),
+  ]);
+
+  const coinSummary = coinSummaryResponse.data;
   const coinTransactions = (response.data.transactions ?? []).map((transaction) =>
     normalizeTransaction(transaction, "coin")
   );
@@ -83,11 +88,14 @@ const getDetails = async (page = 1, limit = 10): Promise<WalletDetails> => {
   return {
     coinBalance: response.data.coinBalance,
     creditBalance: response.data.creditBalance,
+    usableCoin: coinSummary?.usableCoin ?? response.data.coinBalance,
+    expiringSoon: coinSummary?.expiringSoon ?? 0,
     totalCoinEarned: response.data.totalCoinEarned,
     totalCoinUsed: response.data.totalCoinUsed,
-    totalCoinExpired: response.data.totalCoinExpired ?? 0,
+    totalCoinExpired: coinSummary?.expiredCoin ?? response.data.totalCoinExpired ?? 0,
     totalCredited: response.data.totalCredited ?? 0,
     totalDebited: response.data.totalDebited ?? 0,
+    coinBreakdown: coinSummary?.breakdown ?? [],
     transactions: [...creditTransactions, ...coinTransactions].sort(
       (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
     ),

@@ -6,6 +6,8 @@ import { Coins, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 interface WalletDetailsCardProps {
   coinBalance: number;
   creditBalance: number;
+  usableCoin: number;
+  expiringSoon: number;
   totalCoinEarned: number;
   totalCoinUsed: number;
   totalCoinExpired: number;
@@ -16,6 +18,8 @@ interface WalletDetailsCardProps {
 export const WalletDetailsCard = ({
   coinBalance,
   creditBalance,
+  usableCoin,
+  expiringSoon,
   totalCoinEarned,
   totalCoinUsed,
   totalCoinExpired,
@@ -90,6 +94,17 @@ export const WalletDetailsCard = ({
               <div className="rounded-2xl border border-amber-100 bg-white p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Expired</p>
                 <p className="mt-2 text-xl font-bold text-amber-600">-{formatCoin(totalCoinExpired)}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-sky-100 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Usable coin</p>
+                <p className="mt-2 text-xl font-bold text-sky-600">{formatCoin(usableCoin)}</p>
+              </div>
+              <div className="rounded-2xl border border-orange-100 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Expiring soon</p>
+                <p className="mt-2 text-xl font-bold text-orange-600">{formatCoin(expiringSoon)}</p>
               </div>
             </div>
           </CardContent>

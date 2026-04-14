@@ -24,14 +24,37 @@ export interface WalletPagination {
   totalPages: number;
 }
 
+export type WalletCoinCategory = "active" | "expired" | "non_expiring";
+
+export interface WalletCoinBreakdownItem {
+  transactionId: string;
+  amount: number;
+  used: number;
+  remaining: number;
+  expiresAt?: string;
+  category: WalletCoinCategory;
+  isExpiringSoon: boolean;
+}
+
+export interface WalletCoinSummary {
+  totalBalance: number;
+  usableCoin: number;
+  expiredCoin: number;
+  expiringSoon: number;
+  breakdown: WalletCoinBreakdownItem[];
+}
+
 export interface WalletDetails {
   coinBalance: number;
   creditBalance: number;
+  usableCoin: number;
+  expiringSoon: number;
   totalCoinEarned: number;
   totalCoinUsed: number;
   totalCoinExpired: number;
   totalCredited: number;
   totalDebited: number;
+  coinBreakdown: WalletCoinBreakdownItem[];
   transactions: WalletTransaction[];
   creditTransactions: WalletTransaction[];
   pagination: WalletPagination;
