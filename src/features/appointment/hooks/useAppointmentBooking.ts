@@ -3,15 +3,16 @@
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
-  AppointmentBookingFormValues,
-  AppointmentDetail,
-  BookingLifecycleState,
-  DoctorOption,
-  DoctorPayload,
-  SpecialtyOption,
+    AppointmentBookingFormValues,
+    AppointmentDetail,
+    BookingLifecycleState,
+    DoctorOption,
+    DoctorPayload,
+    SpecialtyOption,
 } from "@/features/appointment/types/appointment.types";
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
+import { calculateDiscount } from "@/utils/money.util";
 import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput } from "@/utils/time.util";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -53,6 +54,7 @@ export const useAppointmentBooking = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
+  const [creditBalance, setCreditBalance] = useState(0);
   const [loadingCoin, setLoadingCoin] = useState(true);
 
   const [bookingLifecycleState, setBookingLifecycleState] = useState<BookingLifecycleState>("IDLE");
@@ -63,6 +65,35 @@ export const useAppointmentBooking = () => {
   const pollingStartedAtRef = useRef<number | null>(null);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
+
+  const coinDiscountPreview = useMemo(
+    () =>
+      calculateDiscount({
+        availableCoin: coinBalance,
+        originalAmount: formData.amount ?? 0,
+        requestedCoin: formData.coinsToUse ?? 0,
+        useCoin: Boolean(formData.useCoin),
+      }),
+    [coinBalance, formData.amount, formData.coinsToUse, formData.useCoin]
+  );
+
+  useEffect(() => {
+    setFormData((prev) => {
+      if (!prev.useCoin) {
+        return prev;
+      }
+
+      const nextCoinsToUse = Math.min(prev.coinsToUse ?? 0, coinDiscountPreview.maxUsableCoin);
+      if (nextCoinsToUse === prev.coinsToUse) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        coinsToUse: nextCoinsToUse,
+      };
+    });
+  }, [coinDiscountPreview.maxUsableCoin]);
 
   const stopStatusPolling = () => {
     if (pollingIntervalRef.current !== null) {
@@ -192,7 +223,18 @@ export const useAppointmentBooking = () => {
   };
 
   const handleChange = (name: keyof AppointmentBookingFormValues, value: any) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => {
+      if (name === "useCoin" && !value) {
+        return { ...prev, useCoin: false, coinsToUse: 0 };
+      }
+
+      if (name === "coinsToUse") {
+        const nextCoinsToUse = Math.max(0, Math.min(Number(value) || 0, coinDiscountPreview.maxUsableCoin));
+        return { ...prev, coinsToUse: nextCoinsToUse, useCoin: nextCoinsToUse > 0 };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleSpecialtySearch = (value: string) => {
@@ -296,6 +338,8 @@ export const useAppointmentBooking = () => {
       ...formData,
       appointmentDate: appointmentDateTime,
       bookingDate: bookingDateTime,
+      useCoin: Boolean(formData.useCoin && coinDiscountPreview.discount > 0),
+      coinsToUse: coinDiscountPreview.requestedCoin,
     };
 
     try {
@@ -359,7 +403,8 @@ export const useAppointmentBooking = () => {
         if (slots.length > 0) {
           setFormData((prev) => ({ ...prev, timeSlotId: slots[0].id }));
         }
-        setCoinBalance(wallet);
+        setCoinBalance(wallet.coinBalance);
+        setCreditBalance(wallet.creditBalance);
       } catch (error) {
         console.error("Failed to load appointment initial data:", error);
       } finally {
@@ -413,8 +458,8 @@ export const useAppointmentBooking = () => {
   }, [doctorSearchTerm, selectedSpecialty]);
 
   const canUseCoinPayment = useMemo(
-    () => formData.paymentMethod === "COIN",
-    [formData.paymentMethod]
+    () => Boolean(formData.useCoin && coinDiscountPreview.maxUsableCoin > 0),
+    [coinDiscountPreview.maxUsableCoin, formData.useCoin]
   );
 
   return {
@@ -427,6 +472,7 @@ export const useAppointmentBooking = () => {
     errorMessage,
     timeSlots,
     coinBalance,
+    creditBalance,
     loadingCoin,
     specialtySearchTerm,
     specialtySuggestions,
@@ -438,6 +484,10 @@ export const useAppointmentBooking = () => {
     bookingLifecycleState,
     pendingAppointmentId,
     paymentUrl,
+    originalAmount: formData.amount ?? 0,
+    discountAmount: coinDiscountPreview.discount,
+    finalAmount: coinDiscountPreview.final,
+    maxCoinDiscount: coinDiscountPreview.maxUsableCoin,
 
     setShowSuccessModal,
     setShowErrorModal,

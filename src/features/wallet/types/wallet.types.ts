@@ -1,10 +1,14 @@
-export type WalletTransactionType = "earn" | "spend";
-
 export type WalletTransactionStatus = "pending" | "completed" | "failed";
+
+export type WalletAccountType = "credit" | "coin";
+
+export type WalletTransactionDirection = "income" | "expense";
 
 export interface WalletTransaction {
   _id: string;
-  type: WalletTransactionType;
+  walletType: WalletAccountType;
+  type: string;
+  direction: WalletTransactionDirection;
   amount: number;
   reason: string;
   description?: string;
@@ -22,14 +26,36 @@ export interface WalletPagination {
 
 export interface WalletDetails {
   coinBalance: number;
+  creditBalance: number;
   totalCoinEarned: number;
   totalCoinUsed: number;
+  totalCoinExpired: number;
+  totalCredited: number;
+  totalDebited: number;
   transactions: WalletTransaction[];
+  creditTransactions: WalletTransaction[];
   pagination: WalletPagination;
+  creditPagination: WalletPagination;
 }
 
 export interface WalletBalanceData {
   balance: number;
+  coinBalance: number;
+  creditBalance: number;
 }
 
-export type WalletFilter = "all" | WalletTransactionType;
+export type WalletFilter = "all" | WalletAccountType;
+
+export interface WalletTransactionApiDto {
+  _id?: string;
+  id?: string;
+  walletType?: WalletAccountType;
+  type?: string;
+  transactionType?: string;
+  amount?: number;
+  reason?: string;
+  description?: string;
+  appointmentId?: string;
+  status?: WalletTransactionStatus;
+  createdAt?: string;
+}

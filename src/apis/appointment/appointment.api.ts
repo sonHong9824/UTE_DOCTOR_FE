@@ -8,6 +8,9 @@ import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.u
 export type BookAppointmentResponse = DataResponse<{
   appointmentId?: string;
   paymentUrl?: string;
+  originalAmount?: number;
+  discountAmount?: number;
+  finalAmount?: number;
 } | null>;
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {

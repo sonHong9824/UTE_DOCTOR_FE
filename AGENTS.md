@@ -152,6 +152,14 @@ src/apis/user/user.api.ts
 - ALWAYS go through API modules
 - Use typed DTOs from `src/types`
 
+## Wallet Model
+
+- Credit is real money and must be displayed as VND.
+- Coin is reward balance and is discount-only during booking.
+- Wallet views should separate credit and coin balances, transaction histories, and labels.
+- Use `src/utils/money.util.ts` for currency, coin formatting, and coin-discount calculations.
+- Booking payloads must send `useCoin`/`coinsToUse` only as a discount request; `paymentMethod=COIN` is deprecated.
+
 ---
 
 ## State Management Rules
