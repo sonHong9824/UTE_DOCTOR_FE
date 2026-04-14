@@ -5,8 +5,8 @@ export async function createConversation(participants: { accountId: string; emai
   return res.data;
 }
 
-export async function listConversations(accountId: string, skip = 0, limit = 20) {
-  const res = await axiosClient.get('/chat/conversations', { params: { accountId, skip, limit } });
+export async function listConversations(skip = 0, limit = 20) {
+  const res = await axiosClient.get('/chat/conversations', { params: { skip, limit } });
   return res.data;
 }
 
@@ -15,8 +15,8 @@ export async function getMessages(conversationId: string, before?: string, limit
   return res.data;
 }
 
-export async function markRead(conversationId: string, accountId: string) {
-  const res = await axiosClient.post(`/chat/conversations/${conversationId}/read`, { accountId });
+export async function markRead(conversationId: string) {
+  const res = await axiosClient.post(`/chat/conversations/${conversationId}/read`);
   return res.data;
 }
 

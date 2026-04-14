@@ -19,7 +19,8 @@ interface Conversation {
   lastMessage?: {
     content: string;
     senderId: string;
-    createdAt: string;
+    createdAt?: string;
+    at?: string;
   };
   updatedAt: string;
 }
@@ -40,7 +41,7 @@ export default function ConversationList({ currentUserId, onSelectConversation }
     const currentSkip = reset ? 0 : skip;
     setLoading(true);
     try {
-      const res = await listConversations(currentUserId, currentSkip, limit);
+      const res = await listConversations(currentSkip, limit);
       const newData = res?.data?.data || [];
       const total = res?.data?.total || 0;
       
@@ -66,15 +67,18 @@ export default function ConversationList({ currentUserId, onSelectConversation }
 
   const formatTime = (date: string) => {
     const d = new Date(date);
+    if (Number.isNaN(d.getTime())) return '--';
+
     const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 60) return `${diffMins}m`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h`;
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d`;
+    const isSameDay = d.toDateString() === now.toDateString();
+    if (isSameDay) {
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
     return d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
   };
 
@@ -104,6 +108,7 @@ export default function ConversationList({ currentUserId, onSelectConversation }
         {conversations.map((conv) => {
           const receiver = getReceiver(conv);
           const isUnread = false; // TODO: implement unread logic
+          const latestTimestamp = conv.lastMessage?.at || conv.lastMessage?.createdAt || conv.updatedAt;
           
           return (
             <button
@@ -127,7 +132,7 @@ export default function ConversationList({ currentUserId, onSelectConversation }
                     {conv.title || receiver.displayName}
                   </span>
                   <span className="text-xs text-gray-500 flex-shrink-0">
-                    {formatTime(conv.updatedAt)}
+                    {formatTime(latestTimestamp)}
                   </span>
                 </div>
                 

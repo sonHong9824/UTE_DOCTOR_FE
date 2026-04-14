@@ -1,7 +1,6 @@
 "use client";
 import { completeAppointment, getTodayAppointments } from "@/apis/appointment/appointment.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
-import MedicalRecordDetail from "@/components/medical-record/medical-record-detail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
 import { cn } from "@/lib/utils";
+import { formatApiDateToLocalTime, parseApiDateTimeToLocal } from "@/utils/time.util";
 import { Calendar, CheckCircle2, FileText, Plus, UserRound, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -45,6 +46,41 @@ const formatDateLocal = (d: Date) => {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+};
+
+const formatLastVisitDate = (value?: string | number | Date) => {
+  const parsed = value !== undefined ? parseApiDateTimeToLocal(value) : null;
+  return formatDateLocal(parsed ?? new Date());
+};
+
+const formatDateDisplay = (value?: string | number | Date | null) => {
+  if (value === undefined || value === null) return "-";
+  const parsed = parseApiDateTimeToLocal(value);
+  return parsed ? parsed.toLocaleDateString("vi-VN") : "-";
+};
+
+const formatTimeValue = (value?: string | number | null) => {
+  if (value === undefined || value === null) return "--:--";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "--:--";
+
+    // Preserve backend HH:mm format while normalizing single-digit hour.
+    const hhmmMatch = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmmMatch) {
+      return `${hhmmMatch[1].padStart(2, "0")}:${hhmmMatch[2]}`;
+    }
+  }
+
+  const formatted = formatApiDateToLocalTime(value);
+  return formatted || "--:--";
+};
+
+const formatTimeRange = (startTime?: string | number | null, endTime?: string | number | null) => {
+  const start = formatTimeValue(startTime);
+  const end = formatTimeValue(endTime);
+  if (start === "--:--" && end === "--:--") return undefined;
+  return `${start} - ${end}`;
 };
 
 const formatPatientId = (id?: string | null) => {
@@ -95,7 +131,7 @@ export default function PatientsPage() {
             name: p.name || "Bệnh nhân",
             age: p.age || 0,
             gender: p.gender || "Nam",
-            lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+            lastVisit: formatLastVisitDate(a?.date),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: "pending",
             avatar: p.profileId?.avatarUrl || undefined,
@@ -149,7 +185,7 @@ export default function PatientsPage() {
         const med = a.patient?.medicalRecord || prof?.medicalRecord || undefined;
         return ({
           rowId: a._id,
-          time: a.startTime && a.endTime ? `${a.startTime} - ${a.endTime}` : undefined,
+          time: formatTimeRange(a.startTime, a.endTime),
           patientId: a.patient?._id || a.patient?.id || (prof && prof._id) || `APPT_${a._id}`,
           patientName: prof?.name || a.patient?.name || "Bệnh nhân",
           patientPhone: prof?.phone || a.patient?.phone,
@@ -162,7 +198,7 @@ export default function PatientsPage() {
             name: prof?.name || a.patient?.name || "Bệnh nhân",
             age: a.patient?.age || 0,
             gender: a.patient?.gender || "Nam",
-            lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+            lastVisit: formatLastVisitDate(a?.date),
             condition: a?.reasonForAppointment || a?.serviceType || "",
             status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
             avatar: a.patient?.profileId?.avatarUrl || undefined,
@@ -268,7 +304,7 @@ export default function PatientsPage() {
                 name: p.name || "Bệnh nhân",
                 age: p.age || 0,
                 gender: p.gender || "Nam",
-                lastVisit: formatDateLocal(new Date(a?.date || Date.now())),
+                lastVisit: formatLastVisitDate(a?.date),
                 condition: a?.reasonForAppointment || a?.serviceType || "",
                 status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
                 avatar: p.profileId?.avatarUrl || undefined,
@@ -747,7 +783,7 @@ export default function PatientsPage() {
           </DialogHeader>
           <div>
             {selectedMedicalRecord ? (
-              <MedicalRecordDetail medicalRecord={selectedMedicalRecord} />
+              <MedicalRecordDetailScreen medicalRecord={selectedMedicalRecord} />
             ) : (
               <div className="py-6 text-center text-sm text-muted-foreground">Không có hồ sơ</div>
             )}
@@ -799,7 +835,7 @@ export default function PatientsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Ngày sinh</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.dob ? new Date(selectedAppt.patient.profileId.dob).toLocaleDateString('vi-VN') : '-'}</span>
+                      <span className="font-medium">{formatDateDisplay(selectedAppt.patient?.profileId?.dob)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Chiều cao</span>
@@ -825,7 +861,7 @@ export default function PatientsPage() {
                       <div>
                         <div className="text-sm text-muted-foreground">Lịch hẹn</div>
                         <h4 className="text-lg font-semibold mt-1 text-gray-900 dark:text-white">{selectedAppt.label ?? selectedAppt.serviceType ?? 'Lịch hẹn khám'}</h4>
-                        <div className="text-sm text-muted-foreground mt-1">{selectedAppt.date ? new Date(selectedAppt.date).toLocaleDateString('vi-VN') : '-'} • {selectedAppt.startTime ?? '-'} - {selectedAppt.endTime ?? '-'}</div>
+                        <div className="text-sm text-muted-foreground mt-1">{formatDateDisplay(selectedAppt.date)} • {formatTimeValue(selectedAppt.startTime)} - {formatTimeValue(selectedAppt.endTime)}</div>
                       </div>
                       <div className="flex items-center gap-3">
                         <Badge className={cn('px-3 py-1 rounded-full text-sm', selectedAppt.appointmentStatus === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>

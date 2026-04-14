@@ -116,7 +116,7 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
     });
 
     // mark read on load
-    markRead(conversationId, currentUser.accountId).catch(() => {});
+    markRead(conversationId).catch(() => {});
 
     return () => {
       chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_CONVERSATION, { conversationId });
