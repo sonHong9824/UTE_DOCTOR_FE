@@ -2,11 +2,36 @@ import { getWalletBalance, getWalletCoinSummary, getWalletDetails } from "@/apis
 import {
   WalletAccountType,
   WalletBalanceData,
+  WalletCoinBreakdownItem,
   WalletDetails,
   WalletTransaction,
   WalletTransactionApiDto,
   WalletTransactionDirection,
 } from "@/features/wallet/types/wallet.types";
+
+const getCoinBreakdownRank = (item: WalletCoinBreakdownItem): number => {
+  if (item.category === "expired") return 0;
+  if (item.category === "active") return 1;
+  return 2;
+};
+
+const getExpirySortTime = (item: WalletCoinBreakdownItem): number => {
+  if (!item.expiresAt) return Number.MAX_SAFE_INTEGER;
+  const parsed = new Date(item.expiresAt).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const sortCoinBreakdownByFEFO = (items: WalletCoinBreakdownItem[]): WalletCoinBreakdownItem[] => {
+  return [...items].sort((left, right) => {
+    const rankDiff = getCoinBreakdownRank(left) - getCoinBreakdownRank(right);
+    if (rankDiff !== 0) return rankDiff;
+
+    const expiryDiff = getExpirySortTime(left) - getExpirySortTime(right);
+    if (expiryDiff !== 0) return expiryDiff;
+
+    return left.transactionId.localeCompare(right.transactionId);
+  });
+};
 
 const inferWalletType = (walletType: WalletAccountType | undefined, reason: string, type: string): WalletAccountType => {
   if (walletType) {
@@ -78,6 +103,7 @@ const getDetails = async (page = 1, limit = 10): Promise<WalletDetails> => {
   ]);
 
   const coinSummary = coinSummaryResponse.data;
+  const coinBreakdown = sortCoinBreakdownByFEFO(coinSummary?.breakdown ?? []);
   const coinTransactions = (response.data.transactions ?? []).map((transaction) =>
     normalizeTransaction(transaction, "coin")
   );
@@ -95,7 +121,7 @@ const getDetails = async (page = 1, limit = 10): Promise<WalletDetails> => {
     totalCoinExpired: coinSummary?.expiredCoin ?? response.data.totalCoinExpired ?? 0,
     totalCredited: response.data.totalCredited ?? 0,
     totalDebited: response.data.totalDebited ?? 0,
-    coinBreakdown: coinSummary?.breakdown ?? [],
+    coinBreakdown,
     transactions: [...creditTransactions, ...coinTransactions].sort(
       (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
     ),

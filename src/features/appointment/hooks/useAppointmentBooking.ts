@@ -3,12 +3,12 @@
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
-    AppointmentBookingFormValues,
-    AppointmentDetail,
-    BookingLifecycleState,
-    DoctorOption,
-    DoctorPayload,
-    SpecialtyOption,
+  AppointmentBookingFormValues,
+  AppointmentDetail,
+  BookingLifecycleState,
+  DoctorOption,
+  DoctorPayload,
+  SpecialtyOption,
 } from "@/features/appointment/types/appointment.types";
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
@@ -60,9 +60,12 @@ export const useAppointmentBooking = () => {
   const [bookingLifecycleState, setBookingLifecycleState] = useState<BookingLifecycleState>("IDLE");
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [isPaymentWindowOpen, setIsPaymentWindowOpen] = useState(false);
 
   const pollingIntervalRef = useRef<number | null>(null);
   const pollingStartedAtRef = useRef<number | null>(null);
+  const paymentWindowRef = useRef<Window | null>(null);
+  const paymentWindowWatchRef = useRef<number | null>(null);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
@@ -103,13 +106,42 @@ export const useAppointmentBooking = () => {
     pollingStartedAtRef.current = null;
   };
 
+  const stopPaymentWindowWatch = () => {
+    if (paymentWindowWatchRef.current !== null) {
+      window.clearInterval(paymentWindowWatchRef.current);
+      paymentWindowWatchRef.current = null;
+    }
+  };
+
+  const clearPaymentWindowState = () => {
+    stopPaymentWindowWatch();
+    paymentWindowRef.current = null;
+    setIsPaymentWindowOpen(false);
+  };
+
   const openPaymentWindow = () => {
     if (!paymentUrl) return;
-    window.open(paymentUrl, "_blank");
+
+    const popup = window.open(paymentUrl, "_blank");
+    if (!popup) {
+      setErrorMessage("Không thể mở cổng thanh toán. Vui lòng cho phép popup và thử lại.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    paymentWindowRef.current = popup;
+    setIsPaymentWindowOpen(true);
+    stopPaymentWindowWatch();
+    paymentWindowWatchRef.current = window.setInterval(() => {
+      if (paymentWindowRef.current?.closed) {
+        clearPaymentWindowState();
+      }
+    }, 500);
   };
 
   const finalizeAsConfirmed = (appointment: AppointmentDetail) => {
     stopStatusPolling();
+    clearPaymentWindowState();
     setBookingLifecycleState("CONFIRMED");
     setSuccessMessage("Lịch hẹn đã được xác nhận sau thanh toán.");
     setShowSuccessModal(true);
@@ -118,6 +150,7 @@ export const useAppointmentBooking = () => {
 
   const finalizeAsFailed = (message: string, appointment?: AppointmentDetail) => {
     stopStatusPolling();
+    clearPaymentWindowState();
     setBookingLifecycleState("FAILED");
     setErrorMessage(message);
     setShowErrorModal(true);
@@ -182,6 +215,7 @@ export const useAppointmentBooking = () => {
       }
 
       if (resultStatus === "COMPLETED") {
+        clearPaymentWindowState();
         setBookingLifecycleState("CONFIRMED");
         setSuccessMessage("Thanh toán thành công. Lịch hẹn của bạn đã được xác nhận.");
         setShowSuccessModal(true);
@@ -307,7 +341,27 @@ export const useAppointmentBooking = () => {
     await fetchTimeSlots(formData.doctor?.id, localDate, "");
   };
 
+  const hasPendingPayment = useMemo(
+    () => bookingLifecycleState === "PENDING_PAYMENT" && Boolean(pendingAppointmentId),
+    [bookingLifecycleState, pendingAppointmentId]
+  );
+
+  const handleCancelPendingPayment = () => {
+    stopStatusPolling();
+    clearPaymentWindowState();
+    setPendingAppointmentId(null);
+    setPaymentUrl(null);
+    setBookingLifecycleState("IDLE");
+    setSuccessMessage("");
+  };
+
   const handleSubmit = async () => {
+    if (hasPendingPayment) {
+      setErrorMessage("Bạn đang có lịch hẹn chờ thanh toán. Vui lòng hoàn tất hoặc hủy phiên chờ trước khi đặt lịch mới.");
+      setShowErrorModal(true);
+      return;
+    }
+
     setLoading(true);
     setResponse(null);
     setShowErrorModal(false);
@@ -315,8 +369,7 @@ export const useAppointmentBooking = () => {
     setErrorMessage("");
     setSuccessMessage("");
     setBookingLifecycleState("SUBMITTING");
-    setPendingAppointmentId(null);
-    setPaymentUrl(null);
+    clearPaymentWindowState();
 
     const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
     if (!selectedSlot) {
@@ -355,10 +408,6 @@ export const useAppointmentBooking = () => {
         setPaymentUrl(returnedPaymentUrl);
         setSuccessMessage("Đặt lịch thành công ở trạng thái chờ thanh toán. Vui lòng hoàn tất thanh toán để xác nhận.");
         setShowSuccessModal(true);
-
-        if (returnedPaymentUrl) {
-          window.open(returnedPaymentUrl, "_blank");
-        }
 
         startStatusPolling(appointmentId);
         return;
@@ -416,6 +465,10 @@ export const useAppointmentBooking = () => {
 
     return () => {
       stopStatusPolling();
+      if (paymentWindowRef.current && !paymentWindowRef.current.closed) {
+        paymentWindowRef.current.close();
+      }
+      clearPaymentWindowState();
     };
   }, []);
 
@@ -462,6 +515,11 @@ export const useAppointmentBooking = () => {
     [coinDiscountPreview.maxUsableCoin, formData.useCoin]
   );
 
+  const isPaymentInteractionLocked = useMemo(
+    () => bookingLifecycleState === "PENDING_PAYMENT" && isPaymentWindowOpen,
+    [bookingLifecycleState, isPaymentWindowOpen]
+  );
+
   return {
     formData,
     loading,
@@ -481,9 +539,11 @@ export const useAppointmentBooking = () => {
     isDoctorFocused,
     showSpecialtySuggestions,
     canUseCoinPayment,
+    hasPendingPayment,
     bookingLifecycleState,
     pendingAppointmentId,
     paymentUrl,
+    isPaymentInteractionLocked,
     originalAmount: formData.amount ?? 0,
     discountAmount: coinDiscountPreview.discount,
     finalAmount: coinDiscountPreview.final,
@@ -504,6 +564,7 @@ export const useAppointmentBooking = () => {
     handleDoctorBlur,
     handleSubmit,
     handleRetryStatusCheck,
+    handleCancelPendingPayment,
     openPaymentWindow,
     getTimeSlotDisplay,
   };

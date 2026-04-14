@@ -3,10 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WalletCoinBreakdownItem } from "@/features/wallet/types/wallet.types";
 import { formatCoin } from "@/utils/money.util";
 import { AlertTriangle, Clock3, ListOrdered } from "lucide-react";
+import { useMemo, useState } from "react";
 
 interface CoinBreakdownCardProps {
   breakdown: WalletCoinBreakdownItem[];
 }
+
+const ITEMS_PER_PAGE = 3;
 
 const categoryLabel: Record<WalletCoinBreakdownItem["category"], string> = {
   active: "Active",
@@ -31,22 +34,23 @@ const formatExpireDate = (value?: string): string => {
 };
 
 export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
-  const sortedBreakdown = [...breakdown].sort((left, right) => {
-    if (left.isExpiringSoon !== right.isExpiringSoon) {
-      return left.isExpiringSoon ? -1 : 1;
-    }
+  const sortedBreakdown = breakdown;
+  const [currentPage, setCurrentPage] = useState(1);
 
-    const leftTime = left.expiresAt ? new Date(left.expiresAt).getTime() : Number.MAX_SAFE_INTEGER;
-    const rightTime = right.expiresAt ? new Date(right.expiresAt).getTime() : Number.MAX_SAFE_INTEGER;
-    return leftTime - rightTime;
-  });
+  const totalPages = Math.max(1, Math.ceil(sortedBreakdown.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const pagedBreakdown = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
+    return sortedBreakdown.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [safeCurrentPage, sortedBreakdown]);
 
   return (
     <Card className="border-slate-200">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-slate-900">
           <ListOrdered className="h-5 w-5 text-amber-600" />
-          Coin Breakdown (FIFO)
+          Coin Breakdown (FEFO)
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -56,7 +60,7 @@ export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
           </div>
         ) : (
           <div className="space-y-3">
-            {sortedBreakdown.map((item) => (
+            {pagedBreakdown.map((item) => (
               <div key={item.transactionId} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -95,6 +99,30 @@ export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
                 </div>
               </div>
             ))}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={safeCurrentPage === 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Truoc
+                </button>
+                <span className="text-xs text-slate-500">
+                  Trang {safeCurrentPage}/{totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={safeCurrentPage === totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Sau
+                </button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

@@ -156,6 +156,7 @@ src/apis/user/user.api.ts
 
 - Credit is real money and must be displayed as VND.
 - Coin is reward balance and is discount-only during booking.
+- Coin consumption follows FEFO (First Expire, First Out): prioritize expiring lots (`expiresAt` ascending), then non-expiring lots.
 - Wallet views should separate credit and coin balances, transaction histories, and labels.
 - Use `src/utils/money.util.ts` for currency, coin formatting, and coin-discount calculations.
 - Booking payloads must send `useCoin`/`coinsToUse` only as a discount request; `paymentMethod=COIN` is deprecated.
