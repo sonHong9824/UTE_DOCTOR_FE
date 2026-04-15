@@ -31,7 +31,8 @@ export interface WalletCoinBreakdownItem {
   amount: number;
   used: number;
   remaining: number;
-  expiresAt?: string;
+  createdAt: number | null;
+  expiresAt: number | null;
   category: WalletCoinCategory;
   isExpiringSoon: boolean;
 }
