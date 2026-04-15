@@ -120,6 +120,20 @@ export const formatApiDateToLocalTime = (
   });
 };
 
+export const formatApiDateToLocalTimeWithSeconds = (
+  value: string | number | Date,
+  locale = "vi-VN"
+): string => {
+  const localDate = parseApiDateTimeToLocal(value);
+  if (!localDate) return "--:--:--";
+
+  return localDate.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+};
+
 export const normalizeEpochDateInText = (text: string, locale = "vi-VN"): string => {
   if (!text) return text;
 

@@ -42,7 +42,8 @@ export type WalletCoinSummaryApiResponse = DataResponse<{
     amount: number;
     used: number;
     remaining: number;
-    expiresAt?: string;
+    createdAt: number | string;
+    expiresAt: number | string | null;
     category: WalletCoinBreakdownItem["category"];
     isExpiringSoon: boolean;
   }>;
@@ -80,8 +81,10 @@ export const getWalletCoinSummary = async () => {
   }
 };
 
-export default {
+const walletApi = {
   getWalletBalance,
   getWalletDetails,
   getWalletCoinSummary,
 };
+
+export default walletApi;
