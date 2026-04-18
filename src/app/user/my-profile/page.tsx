@@ -10,7 +10,7 @@ const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: 
 
 export default function ProfilePage() {
   // UI-only page: delegates data/side-effects to view-model hook.
-  const { user, loading, activeTab, setActiveTab, patientId, email } = usePatientProfile();
+  const { user, loading, activeTab, setActiveTab } = usePatientProfile();
 
   if (loading) return <p className="text-center mt-8">Loading...</p>;
   if (!user) return <p className="text-center mt-8">Không tìm thấy hồ sơ</p>;
@@ -30,7 +30,7 @@ export default function ProfilePage() {
       {/* Main content area with offsets for navbar + sidebar */}
       <main className="pt-24 pl-64">
         <div className="p-6">
-          <UserContent user={user} activeTab={activeTab} patientId={patientId} email={email} />
+          <UserContent user={user} activeTab={activeTab} />
         </div>
       </main>
 

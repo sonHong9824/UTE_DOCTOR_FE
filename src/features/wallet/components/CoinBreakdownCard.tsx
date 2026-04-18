@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WalletCoinBreakdownItem } from "@/features/wallet/types/wallet.types";
 import { formatCoin } from "@/utils/money.util";
-import { formatApiDateToLocalTimeWithSeconds, parseApiDateTimeToLocal } from "@/utils/time.util";
+import { formatApiDateToLocalDateTime } from "@/utils/time.util";
 import { AlertTriangle, Clock3, ListOrdered } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -31,17 +31,8 @@ const categoryClassName: Record<WalletCoinBreakdownItem["category"], string> = {
 const formatWalletDateTime = (value: number | null | undefined): string => {
   if (!value) return "Khong gioi han";
 
-  const parsed = parseApiDateTimeToLocal(value);
-  if (!parsed) return "Khong gioi han";
-
-  const date = parsed.toLocaleDateString("vi-VN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const time = formatApiDateToLocalTimeWithSeconds(parsed);
-
-  return `${date} ${time}`;
+  const formatted = formatApiDateToLocalDateTime(value, "vi-VN", true);
+  return formatted.includes("--/--/----") ? "Khong gioi han" : formatted;
 };
 
 export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
