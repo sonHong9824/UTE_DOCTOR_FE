@@ -135,7 +135,7 @@ class SocketClient {
     console.log(`[Socket] Listening once: ${event}`);
   }
 
-  off(event: SocketEventsEnum, callback?: (...args: any[]) => void) {
+  off(event: SocketEventsEnum, callback?: (...args: unknown[]) => void) {
     this.socket.off(event, callback);
     console.log(`[Socket] Removed listener: ${event}`);
   }
@@ -159,11 +159,11 @@ class SocketClient {
   }
 
   onDisconnect(cb: (reason: Socket.DisconnectReason) => void) {
-    this.socket.on('disconnect', cb as any);
+    this.socket.on('disconnect', cb);
   }
 
   offDisconnect(cb: (reason: Socket.DisconnectReason) => void) {
-    this.socket.off('disconnect', cb as any);
+    this.socket.off('disconnect', cb);
   }
 }
 
@@ -172,12 +172,25 @@ class SocketClient {
 const API_BASE = process.env.NEXT_PUBLIC_BASE_API || 'http://localhost:3001/api';
 const BASE_API = API_BASE.replace(/\/api\/?$/, '');
 
+const SOCKET_NAMESPACES = {
+  AUTH: "/auth",
+  NOTIFICATION: "/notification",
+  CHAT: "/chat",
+  PATIENT_PROFILE: "/patient-profile",
+  APPOINTMENT: "/appointment",
+  APPOINTMENT_FIELDS_DATA: "/appointment/fields-data",
+  PAYMENT_VNPAY: "/payment/vnpay",
+} as const;
+
 export const socketClient = new SocketClient(BASE_API);
-export const authSocket = new SocketClient(BASE_API, "/auth");
-export const createNotiSocket = () => new SocketClient(BASE_API, "/noti");
-export const createChatSocket = () => new SocketClient(BASE_API, "/chat");
-export const createPatientProfileSocket = () => new SocketClient(BASE_API, "/patient-profile");
-export const createAppointmentSocket = () => new SocketClient(BASE_API, "/appointment");
-export const createFetchDataFieldsAppointmentSocket = () => new SocketClient(BASE_API, "/appointment/fields-data");
-export const createShiftSocket = () => new SocketClient(BASE_API, "/shift");
-export const createPaymentVnPaySocket = () => new SocketClient(BASE_API, "/payment/vnpay");
+export const authSocket = new SocketClient(BASE_API, SOCKET_NAMESPACES.AUTH);
+export const createNotificationSocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.NOTIFICATION);
+export const createNotiSocket = () => createNotificationSocket();
+export const createChatSocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.CHAT);
+export const createPatientProfileSocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.PATIENT_PROFILE);
+export const createAppointmentSocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.APPOINTMENT);
+export const createFetchDataFieldsAppointmentSocket = () =>
+  new SocketClient(BASE_API, SOCKET_NAMESPACES.APPOINTMENT_FIELDS_DATA);
+// Backward-compatible alias: shift-related realtime events are delivered on /appointment.
+export const createShiftSocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.APPOINTMENT);
+export const createPaymentVnPaySocket = () => new SocketClient(BASE_API, SOCKET_NAMESPACES.PAYMENT_VNPAY);

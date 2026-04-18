@@ -13,7 +13,7 @@ import {
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { calculateDiscount } from "@/utils/money.util";
-import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput } from "@/utils/time.util";
+import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput, toUTCISOString } from "@/utils/time.util";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 4000;
@@ -143,6 +143,8 @@ export const useAppointmentBooking = () => {
     stopStatusPolling();
     clearPaymentWindowState();
     setBookingLifecycleState("CONFIRMED");
+    setPendingAppointmentId(null);
+    setPaymentUrl(null);
     setSuccessMessage("Lịch hẹn đã được xác nhận sau thanh toán.");
     setShowSuccessModal(true);
     setResponse({ success: true, data: appointment });
@@ -152,6 +154,8 @@ export const useAppointmentBooking = () => {
     stopStatusPolling();
     clearPaymentWindowState();
     setBookingLifecycleState("FAILED");
+    setPendingAppointmentId(null);
+    setPaymentUrl(null);
     setErrorMessage(message);
     setShowErrorModal(true);
     setResponse({ success: false, data: appointment, error: message });
@@ -215,8 +219,13 @@ export const useAppointmentBooking = () => {
       }
 
       if (resultStatus === "COMPLETED") {
+        // Payment callback is authoritative for success. Stop polling immediately
+        // to avoid timeout fallback after long device sleep/resume.
+        stopStatusPolling();
         clearPaymentWindowState();
         setBookingLifecycleState("CONFIRMED");
+        setPendingAppointmentId(null);
+        setPaymentUrl(null);
         setSuccessMessage("Thanh toán thành công. Lịch hẹn của bạn đã được xác nhận.");
         setShowSuccessModal(true);
         void pollAppointmentStatus(resultOrderId);
@@ -387,10 +396,13 @@ export const useAppointmentBooking = () => {
     assertValidISO(appointmentDateTime);
     assertValidISO(bookingDateTime);
 
+    const appointmentDateTimeUtc = toUTCISOString(appointmentDateTime);
+    const bookingDateTimeUtc = toUTCISOString(bookingDateTime);
+
     const payload = {
       ...formData,
-      appointmentDate: appointmentDateTime,
-      bookingDate: bookingDateTime,
+      appointmentDate: appointmentDateTimeUtc,
+      bookingDate: bookingDateTimeUtc,
       useCoin: Boolean(formData.useCoin && coinDiscountPreview.discount > 0),
       coinsToUse: coinDiscountPreview.requestedCoin,
     };
