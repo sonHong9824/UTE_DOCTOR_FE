@@ -95,8 +95,15 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
 
     // socket managed by ChatSocketProvider
 
-    // join conversation room
-    chatSocket.emitSafe(SocketEventsEnum.CHAT_JOIN_CONVERSATION, { conversationId });
+    const handleConnect = () => {
+      void chatSocket.joinConversation(conversationId);
+    };
+
+    chatSocket.onConnect(handleConnect);
+    chatSocket.connect();
+    if (chatSocket.isConnected()) {
+      void chatSocket.joinConversation(conversationId);
+    }
 
     // receive new messages
     chatSocket.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
@@ -119,7 +126,8 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
     markRead(conversationId).catch(() => {});
 
     return () => {
-      chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_CONVERSATION, { conversationId });
+      void chatSocket.leaveConversation(conversationId);
+      chatSocket.offConnect(handleConnect);
       chatSocket.off(SocketEventsEnum.CHAT_MESSAGE_RECEIVED);
       mounted = false;
     };

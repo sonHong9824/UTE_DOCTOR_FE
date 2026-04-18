@@ -5,9 +5,9 @@ import { ResponseCode } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
 import { createNotificationSocket } from "@/services/socket/socket-client";
 import {
-  Notification,
-  NotificationMap,
-  NotificationPayload,
+    Notification,
+    NotificationMap,
+    NotificationPayload,
 } from "@/types/notification.dto";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -130,8 +130,13 @@ export default function NotificationBell({
   useEffect(() => {
     const notificationSocket = createNotificationSocket();
 
-    const joinNotificationRoom = () => {
-      void notificationSocket.emitSafe(SocketEventsEnum.JOIN_ROOM);
+    const joinNotificationRoom = async () => {
+      await notificationSocket.joinRoom();
+      console.log("[NotificationBell] JOIN_ROOM emitted for notification namespace");
+    };
+
+    const handleConnect = () => {
+      void joinNotificationRoom();
     };
 
     const onNotificationReceived = async (...args: unknown[]) => {
@@ -144,20 +149,23 @@ export default function NotificationBell({
       await refreshBell();
     };
 
-    joinNotificationRoom();
-    notificationSocket.onConnect(joinNotificationRoom);
+    notificationSocket.onConnect(handleConnect);
     notificationSocket.on(
       SocketEventsEnum.NOTIFICATION_RECEIVED,
       onNotificationReceived
     );
+
+    notificationSocket.connect();
+    if (notificationSocket.isConnected()) {
+      void joinNotificationRoom();
+    }
 
     return () => {
       notificationSocket.off(
         SocketEventsEnum.NOTIFICATION_RECEIVED,
         onNotificationReceived
       );
-      notificationSocket.offConnect(joinNotificationRoom);
-      notificationSocket.disconnect();
+      notificationSocket.offConnect(handleConnect);
     };
   }, [handleNotification, refreshBell]);
 
