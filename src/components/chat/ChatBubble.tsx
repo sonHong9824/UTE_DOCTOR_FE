@@ -29,7 +29,16 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
   // Join user room using shared socket
   useEffect(() => {
     if (!currentUser.accountId) return;
-    chatSocket.emitSafe(SocketEventsEnum.CHAT_JOIN_USER, { accountId: currentUser.accountId });
+
+    const handleConnect = () => {
+      void chatSocket.joinUser();
+    };
+
+    chatSocket.onConnect(handleConnect);
+    chatSocket.connect();
+    if (chatSocket.isConnected()) {
+      void chatSocket.joinUser();
+    }
 
     // Listen for incoming messages on user room (from new conversations)
     chatSocket.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
@@ -44,9 +53,8 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
     });
 
     return () => {
-      if (currentUser.accountId) {
-        chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_USER, { accountId: currentUser.accountId });
-      }
+      void chatSocket.leaveUser();
+      chatSocket.offConnect(handleConnect);
       chatSocket.off(SocketEventsEnum.CHAT_MESSAGE_RECEIVED);
     };
   }, [currentUser.accountId, conversationId, chatSocket]);
