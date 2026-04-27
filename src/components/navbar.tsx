@@ -12,11 +12,13 @@ import { useRouter } from "next/navigation";
 
 const Navbar = () => {
   const [email, setEmail] = useState<string | null>(null);
+  const [role, setRole] = useState<string>("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const router = useRouter();
   
   useEffect(() => {
     const storeEmail = localStorage.getItem("email");
+    const storeRole = (localStorage.getItem("role") || "").toUpperCase();
     if (storeEmail) {
       setEmail(storeEmail);
         // getNotificationsByEmail(storeEmail, { page: 1, limit: 10 })
@@ -27,7 +29,30 @@ const Navbar = () => {
         // })
         // .catch((err) => console.error("Failed to load notifications", err));
     }
+    setRole(storeRole);
   }, []);
+
+  const handleLogout = () => {
+    if (typeof window === "undefined") return;
+    const keys = [
+      "isLoggedIn",
+      "accessToken",
+      "refreshToken",
+      "email",
+      "id",
+      "accountId",
+      "userId",
+      "role",
+      "name",
+      "doctorId",
+      "patientId",
+      "profileId",
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
+    setEmail(null);
+    setRole("");
+    router.push('/');
+  };
 
   return (
     <div className="w-full h-20 lg:h-28 border-b border-border backdrop-blur-md sticky top-0">
@@ -61,16 +86,21 @@ const Navbar = () => {
               <span className="font-semibold">
                 Xin chào, {email ? email.slice(0, 2).toUpperCase() : ""}
               </span>
-              <Link href="/user/my-profile" aria-label="Hồ sơ bệnh nhân" className="text-foreground hover:text-blue-600 transition">
-                <User className="w-5 h-5" />
-              </Link>
+              {role === "RECEPTIONIST" ? (
+                <Link
+                  href="/receptionist/visits"
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 transition"
+                >
+                  Lễ tân
+                </Link>
+              ) : (
+                <Link href="/user/my-profile" aria-label="Hồ sơ bệnh nhân" className="text-foreground hover:text-blue-600 transition">
+                  <User className="w-5 h-5" />
+                </Link>
+              )}
               <NotificationBell email={email} />
               <button
-                onClick={() => {
-                  localStorage.removeItem("email");
-                  setEmail(null);
-                  router.push('/');
-                }}
+                onClick={handleLogout}
                 className="px-4 py-2 text-sm font-semibold rounded-lg border border-red-500 text-red-500 hover:bg-red-100 transition"
               >
                 Đăng xuất

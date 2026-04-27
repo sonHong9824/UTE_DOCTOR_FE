@@ -58,6 +58,10 @@ export const useLogin = () => {
         router.push("/admin/patients");
         return;
       }
+      if (res.data.role === "RECEPTIONIST") {
+        router.push("/receptionist/visits");
+        return;
+      }
       router.push("/");
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Lỗi khi gọi login";
