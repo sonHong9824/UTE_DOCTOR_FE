@@ -33,6 +33,9 @@ export type AppointmentBookingFormValues = {
   timeSlotId: string;
   doctor: DoctorPayload | null;
   serviceType: string;
+  visitType: "OFFLINE";
+  paymentCategory: "BHYT" | "DICH_VU";
+  depositAmount?: number;
   paymentMethod: "ONLINE" | "VNPAY" | "CREDIT" | "OFFLINE";
   amount?: number;
   reasonForAppointment: string;
@@ -109,8 +112,6 @@ export type AppointmentBookingState = {
   showErrorModal: boolean;
   errorMessage: string;
   timeSlots: TimeSlotDto[];
-  coinBalance: number;
-  loadingCoin: boolean;
   specialtySearchTerm: string;
   specialtySuggestions: SpecialtyOption[];
   doctorSearchTerm: string;
@@ -120,8 +121,4 @@ export type AppointmentBookingState = {
   bookingLifecycleState: BookingLifecycleState;
   pendingAppointmentId: string | null;
   paymentUrl: string | null;
-  originalAmount: number;
-  discountAmount: number;
-  finalAmount: number;
-  maxCoinDiscount: number;
 };

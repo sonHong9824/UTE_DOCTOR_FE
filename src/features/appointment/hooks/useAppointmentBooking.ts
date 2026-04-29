@@ -12,7 +12,6 @@ import {
 } from "@/features/appointment/types/appointment.types";
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
-import { calculateDiscount } from "@/utils/money.util";
 import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput, toUTCISOString } from "@/utils/time.util";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -26,6 +25,9 @@ const initialForm = (): AppointmentBookingFormValues => ({
   timeSlotId: "",
   doctor: null,
   serviceType: "KHAM_DICH_VU",
+  visitType: "OFFLINE",
+  paymentCategory: "DICH_VU",
+  depositAmount: 100000,
   paymentMethod: "ONLINE",
   amount: 100000,
   reasonForAppointment: "",
@@ -53,9 +55,6 @@ export const useAppointmentBooking = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [coinBalance, setCoinBalance] = useState(0);
-  const [creditBalance, setCreditBalance] = useState(0);
-  const [loadingCoin, setLoadingCoin] = useState(true);
 
   const [bookingLifecycleState, setBookingLifecycleState] = useState<BookingLifecycleState>("IDLE");
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
@@ -68,35 +67,6 @@ export const useAppointmentBooking = () => {
   const paymentWindowWatchRef = useRef<number | null>(null);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
-
-  const coinDiscountPreview = useMemo(
-    () =>
-      calculateDiscount({
-        availableCoin: coinBalance,
-        originalAmount: formData.amount ?? 0,
-        requestedCoin: formData.coinsToUse ?? 0,
-        useCoin: Boolean(formData.useCoin),
-      }),
-    [coinBalance, formData.amount, formData.coinsToUse, formData.useCoin]
-  );
-
-  useEffect(() => {
-    setFormData((prev) => {
-      if (!prev.useCoin) {
-        return prev;
-      }
-
-      const nextCoinsToUse = Math.min(prev.coinsToUse ?? 0, coinDiscountPreview.maxUsableCoin);
-      if (nextCoinsToUse === prev.coinsToUse) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        coinsToUse: nextCoinsToUse,
-      };
-    });
-  }, [coinDiscountPreview.maxUsableCoin]);
 
   const stopStatusPolling = () => {
     if (pollingIntervalRef.current !== null) {
@@ -267,13 +237,27 @@ export const useAppointmentBooking = () => {
 
   const handleChange = (name: keyof AppointmentBookingFormValues, value: any) => {
     setFormData((prev) => {
-      if (name === "useCoin" && !value) {
-        return { ...prev, useCoin: false, coinsToUse: 0 };
+      if (name === "paymentCategory") {
+        if (value === "BHYT") {
+          return {
+            ...prev,
+            paymentCategory: "BHYT",
+            depositAmount: 0,
+          };
+        }
+
+        return {
+          ...prev,
+          paymentCategory: "DICH_VU",
+          depositAmount: prev.depositAmount && prev.depositAmount > 0 ? prev.depositAmount : 100000,
+        };
       }
 
-      if (name === "coinsToUse") {
-        const nextCoinsToUse = Math.max(0, Math.min(Number(value) || 0, coinDiscountPreview.maxUsableCoin));
-        return { ...prev, coinsToUse: nextCoinsToUse, useCoin: nextCoinsToUse > 0 };
+      if (name === "depositAmount") {
+        return {
+          ...prev,
+          depositAmount: Math.max(0, Number(value) || 0),
+        };
       }
 
       return { ...prev, [name]: value };
@@ -399,12 +383,23 @@ export const useAppointmentBooking = () => {
     const appointmentDateTimeUtc = toUTCISOString(appointmentDateTime);
     const bookingDateTimeUtc = toUTCISOString(bookingDateTime);
 
+    const normalizedPaymentCategory: AppointmentBookingFormValues["paymentCategory"] =
+      formData.paymentCategory === "BHYT" ? "BHYT" : "DICH_VU";
+    const normalizedDeposit = normalizedPaymentCategory === "BHYT"
+      ? 0
+      : Math.max(0, Number(formData.depositAmount) || 0);
+    const normalizedPaymentMethod: AppointmentBookingFormValues["paymentMethod"] =
+      normalizedPaymentCategory === "BHYT" ? "OFFLINE" : "ONLINE";
+
     const payload = {
       ...formData,
       appointmentDate: appointmentDateTimeUtc,
       bookingDate: bookingDateTimeUtc,
-      useCoin: Boolean(formData.useCoin && coinDiscountPreview.discount > 0),
-      coinsToUse: coinDiscountPreview.requestedCoin,
+      paymentCategory: normalizedPaymentCategory,
+      depositAmount: normalizedDeposit,
+      paymentMethod: normalizedPaymentMethod,
+      useCoin: false,
+      coinsToUse: 0,
     };
 
     try {
@@ -453,9 +448,8 @@ export const useAppointmentBooking = () => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const [slots, wallet, specialties] = await Promise.all([
+        const [slots, specialties] = await Promise.all([
           appointmentService.getAllTimeSlots(),
-          appointmentService.getWalletBalance(),
           appointmentService.getSpecialties(),
         ]);
 
@@ -464,12 +458,8 @@ export const useAppointmentBooking = () => {
         if (slots.length > 0) {
           setFormData((prev) => ({ ...prev, timeSlotId: slots[0].id }));
         }
-        setCoinBalance(wallet.coinBalance);
-        setCreditBalance(wallet.creditBalance);
       } catch (error) {
         console.error("Failed to load appointment initial data:", error);
-      } finally {
-        setLoadingCoin(false);
       }
     };
 
@@ -522,11 +512,6 @@ export const useAppointmentBooking = () => {
     return () => clearTimeout(timeout);
   }, [doctorSearchTerm, selectedSpecialty]);
 
-  const canUseCoinPayment = useMemo(
-    () => Boolean(formData.useCoin && coinDiscountPreview.maxUsableCoin > 0),
-    [coinDiscountPreview.maxUsableCoin, formData.useCoin]
-  );
-
   const isPaymentInteractionLocked = useMemo(
     () => bookingLifecycleState === "PENDING_PAYMENT" && isPaymentWindowOpen,
     [bookingLifecycleState, isPaymentWindowOpen]
@@ -541,25 +526,17 @@ export const useAppointmentBooking = () => {
     showErrorModal,
     errorMessage,
     timeSlots,
-    coinBalance,
-    creditBalance,
-    loadingCoin,
     specialtySearchTerm,
     specialtySuggestions,
     doctorSearchTerm,
     doctorSuggestions,
     isDoctorFocused,
     showSpecialtySuggestions,
-    canUseCoinPayment,
     hasPendingPayment,
     bookingLifecycleState,
     pendingAppointmentId,
     paymentUrl,
     isPaymentInteractionLocked,
-    originalAmount: formData.amount ?? 0,
-    discountAmount: coinDiscountPreview.discount,
-    finalAmount: coinDiscountPreview.final,
-    maxCoinDiscount: coinDiscountPreview.maxUsableCoin,
 
     setShowSuccessModal,
     setShowErrorModal,
