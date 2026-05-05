@@ -19,11 +19,6 @@ export default function AppointmentBookingScreen() {
     doctorSuggestions,
     isDoctorFocused,
     showSpecialtySuggestions,
-    hasPendingPayment,
-    bookingLifecycleState,
-    pendingAppointmentId,
-    paymentUrl,
-    isPaymentInteractionLocked,
 
     setShowSuccessModal,
     setShowErrorModal,
@@ -39,9 +34,6 @@ export default function AppointmentBookingScreen() {
     handleDoctorSelect,
     handleDoctorBlur,
     handleSubmit,
-    handleRetryStatusCheck,
-    handleCancelPendingPayment,
-    openPaymentWindow,
     getTimeSlotDisplay,
   } = useAppointmentBooking();
 
@@ -254,49 +246,12 @@ export default function AppointmentBookingScreen() {
 
             <button
               onClick={handleSubmit}
-              disabled={loading || hasPendingPayment}
+              disabled={loading}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading
-                ? "Đang xử lý..."
-                : hasPendingPayment
-                  ? "Hoàn tất thanh toán trước khi đặt lịch mới"
-                  : "Đặt Lịch Khám"}
+              {loading ? "Đang xử lý..." : "Đặt Lịch Khám"}
             </button>
 
-            {bookingLifecycleState === "PENDING_PAYMENT" && pendingAppointmentId && (
-              <div className="mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50">
-                <h4 className="font-semibold text-amber-800">Trạng thái: Chờ thanh toán</h4>
-                <p className="text-sm text-amber-700 mt-1">
-                  Mã lịch hẹn: <span className="font-mono">{pendingAppointmentId}</span>
-                </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Hệ thống sẽ tự động kiểm tra trạng thái sau thanh toán. Bạn cũng có thể kiểm tra thủ công.
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={handleRetryStatusCheck}
-                    className="px-3 py-2 text-sm rounded-lg bg-amber-600 text-white hover:bg-amber-700"
-                  >
-                    Kiểm tra trạng thái
-                  </button>
-                  {paymentUrl && (
-                    <button
-                      onClick={openPaymentWindow}
-                      className="px-3 py-2 text-sm rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-100"
-                    >
-                      Mở lại cổng thanh toán
-                    </button>
-                  )}
-                  <button
-                    onClick={handleCancelPendingPayment}
-                    className="px-3 py-2 text-sm rounded-lg bg-white border border-red-300 text-red-700 hover:bg-red-50"
-                  >
-                    Hủy phiên chờ thanh toán
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {showSuccessModal && (
@@ -306,12 +261,7 @@ export default function AppointmentBookingScreen() {
                 <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
                 <div className="flex justify-end">
                   <button
-                    onClick={() => {
-                      if (bookingLifecycleState === "PENDING_PAYMENT" && paymentUrl) {
-                        openPaymentWindow();
-                      }
-                      setShowSuccessModal(false);
-                    }}
+                    onClick={() => setShowSuccessModal(false)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     OK
@@ -338,19 +288,6 @@ export default function AppointmentBookingScreen() {
             </div>
           )}
 
-          {isPaymentInteractionLocked && (
-            <div className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]">
-              <div className="flex h-full items-center justify-center p-4">
-                <div className="w-full max-w-md rounded-2xl border border-white/30 bg-white/95 p-6 text-center shadow-2xl">
-                  <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-                  <h4 className="text-lg font-semibold text-gray-900">Đang chờ kết quả thanh toán</h4>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Vui lòng hoàn tất giao dịch trên cửa sổ VNPay. Hệ thống sẽ tự động mở lại thao tác khi có kết quả hoặc khi bạn đóng cửa sổ thanh toán.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -1,22 +1,16 @@
 "use client";
 
-import { AppointmentStatus } from "@/enum/appointment-status.enum";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
-  AppointmentBookingFormValues,
-  AppointmentDetail,
-  BookingLifecycleState,
-  DoctorOption,
-  DoctorPayload,
-  SpecialtyOption,
+    AppointmentBookingFormValues,
+    DoctorOption,
+    DoctorPayload,
+    SpecialtyOption,
 } from "@/features/appointment/types/appointment.types";
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput, toUTCISOString } from "@/utils/time.util";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-const POLL_INTERVAL_MS = 4000;
-const POLL_TIMEOUT_MS = 6 * 60 * 1000;
+import { useEffect, useState } from "react";
 
 const initialForm = (): AppointmentBookingFormValues => ({
   appointmentDate: getTodayLocalDate(),
@@ -56,163 +50,9 @@ export const useAppointmentBooking = () => {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [bookingLifecycleState, setBookingLifecycleState] = useState<BookingLifecycleState>("IDLE");
-  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
-  const [isPaymentWindowOpen, setIsPaymentWindowOpen] = useState(false);
-
-  const pollingIntervalRef = useRef<number | null>(null);
-  const pollingStartedAtRef = useRef<number | null>(null);
-  const paymentWindowRef = useRef<Window | null>(null);
-  const paymentWindowWatchRef = useRef<number | null>(null);
-
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
-  const stopStatusPolling = () => {
-    if (pollingIntervalRef.current !== null) {
-      window.clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    pollingStartedAtRef.current = null;
-  };
 
-  const stopPaymentWindowWatch = () => {
-    if (paymentWindowWatchRef.current !== null) {
-      window.clearInterval(paymentWindowWatchRef.current);
-      paymentWindowWatchRef.current = null;
-    }
-  };
-
-  const clearPaymentWindowState = () => {
-    stopPaymentWindowWatch();
-    paymentWindowRef.current = null;
-    setIsPaymentWindowOpen(false);
-  };
-
-  const openPaymentWindow = () => {
-    if (!paymentUrl) return;
-
-    const popup = window.open(paymentUrl, "_blank");
-    if (!popup) {
-      setErrorMessage("Không thể mở cổng thanh toán. Vui lòng cho phép popup và thử lại.");
-      setShowErrorModal(true);
-      return;
-    }
-
-    paymentWindowRef.current = popup;
-    setIsPaymentWindowOpen(true);
-    stopPaymentWindowWatch();
-    paymentWindowWatchRef.current = window.setInterval(() => {
-      if (paymentWindowRef.current?.closed) {
-        clearPaymentWindowState();
-      }
-    }, 500);
-  };
-
-  const finalizeAsConfirmed = (appointment: AppointmentDetail) => {
-    stopStatusPolling();
-    clearPaymentWindowState();
-    setBookingLifecycleState("CONFIRMED");
-    setPendingAppointmentId(null);
-    setPaymentUrl(null);
-    setSuccessMessage("Lịch hẹn đã được xác nhận sau thanh toán.");
-    setShowSuccessModal(true);
-    setResponse({ success: true, data: appointment });
-  };
-
-  const finalizeAsFailed = (message: string, appointment?: AppointmentDetail) => {
-    stopStatusPolling();
-    clearPaymentWindowState();
-    setBookingLifecycleState("FAILED");
-    setPendingAppointmentId(null);
-    setPaymentUrl(null);
-    setErrorMessage(message);
-    setShowErrorModal(true);
-    setResponse({ success: false, data: appointment, error: message });
-  };
-
-  const pollAppointmentStatus = async (appointmentId: string) => {
-    try {
-      const appointment = await appointmentService.getAppointmentById(appointmentId);
-      const status = appointment?.appointmentStatus;
-
-      if (status === AppointmentStatus.CONFIRMED) {
-        finalizeAsConfirmed(appointment);
-        return;
-      }
-
-      if (status === AppointmentStatus.FAILED) {
-        finalizeAsFailed("Thanh toán thất bại hoặc lịch hẹn đã hết hạn.", appointment);
-        return;
-      }
-
-      if (status === AppointmentStatus.CANCELLED) {
-        finalizeAsFailed("Lịch hẹn đã bị hủy.", appointment);
-        return;
-      }
-
-      if (pollingStartedAtRef.current && Date.now() - pollingStartedAtRef.current > POLL_TIMEOUT_MS) {
-        finalizeAsFailed("Đã quá thời gian chờ thanh toán. Vui lòng kiểm tra lại lịch hẹn.", appointment);
-      }
-    } catch (error) {
-      console.error("Failed to poll appointment status", error);
-    }
-  };
-
-  const startStatusPolling = (appointmentId: string) => {
-    stopStatusPolling();
-    pollingStartedAtRef.current = Date.now();
-
-    void pollAppointmentStatus(appointmentId);
-    pollingIntervalRef.current = window.setInterval(() => {
-      void pollAppointmentStatus(appointmentId);
-    }, POLL_INTERVAL_MS);
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handlePaymentResultMessage = (event: MessageEvent) => {
-      const data = event.data;
-
-      if (!data || typeof data !== "object" || data.type !== "PAYMENT_RESULT") {
-        return;
-      }
-
-      const resultOrderId = typeof data.orderId === "string" ? data.orderId : "";
-      const resultStatus = typeof data.status === "string" ? data.status : "";
-
-      if (!resultOrderId || resultOrderId !== pendingAppointmentId) {
-        return;
-      }
-
-      if (resultStatus === "COMPLETED") {
-        // Payment callback is authoritative for success. Stop polling immediately
-        // to avoid timeout fallback after long device sleep/resume.
-        stopStatusPolling();
-        clearPaymentWindowState();
-        setBookingLifecycleState("CONFIRMED");
-        setPendingAppointmentId(null);
-        setPaymentUrl(null);
-        setSuccessMessage("Thanh toán thành công. Lịch hẹn của bạn đã được xác nhận.");
-        setShowSuccessModal(true);
-        void pollAppointmentStatus(resultOrderId);
-        return;
-      }
-
-      if (resultStatus === "FAILED") {
-        finalizeAsFailed("Thanh toán thất bại. Vui lòng thử lại hoặc chọn phương thức khác.");
-      }
-    };
-
-    window.addEventListener("message", handlePaymentResultMessage);
-
-    return () => {
-      window.removeEventListener("message", handlePaymentResultMessage);
-    };
-  }, [pendingAppointmentId]);
 
   const fetchTimeSlots = async (doctorId?: string, date?: string, currentTimeSlotId?: string) => {
     try {
@@ -334,40 +174,21 @@ export const useAppointmentBooking = () => {
     await fetchTimeSlots(formData.doctor?.id, localDate, "");
   };
 
-  const hasPendingPayment = useMemo(
-    () => bookingLifecycleState === "PENDING_PAYMENT" && Boolean(pendingAppointmentId),
-    [bookingLifecycleState, pendingAppointmentId]
-  );
 
-  const handleCancelPendingPayment = () => {
-    stopStatusPolling();
-    clearPaymentWindowState();
-    setPendingAppointmentId(null);
-    setPaymentUrl(null);
-    setBookingLifecycleState("IDLE");
-    setSuccessMessage("");
-  };
+
+
 
   const handleSubmit = async () => {
-    if (hasPendingPayment) {
-      setErrorMessage("Bạn đang có lịch hẹn chờ thanh toán. Vui lòng hoàn tất hoặc hủy phiên chờ trước khi đặt lịch mới.");
-      setShowErrorModal(true);
-      return;
-    }
-
     setLoading(true);
     setResponse(null);
     setShowErrorModal(false);
     setShowSuccessModal(false);
     setErrorMessage("");
     setSuccessMessage("");
-    setBookingLifecycleState("SUBMITTING");
-    clearPaymentWindowState();
 
     const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
     if (!selectedSlot) {
       setLoading(false);
-      setBookingLifecycleState("FAILED");
       setErrorMessage("Vui lòng chọn khung giờ hợp lệ trước khi đặt lịch.");
       setShowErrorModal(true);
       return;
@@ -406,32 +227,15 @@ export const useAppointmentBooking = () => {
       const res = await appointmentService.book(payload);
       setResponse(res);
 
-      const appointmentId = res?.data?.appointmentId ?? null;
-      const returnedPaymentUrl = res?.data?.paymentUrl ?? null;
-
-      if (res?.code === "PENDING" && appointmentId) {
-        setBookingLifecycleState("PENDING_PAYMENT");
-        setPendingAppointmentId(appointmentId);
-        setPaymentUrl(returnedPaymentUrl);
-        setSuccessMessage("Đặt lịch thành công ở trạng thái chờ thanh toán. Vui lòng hoàn tất thanh toán để xác nhận.");
-        setShowSuccessModal(true);
-
-        startStatusPolling(appointmentId);
-        return;
-      }
-
-      if (res?.code === "SUCCESS") {
-        setBookingLifecycleState("CONFIRMED");
-        setSuccessMessage("Lịch hẹn đã được xác nhận thành công.");
+      if (res?.code === "SUCCESS" || res?.code === "PENDING") {
+        setSuccessMessage("Lịch hẹn đã được đặt thành công. Bác sĩ sẽ xác nhận lịch hẹn của bạn.");
         setShowSuccessModal(true);
         return;
       }
 
-      setBookingLifecycleState("FAILED");
       setErrorMessage(res?.message || "Đặt lịch thất bại. Vui lòng thử lại.");
       setShowErrorModal(true);
     } catch (error: any) {
-      setBookingLifecycleState("FAILED");
       setErrorMessage(error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi đặt lịch");
       setShowErrorModal(true);
       setResponse({ success: false, error: error?.message || "Có lỗi xảy ra" });
@@ -440,10 +244,7 @@ export const useAppointmentBooking = () => {
     }
   };
 
-  const handleRetryStatusCheck = async () => {
-    if (!pendingAppointmentId) return;
-    await pollAppointmentStatus(pendingAppointmentId);
-  };
+
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -466,11 +267,7 @@ export const useAppointmentBooking = () => {
     void loadInitialData();
 
     return () => {
-      stopStatusPolling();
-      if (paymentWindowRef.current && !paymentWindowRef.current.closed) {
-        paymentWindowRef.current.close();
-      }
-      clearPaymentWindowState();
+      // cleanup
     };
   }, []);
 
@@ -512,10 +309,7 @@ export const useAppointmentBooking = () => {
     return () => clearTimeout(timeout);
   }, [doctorSearchTerm, selectedSpecialty]);
 
-  const isPaymentInteractionLocked = useMemo(
-    () => bookingLifecycleState === "PENDING_PAYMENT" && isPaymentWindowOpen,
-    [bookingLifecycleState, isPaymentWindowOpen]
-  );
+
 
   return {
     formData,
@@ -532,11 +326,6 @@ export const useAppointmentBooking = () => {
     doctorSuggestions,
     isDoctorFocused,
     showSpecialtySuggestions,
-    hasPendingPayment,
-    bookingLifecycleState,
-    pendingAppointmentId,
-    paymentUrl,
-    isPaymentInteractionLocked,
 
     setShowSuccessModal,
     setShowErrorModal,
@@ -552,9 +341,6 @@ export const useAppointmentBooking = () => {
     handleDoctorSelect,
     handleDoctorBlur,
     handleSubmit,
-    handleRetryStatusCheck,
-    handleCancelPendingPayment,
-    openPaymentWindow,
     getTimeSlotDisplay,
   };
 };

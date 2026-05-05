@@ -1,0 +1,331 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { VisitApiItem } from "@/apis/receptionist/receptionist.api";
+import { receptionistBillingService } from "@/features/receptionist-billing/services/receptionist-billing.service";
+import { BillingResponseDto } from "@/features/receptionist-billing/types/billing.types";
+
+type PaymentSession = {
+  paymentId: string;
+  qrUrl: string;
+  amount: number;
+};
+
+const PAYMENT_POLL_INTERVAL_MS = 3500;
+
+const getErrorMessage = (error: any) => {
+  const status = error?.response?.status;
+  const backendMessage = error?.response?.data?.message || error?.message;
+
+  if (status === 400) return backendMessage || "Dữ liệu không hợp lệ.";
+  if (status === 403) return backendMessage || "Bạn không có quyền thực hiện thao tác này.";
+  if (status === 404) return backendMessage || "Không tìm thấy hóa đơn.";
+  if (status === 409) return backendMessage || "Hóa đơn đã được khóa hoặc đã được thanh toán.";
+
+  return backendMessage || "Không thể tải hoặc cập nhật billing.";
+};
+
+const toNonNegativeAmount = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, message: "Vui lòng nhập số tiền." };
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return { valid: false, message: "Số tiền phải lớn hơn hoặc bằng 0." };
+  }
+
+  return { valid: true, value: parsed };
+};
+
+export const useReceptionistBilling = () => {
+  const [visits, setVisits] = useState<VisitApiItem[]>([]);
+  const [loadingVisits, setLoadingVisits] = useState(true);
+  const [loadingBilling, setLoadingBilling] = useState(false);
+  const [refreshingVisits, setRefreshingVisits] = useState(false);
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingResponseDto | null>(null);
+  const [billingLoadingError, setBillingLoadingError] = useState<string | null>(null);
+  const [creditInput, setCreditInput] = useState("0");
+  const [coinInput, setCoinInput] = useState("0");
+  const [mutatingAction, setMutatingAction] = useState<"credit" | "coin" | "finalize" | null>(null);
+  const [paymentAction, setPaymentAction] = useState<"qr" | "cash" | null>(null);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentSession, setPaymentSession] = useState<PaymentSession | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingRequestRef = useRef(0);
+
+  const selectedVisit = useMemo(
+    () => visits.find((visit) => visit.visitId === selectedVisitId) ?? null,
+    [selectedVisitId, visits]
+  );
+
+  const isDraft = billing?.status === "DRAFT";
+  const isFinalized = billing?.status === "FINALIZED";
+  const isPaid = billing?.status === "PAID";
+
+  const stopPaymentPolling = useCallback(() => {
+    if (pollingIntervalRef.current !== null) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  const resetPaymentFlow = useCallback(() => {
+    stopPaymentPolling();
+    pollingRequestRef.current += 1;
+    setPaymentDialogOpen(false);
+    setPaymentSession(null);
+    setPaymentStatus(null);
+  }, [stopPaymentPolling]);
+
+  const loadVisits = useCallback(async () => {
+    setRefreshingVisits(true);
+
+    try {
+      const items = await receptionistBillingService.getTodayVisits();
+      setVisits(items);
+
+      setSelectedVisitId((current) => {
+        if (current && items.some((visit) => visit.visitId === current)) {
+          return current;
+        }
+
+        return items[0]?.visitId ?? null;
+      });
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoadingVisits(false);
+      setRefreshingVisits(false);
+    }
+  }, []);
+
+  const loadBilling = useCallback(async (visitId: string) => {
+    if (!visitId) return;
+
+    setLoadingBilling(true);
+    setBillingLoadingError(null);
+
+    try {
+      const snapshot = await receptionistBillingService.getBillingByVisitId(visitId);
+      setBilling(snapshot);
+      setCreditInput(String(snapshot.creditUsed ?? 0));
+      setCoinInput(String(snapshot.coinUsed ?? 0));
+      return snapshot;
+    } catch (error: any) {
+      const message = getErrorMessage(error);
+      setBilling(null);
+      setBillingLoadingError(message);
+      toast.error(message);
+      return null;
+    } finally {
+      setLoadingBilling(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadVisits();
+  }, [loadVisits]);
+
+  useEffect(() => {
+    if (!selectedVisitId) {
+      setBilling(null);
+      setBillingLoadingError(null);
+      return;
+    }
+
+    void loadBilling(selectedVisitId);
+  }, [loadBilling, selectedVisitId]);
+
+  const refreshVisits = useCallback(() => {
+    void loadVisits();
+  }, [loadVisits]);
+
+  const selectVisit = useCallback((visitId: string) => {
+    setSelectedVisitId(visitId);
+  }, []);
+
+  const refreshBilling = useCallback(async () => {
+    if (!selectedVisitId) return;
+    await loadBilling(selectedVisitId);
+  }, [loadBilling, selectedVisitId]);
+
+  // Payment confirmation handled by polling billing record status (billing.status -> PAID)
+
+  const openQrPayment = useCallback(async () => {
+    if (!billing || !billing.billingId || !selectedVisitId || !isFinalized || isPaid) return;
+
+    setPaymentAction("qr");
+
+    try {
+      const qrData = await receptionistBillingService.getPaymentQR(billing.billingId);
+      pollingRequestRef.current += 1;
+
+      setPaymentSession({
+        paymentId: qrData.paymentId,
+        qrUrl: qrData.paymentUrl,
+        amount: qrData.amount,
+      });
+      setPaymentStatus("PENDING");
+      setPaymentDialogOpen(true);
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setPaymentAction(null);
+    }
+  }, [billing, isFinalized, isPaid, selectedVisitId]);
+
+  const markCashPaid = useCallback(async () => {
+    if (!billing || !billing.billingId || !selectedVisitId || !isFinalized || isPaid) return;
+
+    setPaymentAction("cash");
+
+    try {
+      // Ensure a Payment record exists (endpoint will create one if needed)
+      const qrData = paymentSession ?? (await receptionistBillingService.getPaymentQR(billing.billingId));
+      const paymentId = qrData.paymentId;
+      await receptionistBillingService.markCashPaid(paymentId);
+      await refreshBilling();
+      toast.success("Đã ghi nhận thanh toán tiền mặt.");
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setPaymentAction(null);
+    }
+  }, [billing, isFinalized, isPaid, refreshBilling, selectedVisitId, paymentSession]);
+
+  useEffect(() => {
+    if (!paymentDialogOpen || !paymentSession) {
+      stopPaymentPolling();
+      return;
+    }
+
+    setPaymentStatus("PENDING");
+    const requestId = pollingRequestRef.current;
+
+    const doCheck = async () => {
+      try {
+        if (!selectedVisitId) return;
+        const snapshot = await receptionistBillingService.getBillingByVisitId(selectedVisitId);
+        if (requestId !== pollingRequestRef.current) return;
+        setBilling(snapshot);
+        if (snapshot?.status === "PAID") {
+          toast.success("Thanh toán đã được xác nhận thành công.");
+          resetPaymentFlow();
+        }
+      } catch (error: any) {
+        if (requestId !== pollingRequestRef.current) return;
+        toast.error(getErrorMessage(error));
+        resetPaymentFlow();
+      }
+    };
+
+    void doCheck();
+
+    stopPaymentPolling();
+    pollingIntervalRef.current = setInterval(() => {
+      if (requestId !== pollingRequestRef.current) {
+        stopPaymentPolling();
+        return;
+      }
+
+      void doCheck();
+    }, PAYMENT_POLL_INTERVAL_MS);
+
+    return () => {
+      stopPaymentPolling();
+    };
+  }, [paymentDialogOpen, paymentSession, resetPaymentFlow, stopPaymentPolling, selectedVisitId]);
+
+  useEffect(() => {
+    return () => {
+      stopPaymentPolling();
+    };
+  }, [stopPaymentPolling]);
+
+  const applyBillingMutation = useCallback(
+    async (kind: "credit" | "coin") => {
+      if (!billing || !selectedVisitId || !billing.billingId) return;
+      if (!isDraft) return;
+
+      const rawValue = kind === "credit" ? creditInput : coinInput;
+      const parsed = toNonNegativeAmount(rawValue);
+
+      if (!parsed.valid) {
+        toast.error(parsed.message);
+        return;
+      }
+
+      const value = (parsed as { valid: true; value: number }).value;
+
+      setMutatingAction(kind);
+
+      try {
+        if (kind === "credit") {
+          await receptionistBillingService.applyCredit(billing.billingId, value);
+        } else {
+          await receptionistBillingService.applyCoin(billing.billingId, value);
+        }
+
+        await refreshBilling();
+        toast.success(kind === "credit" ? "Áp dụng credit thành công." : "Áp dụng coin thành công.");
+      } catch (error: any) {
+        toast.error(getErrorMessage(error));
+      } finally {
+        setMutatingAction(null);
+      }
+    },
+    [billing, coinInput, creditInput, isDraft, refreshBilling, selectedVisitId]
+  );
+
+  const finalizeCurrentBilling = useCallback(async () => {
+    if (!billing || !billing.billingId || !isDraft) return;
+
+    setMutatingAction("finalize");
+
+    try {
+      await receptionistBillingService.finalizeBilling(billing.billingId);
+      await refreshBilling();
+      toast.success("Finalize billing thành công.");
+    } catch (error: any) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setMutatingAction(null);
+    }
+  }, [billing, isDraft, refreshBilling]);
+
+  return {
+    visits,
+    loadingVisits,
+    refreshingVisits,
+    loadingBilling,
+    billingLoadingError,
+    selectedVisit,
+    selectedVisitId,
+    selectVisit,
+    refreshVisits,
+    billing,
+    isPaid,
+    creditInput,
+    setCreditInput,
+    coinInput,
+    setCoinInput,
+    isDraft,
+    isFinalized,
+    mutatingAction,
+    applyCredit: () => void applyBillingMutation("credit"),
+    applyCoin: () => void applyBillingMutation("coin"),
+    finalizeBilling: () => void finalizeCurrentBilling(),
+    paymentAction,
+    paymentDialogOpen,
+    paymentSession,
+    paymentStatus,
+    openQrPayment,
+    markCashPaid,
+    closePaymentDialog: resetPaymentFlow,
+  };
+};
