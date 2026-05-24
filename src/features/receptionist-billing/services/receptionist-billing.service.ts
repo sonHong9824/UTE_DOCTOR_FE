@@ -1,8 +1,8 @@
 import { /*getPaymentStatus as fetchPaymentStatus, PaymentStatusDto*/ } from "@/apis/payment/payment.api";
-import { applyCoin, applyCredit, finalizeBilling, getBillingByVisitId } from "@/apis/receptionist/billing.api";
+import { applyCoin, applyCredit, finalizeBilling, getBillingByVisitId, getWalletSummary } from "@/apis/receptionist/billing.api";
 import { markCashPaid as confirmReceptionistCashPaid, getPaymentQR as fetchReceptionistPaymentQR } from "@/apis/receptionist/payment.api";
 import { getTodayVisits, VisitApiItem } from "@/apis/receptionist/receptionist.api";
-import { BillingResponseDto } from "@/features/receptionist-billing/types/billing.types";
+import { BillingResponseDto, FinalizeBillingRequestDto, WalletSummaryDto } from "@/features/receptionist-billing/types/billing.types";
 
 export const receptionistBillingService = {
   async getTodayVisits(): Promise<VisitApiItem[]> {
@@ -25,8 +25,8 @@ export const receptionistBillingService = {
     return res?.data;
   },
 
-  async finalizeBilling(billingId: string) {
-    const res = await finalizeBilling(billingId);
+  async finalizeBilling(billingId: string, payload: FinalizeBillingRequestDto) {
+    const res = await finalizeBilling(billingId, payload);
     return res?.data;
   },
 
@@ -36,5 +36,15 @@ export const receptionistBillingService = {
 
   async markCashPaid(paymentId: string) {
     return confirmReceptionistCashPaid(paymentId);
+  },
+
+  async getWalletSummary(billingId: string): Promise<WalletSummaryDto | null> {
+    try {
+      const res = await getWalletSummary(billingId);
+      return res?.data ?? null;
+    } catch (error) {
+      console.error("Failed to fetch wallet summary", error);
+      return null;
+    }
   },
 };

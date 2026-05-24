@@ -5,7 +5,28 @@ import { toast } from "sonner";
 
 import { VisitApiItem } from "@/apis/receptionist/receptionist.api";
 import { receptionistBillingService } from "@/features/receptionist-billing/services/receptionist-billing.service";
-import { BillingResponseDto } from "@/features/receptionist-billing/types/billing.types";
+import { BillingResponseDto, WalletSummaryDto } from "@/features/receptionist-billing/types/billing.types";
+import {
+  buildFinalizeBillingMedicationPayload,
+  computeBillingPreviewSummary,
+  hasInvalidBillingMedicationDraft,
+  normalizeBillingMedications,
+  sanitizeMedicationQuantity,
+  sanitizeMedicationSource,
+  type BillingMedicationDraft,
+  type BillingPreviewSummary,
+  updateBillingMedicationDraft,
+} from "@/features/receptionist-billing/utils/billing-fulfillment";
+
+type ApiErrorLike = {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
 
 type PaymentSession = {
   paymentId: string;
@@ -13,11 +34,16 @@ type PaymentSession = {
   amount: number;
 };
 
+type NonNegativeAmountParseResult =
+  | { valid: true; value: number }
+  | { valid: false; message: string };
+
 const PAYMENT_POLL_INTERVAL_MS = 3500;
 
-const getErrorMessage = (error: any) => {
-  const status = error?.response?.status;
-  const backendMessage = error?.response?.data?.message || error?.message;
+const getErrorMessage = (error: unknown) => {
+  const apiError = error as ApiErrorLike;
+  const status = apiError?.response?.status;
+  const backendMessage = apiError?.response?.data?.message || apiError?.message;
 
   if (status === 400) return backendMessage || "Dữ liệu không hợp lệ.";
   if (status === 403) return backendMessage || "Bạn không có quyền thực hiện thao tác này.";
@@ -27,7 +53,7 @@ const getErrorMessage = (error: any) => {
   return backendMessage || "Không thể tải hoặc cập nhật billing.";
 };
 
-const toNonNegativeAmount = (value: string) => {
+const toNonNegativeAmount = (value: string): NonNegativeAmountParseResult => {
   const trimmed = value.trim();
   if (!trimmed) return { valid: false, message: "Vui lòng nhập số tiền." };
 
@@ -46,6 +72,7 @@ export const useReceptionistBilling = () => {
   const [refreshingVisits, setRefreshingVisits] = useState(false);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingResponseDto | null>(null);
+  const [billingMedications, setBillingMedications] = useState<BillingMedicationDraft[]>([]);
   const [billingLoadingError, setBillingLoadingError] = useState<string | null>(null);
   const [creditInput, setCreditInput] = useState("0");
   const [coinInput, setCoinInput] = useState("0");
@@ -58,6 +85,14 @@ export const useReceptionistBilling = () => {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingRequestRef = useRef(0);
 
+  const [walletSummary, setWalletSummary] = useState<WalletSummaryDto | null>(null);
+  const [loadingWalletSummary, setLoadingWalletSummary] = useState(false);
+  const [walletSummaryError, setWalletSummaryError] = useState<string | null>(null);
+  const [walletInput, setWalletInput] = useState({ creditToUse: 0, coinToUse: 0 });
+  const [medicationError, setMedicationError] = useState<string | null>(null);
+
+  const lastSyncedBillingIdRef = useRef<string | null>(null);
+
   const selectedVisit = useMemo(
     () => visits.find((visit) => visit.visitId === selectedVisitId) ?? null,
     [selectedVisitId, visits]
@@ -66,6 +101,17 @@ export const useReceptionistBilling = () => {
   const isDraft = billing?.status === "DRAFT";
   const isFinalized = billing?.status === "FINALIZED";
   const isPaid = billing?.status === "PAID";
+  const canEditMedications = Boolean(isDraft);
+
+  const previewSummary: BillingPreviewSummary = useMemo(
+    () => computeBillingPreviewSummary(billing, billingMedications),
+    [billing, billingMedications]
+  );
+
+  const invalidMedicationDraft = useMemo(
+    () => hasInvalidBillingMedicationDraft(billingMedications),
+    [billingMedications]
+  );
 
   const stopPaymentPolling = useCallback(() => {
     if (pollingIntervalRef.current !== null) {
@@ -96,7 +142,7 @@ export const useReceptionistBilling = () => {
 
         return items[0]?.visitId ?? null;
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
       setLoadingVisits(false);
@@ -116,7 +162,7 @@ export const useReceptionistBilling = () => {
       setCreditInput(String(snapshot.creditUsed ?? 0));
       setCoinInput(String(snapshot.coinUsed ?? 0));
       return snapshot;
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = getErrorMessage(error);
       setBilling(null);
       setBillingLoadingError(message);
@@ -127,6 +173,30 @@ export const useReceptionistBilling = () => {
     }
   }, []);
 
+  const loadWalletSummary = useCallback(async (billingId: string) => {
+    if (!billingId) return;
+
+    setLoadingWalletSummary(true);
+    setWalletSummaryError(null);
+
+    try {
+      const summary = await receptionistBillingService.getWalletSummary(billingId);
+      if (summary) {
+        setWalletSummary(summary);
+        setWalletInput({ creditToUse: 0, coinToUse: 0 });
+      } else {
+        setWalletSummaryError("Không thể tải thông tin ví");
+        setWalletSummary(null);
+      }
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      setWalletSummaryError(message);
+      setWalletSummary(null);
+    } finally {
+      setLoadingWalletSummary(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadVisits();
   }, [loadVisits]);
@@ -134,12 +204,44 @@ export const useReceptionistBilling = () => {
   useEffect(() => {
     if (!selectedVisitId) {
       setBilling(null);
+      setBillingMedications([]);
+      setMedicationError(null);
+      lastSyncedBillingIdRef.current = null;
       setBillingLoadingError(null);
+      setWalletSummary(null);
       return;
     }
 
     void loadBilling(selectedVisitId);
   }, [loadBilling, selectedVisitId]);
+
+  useEffect(() => {
+    if (!billing || !billing.billingId) {
+      setBillingMedications([]);
+      setMedicationError(null);
+      lastSyncedBillingIdRef.current = null;
+      return;
+    }
+
+    const billingIdChanged = lastSyncedBillingIdRef.current !== billing.billingId;
+    const billingLocked = billing.status !== "DRAFT";
+
+    if (billingIdChanged || billingLocked || billingMedications.length === 0) {
+      setBillingMedications(normalizeBillingMedications(billing.medications));
+      setMedicationError(null);
+      lastSyncedBillingIdRef.current = billing.billingId;
+    }
+  }, [billing, billingMedications.length]);
+
+  useEffect(() => {
+    if (!billing || !billing.billingId || billing.status !== "DRAFT") {
+      setWalletSummary(null);
+      setLoadingWalletSummary(false);
+      return;
+    }
+
+    void loadWalletSummary(billing.billingId);
+  }, [billing, loadWalletSummary]);
 
   const refreshVisits = useCallback(() => {
     void loadVisits();
@@ -153,8 +255,6 @@ export const useReceptionistBilling = () => {
     if (!selectedVisitId) return;
     await loadBilling(selectedVisitId);
   }, [loadBilling, selectedVisitId]);
-
-  // Payment confirmation handled by polling billing record status (billing.status -> PAID)
 
   const openQrPayment = useCallback(async () => {
     if (!billing || !billing.billingId || !selectedVisitId || !isFinalized || isPaid) return;
@@ -172,7 +272,7 @@ export const useReceptionistBilling = () => {
       });
       setPaymentStatus("PENDING");
       setPaymentDialogOpen(true);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
       setPaymentAction(null);
@@ -185,18 +285,17 @@ export const useReceptionistBilling = () => {
     setPaymentAction("cash");
 
     try {
-      // Ensure a Payment record exists (endpoint will create one if needed)
       const qrData = paymentSession ?? (await receptionistBillingService.getPaymentQR(billing.billingId));
       const paymentId = qrData.paymentId;
       await receptionistBillingService.markCashPaid(paymentId);
       await refreshBilling();
       toast.success("Đã ghi nhận thanh toán tiền mặt.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
       setPaymentAction(null);
     }
-  }, [billing, isFinalized, isPaid, refreshBilling, selectedVisitId, paymentSession]);
+  }, [billing, isFinalized, isPaid, paymentSession, refreshBilling, selectedVisitId]);
 
   useEffect(() => {
     if (!paymentDialogOpen || !paymentSession) {
@@ -217,7 +316,7 @@ export const useReceptionistBilling = () => {
           toast.success("Thanh toán đã được xác nhận thành công.");
           resetPaymentFlow();
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (requestId !== pollingRequestRef.current) return;
         toast.error(getErrorMessage(error));
         resetPaymentFlow();
@@ -239,7 +338,7 @@ export const useReceptionistBilling = () => {
     return () => {
       stopPaymentPolling();
     };
-  }, [paymentDialogOpen, paymentSession, resetPaymentFlow, stopPaymentPolling, selectedVisitId]);
+  }, [paymentDialogOpen, paymentSession, resetPaymentFlow, selectedVisitId, stopPaymentPolling]);
 
   useEffect(() => {
     return () => {
@@ -260,7 +359,7 @@ export const useReceptionistBilling = () => {
         return;
       }
 
-      const value = (parsed as { valid: true; value: number }).value;
+      const value = parsed.value;
 
       setMutatingAction(kind);
 
@@ -273,7 +372,7 @@ export const useReceptionistBilling = () => {
 
         await refreshBilling();
         toast.success(kind === "credit" ? "Áp dụng credit thành công." : "Áp dụng coin thành công.");
-      } catch (error: any) {
+      } catch (error: unknown) {
         toast.error(getErrorMessage(error));
       } finally {
         setMutatingAction(null);
@@ -285,18 +384,51 @@ export const useReceptionistBilling = () => {
   const finalizeCurrentBilling = useCallback(async () => {
     if (!billing || !billing.billingId || !isDraft) return;
 
+    if (invalidMedicationDraft) {
+      const message = "Vui lòng kiểm tra lại danh sách thuốc trước khi finalize.";
+      setMedicationError(message);
+      toast.error(message);
+      return;
+    }
+
     setMutatingAction("finalize");
 
     try {
-      await receptionistBillingService.finalizeBilling(billing.billingId);
+      const medications = buildFinalizeBillingMedicationPayload(billingMedications);
+      await receptionistBillingService.finalizeBilling(billing.billingId, { medications });
       await refreshBilling();
       toast.success("Finalize billing thành công.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     } finally {
       setMutatingAction(null);
     }
-  }, [billing, isDraft, refreshBilling]);
+  }, [billing, billingMedications, invalidMedicationDraft, isDraft, refreshBilling]);
+
+  const updateMedicationDispensedQty = useCallback((medicineId: string, value: string) => {
+    setBillingMedications((current) =>
+      updateBillingMedicationDraft(current, medicineId, { dispensedQty: sanitizeMedicationQuantity(value) })
+    );
+    setMedicationError(null);
+  }, []);
+
+  const updateMedicationSource = useCallback((medicineId: string, value: string) => {
+    setBillingMedications((current) =>
+      updateBillingMedicationDraft(current, medicineId, { source: sanitizeMedicationSource(value) })
+    );
+    setMedicationError(null);
+  }, []);
+
+  const resetMedicationDraft = useCallback(() => {
+    if (!billing) {
+      setBillingMedications([]);
+      setMedicationError(null);
+      return;
+    }
+
+    setBillingMedications(normalizeBillingMedications(billing.medications));
+    setMedicationError(null);
+  }, [billing]);
 
   return {
     visits,
@@ -309,6 +441,7 @@ export const useReceptionistBilling = () => {
     selectVisit,
     refreshVisits,
     billing,
+    billingMedications,
     isPaid,
     creditInput,
     setCreditInput,
@@ -327,5 +460,17 @@ export const useReceptionistBilling = () => {
     openQrPayment,
     markCashPaid,
     closePaymentDialog: resetPaymentFlow,
+    canEditMedications,
+    medicationError,
+    previewSummary,
+    invalidMedicationDraft,
+    updateMedicationDispensedQty,
+    updateMedicationSource,
+    resetMedicationDraft,
+    walletSummary,
+    loadingWalletSummary,
+    walletSummaryError,
+    walletInput,
+    setWalletInput,
   };
 };
