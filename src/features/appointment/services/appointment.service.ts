@@ -30,8 +30,8 @@ export const appointmentService = {
     return res?.data as AppointmentDetail;
   },
 
-  async cancel(appointmentId: string) {
-    return cancelAppointment(appointmentId);
+  async cancel(appointmentId: string, reason?: string) {
+    return cancelAppointment(appointmentId, reason);
   },
 
   async reschedule(payload: ReschedulePayload) {

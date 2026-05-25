@@ -19,6 +19,25 @@ interface AppointmentCardProps {
   onCancelSuccess?: () => void;
 }
 
+const getDepositStatusLabel = (status?: string) => {
+  switch (status) {
+    case "PENDING":
+      return "Chờ thanh toán phí giữ chỗ";
+    case "PAID":
+      return "Đã thanh toán phí giữ chỗ";
+    case "NOT_REQUIRED":
+      return "Không yêu cầu đặt cọc";
+    case "FAILED":
+      return "Thanh toán phí giữ chỗ thất bại";
+    case "REFUNDED":
+      return "Đã hoàn phí giữ chỗ";
+    case "FORFEITED":
+      return "Phí giữ chỗ không được hoàn";
+    default:
+      return null;
+  }
+};
+
 export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   appointment,
   availableTimeSlots = [],
@@ -115,6 +134,18 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
               {appointment.consultationFee.toLocaleString("vi-VN")} VNĐ
             </p>
           </div>
+
+          {getDepositStatusLabel(appointment.depositStatus) && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">
+              <p className="font-medium">{getDepositStatusLabel(appointment.depositStatus)}</p>
+              {appointment.depositStatus === "PENDING" && typeof appointment.depositAmount === "number" && (
+                <p>{appointment.depositAmount.toLocaleString("vi-VN")} VNĐ cần thanh toán để xác nhận lịch.</p>
+              )}
+              {appointment.depositStatus === "PAID" && typeof appointment.depositPaidAmount === "number" && (
+                <p>Đã thanh toán {appointment.depositPaidAmount.toLocaleString("vi-VN")} VNĐ.</p>
+              )}
+            </div>
+          )}
 
           {!isUpcoming && (
             <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">

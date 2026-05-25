@@ -1,11 +1,10 @@
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppointmentStatus } from '@/enum/appointment-status.enum';
-import { Calendar, CheckCircle2, Clock, Coins, DollarSign, User } from 'lucide-react';
+import { Calendar, Clock, Coins, DollarSign, User } from 'lucide-react';
 import React from 'react';
 
 interface AppointmentDetailModalProps {
@@ -22,6 +21,10 @@ interface AppointmentDetailModalProps {
     specialization: string;
     diagnosis?: string;
     note?: string;
+    depositStatus?: "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
+    depositAmount?: number;
+    depositPaidAmount?: number;
+    depositPaidAt?: string | null;
     prescriptions?: Array<{
       medicineId: string;
       name: string;
@@ -65,15 +68,31 @@ const getStatusLabel = (status: AppointmentStatus) => {
   }
 };
 
+const getDepositStatusLabel = (status?: string) => {
+  switch (status) {
+    case "PENDING":
+      return "Chờ thanh toán phí giữ chỗ";
+    case "PAID":
+      return "Đã thanh toán phí giữ chỗ";
+    case "NOT_REQUIRED":
+      return "Không yêu cầu đặt cọc";
+    case "FAILED":
+      return "Thanh toán phí giữ chỗ thất bại";
+    case "REFUNDED":
+      return "Đã hoàn phí giữ chỗ";
+    case "FORFEITED":
+      return "Phí giữ chỗ không được hoàn";
+    default:
+      return "Chưa có thông tin đặt cọc";
+  }
+};
+
 export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   isOpen,
   onClose,
   appointment,
 }) => {
   if (!appointment) return null;
-
-  const refundAmount = Math.ceil(appointment.consultationFee * 0.8);
-  const isRescheduled = appointment.appointmentStatus === AppointmentStatus.RESCHEDULED;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -188,29 +207,31 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </CardContent>
             </Card>
 
-            {/* Refund Alert */}
-            {isRescheduled && (
-              <Alert className="bg-green-50 border-green-200">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">
-                  <p className="font-medium mb-1">Hoàn tiền Coin</p>
-                  <p>Bạn đã nhận được {refundAmount.toLocaleString('vi-VN')} Coin (80% phí tư vấn)</p>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Payment Method */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Hình thức thanh toán</CardTitle>
+                <CardTitle className="text-sm">Phí giữ chỗ</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center gap-2">
-                <Coins className="h-5 w-5 text-amber-600" />
-                <span className="font-medium">
-                  {appointment.appointmentStatus === AppointmentStatus.COMPLETED
-                    ? 'Đã thanh toán'
-                    : 'Chờ thanh toán'}
-                </span>
+              <CardContent className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Coins className="h-5 w-5 text-amber-600" />
+                  <span className="font-medium">{getDepositStatusLabel(appointment.depositStatus)}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-gray-600">Phí yêu cầu</p>
+                    <p className="font-medium">{(appointment.depositAmount ?? 0).toLocaleString("vi-VN")} VNĐ</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Đã thanh toán</p>
+                    <p className="font-medium">{(appointment.depositPaidAmount ?? 0).toLocaleString("vi-VN")} VNĐ</p>
+                  </div>
+                  {appointment.depositPaidAt && (
+                    <div className="sm:col-span-2">
+                      <p className="text-gray-600">Thời gian thanh toán</p>
+                      <p className="font-medium">{new Date(appointment.depositPaidAt).toLocaleString("vi-VN")}</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

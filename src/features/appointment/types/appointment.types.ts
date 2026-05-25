@@ -36,11 +36,8 @@ export type AppointmentBookingFormValues = {
   visitType: "OFFLINE";
   paymentCategory: "BHYT" | "DICH_VU";
   depositAmount?: number;
-  paymentMethod: "ONLINE" | "VNPAY" | "CREDIT" | "OFFLINE";
-  amount?: number;
+  paymentMethod: "VNPAY" | "OFFLINE";
   reasonForAppointment: string;
-  useCoin?: boolean;
-  coinsToUse?: number;
 };
 
 export type AppointmentBookingPayload = AppointmentBookingFormValues & {
@@ -51,15 +48,19 @@ export type BookingLifecycleState =
   | "IDLE"
   | "SUBMITTING"
   | "PENDING_PAYMENT"
+  | "PAYMENT_RETRY"
+  | "PAYMENT_TIMEOUT"
   | "CONFIRMED"
   | "FAILED";
 
 export type AppointmentBookingResult = DataResponse<{
   appointmentId?: string;
   paymentUrl?: string;
-  originalAmount?: number;
-  discountAmount?: number;
-  finalAmount?: number;
+  depositStatus?: AppointmentDepositStatus;
+  depositAmount?: number;
+  depositPaymentId?: string;
+  depositPaidAmount?: number;
+  depositPaidAt?: string | null;
 } | null>;
 
 export type AppointmentDetail = {
@@ -67,7 +68,13 @@ export type AppointmentDetail = {
   appointmentStatus: AppointmentStatus;
   date?: string;
   patientEmail?: string;
+  depositStatus?: AppointmentDepositStatus;
+  depositAmount?: number;
+  depositPaidAmount?: number;
+  depositPaidAt?: string | null;
 };
+
+export type AppointmentDepositStatus = "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
 
 export type ReschedulePayload = {
   appointmentId: string;
@@ -86,6 +93,10 @@ export type AppointmentCardModel = {
   doctorName: string;
   specialization: string;
   doctorId: string;
+  depositStatus?: AppointmentDepositStatus;
+  depositAmount?: number;
+  depositPaidAmount?: number;
+  depositPaidAt?: string | null;
 };
 
 export type AppointmentListModel = {
@@ -101,12 +112,16 @@ export type AppointmentListModel = {
   appointmentStatus?: string;
   reasonForAppointment?: string;
   consultationFee?: number;
+  depositStatus?: AppointmentDepositStatus;
+  depositAmount?: number;
+  depositPaidAmount?: number;
+  depositPaidAt?: string | null;
 };
 
 export type AppointmentBookingState = {
   formData: AppointmentBookingFormValues;
   loading: boolean;
-  response: any;
+  response: unknown;
   showSuccessModal: boolean;
   successMessage: string;
   showErrorModal: boolean;

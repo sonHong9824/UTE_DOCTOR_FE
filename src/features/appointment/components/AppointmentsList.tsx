@@ -18,6 +18,25 @@ interface AppointmentsListProps {
   onPageChange?: (page: number) => void;
 }
 
+const getDepositStatusLabel = (status?: string) => {
+  switch (status) {
+    case "PENDING":
+      return "Chờ thanh toán phí giữ chỗ";
+    case "PAID":
+      return "Đã thanh toán phí giữ chỗ";
+    case "NOT_REQUIRED":
+      return "Không yêu cầu đặt cọc";
+    case "FAILED":
+      return "Thanh toán phí giữ chỗ thất bại";
+    case "REFUNDED":
+      return "Đã hoàn phí giữ chỗ";
+    case "FORFEITED":
+      return "Phí giữ chỗ không được hoàn";
+    default:
+      return null;
+  }
+};
+
 export default function AppointmentsList({
   appointments,
   loading = false,
@@ -84,6 +103,20 @@ export default function AppointmentsList({
                   <span className="font-medium">Phí khám:</span>
                   <span>{appt.consultationFee?.toLocaleString() ?? 0} đ</span>
                 </div>
+
+                {getDepositStatusLabel(appt.depositStatus) && (
+                  <div className="flex justify-between gap-4">
+                    <span className="font-medium">Phí giữ chỗ:</span>
+                    <span className="text-right">
+                      {getDepositStatusLabel(appt.depositStatus)}
+                      {typeof appt.depositPaidAmount === "number" && appt.depositPaidAmount > 0
+                        ? ` (${appt.depositPaidAmount.toLocaleString("vi-VN")}đ)`
+                        : typeof appt.depositAmount === "number" && appt.depositStatus === "PENDING"
+                          ? ` (${appt.depositAmount.toLocaleString("vi-VN")}đ)`
+                          : ""}
+                    </span>
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center justify-end gap-2">
                   {(appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") && (

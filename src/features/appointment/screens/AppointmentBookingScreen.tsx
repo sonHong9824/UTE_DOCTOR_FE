@@ -8,6 +8,11 @@ export default function AppointmentBookingScreen() {
   const {
     formData,
     loading,
+    bookingLifecycleState,
+    isWaitingForPayment,
+    pendingPaymentUrl,
+    pendingPaymentId,
+    isPopupBlocked,
     showSuccessModal,
     successMessage,
     showErrorModal,
@@ -34,8 +39,13 @@ export default function AppointmentBookingScreen() {
     handleDoctorSelect,
     handleDoctorBlur,
     handleSubmit,
+    handleOpenPaymentWindow,
+    handleCancelPaymentWaiting,
     getTimeSlotDisplay,
   } = useAppointmentBooking();
+
+  const isPaymentFlowActive = isWaitingForPayment || bookingLifecycleState === "PAYMENT_RETRY";
+  const isFormDisabled = loading || isPaymentFlowActive;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -66,6 +76,7 @@ export default function AppointmentBookingScreen() {
                   <input
                     type="text"
                     value={specialtySearchTerm}
+                    disabled={isFormDisabled}
                     onChange={(e) => {
                       handleSpecialtySearch(e.target.value);
                       setShowSpecialtySuggestions(true);
@@ -100,10 +111,11 @@ export default function AppointmentBookingScreen() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
-                <input
-                  type="text"
-                  value={doctorSearchTerm}
-                  onFocus={() => setIsDoctorFocused(true)}
+                  <input
+                    type="text"
+                    value={doctorSearchTerm}
+                    disabled={isFormDisabled}
+                    onFocus={() => setIsDoctorFocused(true)}
                   onBlur={() => {
                     setTimeout(() => setIsDoctorFocused(false), 150);
                     handleDoctorBlur();
@@ -144,7 +156,12 @@ export default function AppointmentBookingScreen() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
                   <DatePicker
                     value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
-                    onChange={(date) => handleDateChange(date ?? null)}
+                    onChange={(date) => {
+                      if (!isFormDisabled) {
+                        handleDateChange(date ?? null);
+                      }
+                    }}
+                    className={isFormDisabled ? "pointer-events-none opacity-60" : ""}
                     limitDays={30}
                   />
                 </div>
@@ -153,6 +170,7 @@ export default function AppointmentBookingScreen() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Khung Giờ Khám *</label>
                   <select
                     value={formData.timeSlotId}
+                    disabled={isFormDisabled}
                     onChange={(e) => handleChange("timeSlotId", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
@@ -185,6 +203,7 @@ export default function AppointmentBookingScreen() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Loại hình thăm khám *</label>
                   <select
                     value={formData.visitType}
+                    disabled={isFormDisabled}
                     onChange={(e) => handleChange("visitType", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   >
@@ -196,6 +215,7 @@ export default function AppointmentBookingScreen() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Lý do khám *</label>
                   <textarea
                     value={formData.reasonForAppointment}
+                    disabled={isFormDisabled}
                     onChange={(e) => handleChange("reasonForAppointment", e.target.value)}
                     placeholder="Mô tả ngắn về lý do khám"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
@@ -213,6 +233,7 @@ export default function AppointmentBookingScreen() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Nhóm thanh toán *</label>
                   <select
                     value={formData.paymentCategory}
+                    disabled={isFormDisabled}
                     onChange={(e) => handleChange("paymentCategory", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
@@ -221,32 +242,73 @@ export default function AppointmentBookingScreen() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tổng tiền dự kiến (VNĐ)</label>
-                  <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-800">
-                    {(formData.amount ?? 0).toLocaleString("vi-VN")} VNĐ
-                  </div>
-                </div>
                 {formData.paymentCategory === "DICH_VU" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Tiền cọc (VNĐ)</label>
-                    <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-800">
-                      {(formData.depositAmount ?? 0).toLocaleString("vi-VN")} VNĐ
+                  <div className="md:col-span-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium">Phí giữ chỗ</span>
+                      <span className="text-lg font-bold">{(formData.depositAmount ?? 0).toLocaleString("vi-VN")}đ</span>
                     </div>
+                    <p>Lịch khám dịch vụ chỉ được xác nhận sau khi thanh toán phí giữ chỗ qua VNPay thành công.</p>
                   </div>
                 )}
 
                 {formData.paymentCategory === "BHYT" && (
                   <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                    Thanh toán sau khi khám
+                    Không yêu cầu đặt cọc. Lịch khám BHYT sẽ được xác nhận sau khi đặt lịch thành công.
                   </div>
                 )}
               </div>
             </div>
 
+            {isPaymentFlowActive && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-900">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {isWaitingForPayment
+                        ? "Đang chờ thanh toán phí giữ chỗ..."
+                        : "Thanh toán phí giữ chỗ chưa được xác nhận"}
+                    </h3>
+                    <p className="mt-1 text-sm text-blue-800">
+                      Vui lòng hoàn tất thanh toán trong cửa sổ thanh toán. Không đóng trang này.
+                    </p>
+                    {pendingPaymentId && (
+                      <p className="mt-2 text-xs font-mono text-blue-700">Mã thanh toán: {pendingPaymentId}</p>
+                    )}
+                    {isPopupBlocked && (
+                      <p className="mt-2 text-sm font-medium text-amber-700">
+                        Trình duyệt đã chặn cửa sổ thanh toán. Hãy cho phép popup hoặc mở thủ công.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 flex-col gap-2 sm:min-w-52">
+                    {pendingPaymentUrl && (
+                      <button
+                        type="button"
+                        onClick={handleOpenPaymentWindow}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Mở cửa sổ thanh toán
+                      </button>
+                    )}
+                    {isWaitingForPayment && (
+                      <button
+                        type="button"
+                        onClick={handleCancelPaymentWaiting}
+                        className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        Dừng chờ thanh toán
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={isFormDisabled}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Đang xử lý..." : "Đặt Lịch Khám"}

@@ -10,7 +10,26 @@ import {
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { assertValidISO, buildZonedISO, getCurrentLocalTimeHHmm, toLocalDateInput, toUTCISOString } from "@/utils/time.util";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+export const APPOINTMENT_DEPOSIT_AMOUNT = 100000;
+const DEPOSIT_PAYMENT_POLL_INTERVAL_MS = 3000;
+const DEPOSIT_POPUP_CHECK_INTERVAL_MS = 1000;
+const DEPOSIT_PAYMENT_TIMEOUT_MS = 5 * 60 * 1000;
+
+const getBookingErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error && "response" in error) {
+    const response = error as { response?: { data?: { message?: string } } };
+    return response.response?.data?.message || "Có lỗi xảy ra khi đặt lịch";
+  }
+
+  return "Có lỗi xảy ra khi đặt lịch";
+};
 
 const initialForm = (): AppointmentBookingFormValues => ({
   appointmentDate: getTodayLocalDate(),
@@ -21,15 +40,13 @@ const initialForm = (): AppointmentBookingFormValues => ({
   serviceType: "KHAM_DICH_VU",
   visitType: "OFFLINE",
   paymentCategory: "DICH_VU",
-  depositAmount: 100000,
-  paymentMethod: "ONLINE",
-  amount: 100000,
+  depositAmount: APPOINTMENT_DEPOSIT_AMOUNT,
+  paymentMethod: "VNPAY",
   reasonForAppointment: "",
-  useCoin: false,
-  coinsToUse: 0
 });
 
 export const useAppointmentBooking = () => {
+  const router = useRouter();
   const [timeSlots, setTimeSlots] = useState<TimeSlotDto[]>([]);
   const [doctorSearchTerm, setDoctorSearchTerm] = useState("");
   const [doctorSuggestions, setDoctorSuggestions] = useState<DoctorOption[]>([]);
@@ -43,14 +60,249 @@ export const useAppointmentBooking = () => {
   const [isDoctorFocused, setIsDoctorFocused] = useState(false);
 
   const [formData, setFormData] = useState<AppointmentBookingFormValues>(initialForm);
-  const [response, setResponse] = useState<any>(null);
+  const [response, setResponse] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [bookingLifecycleState, setBookingLifecycleState] =
+    useState<"IDLE" | "SUBMITTING" | "PENDING_PAYMENT" | "PAYMENT_RETRY" | "PAYMENT_TIMEOUT" | "CONFIRMED" | "FAILED">("IDLE");
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
+  const [pendingPaymentUrl, setPendingPaymentUrl] = useState<string | null>(null);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
+
+  const popupRef = useRef<Window | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const popupCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paymentHandledRef = useRef(false);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
+
+  const isWaitingForPayment = bookingLifecycleState === "PENDING_PAYMENT";
+
+  const clearPaymentWatchers = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    if (popupCheckIntervalRef.current) {
+      clearInterval(popupCheckIntervalRef.current);
+      popupCheckIntervalRef.current = null;
+    }
+
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const closePaymentPopup = useCallback(() => {
+    try {
+      if (popupRef.current && !popupRef.current.closed) {
+        popupRef.current.close();
+      }
+    } catch {
+      // Cross-origin payment windows may prevent inspection in some browsers.
+    } finally {
+      popupRef.current = null;
+    }
+  }, []);
+
+  const refreshBookingPage = useCallback(() => {
+    router.refresh();
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 1000);
+  }, [router]);
+
+  const handleDepositSuccess = useCallback(() => {
+    if (paymentHandledRef.current) return;
+    paymentHandledRef.current = true;
+    clearPaymentWatchers();
+    closePaymentPopup();
+    setLoading(false);
+    setBookingLifecycleState("CONFIRMED");
+    setSuccessMessage("Thanh toán phí giữ chỗ thành công. Lịch hẹn đã được xác nhận.");
+    setShowSuccessModal(true);
+    refreshBookingPage();
+  }, [clearPaymentWatchers, closePaymentPopup, refreshBookingPage]);
+
+  const refreshSlotsAfterPaymentEnd = useCallback(() => {
+    const refresh = async () => {
+      try {
+        const slots = formData.doctor?.id
+          ? await appointmentService.getTimeSlotsByDoctorAndDate({
+              doctorId: formData.doctor.id,
+              date: formData.appointmentDate,
+            })
+          : await appointmentService.getAllTimeSlots();
+
+        setTimeSlots(slots);
+      } catch (error) {
+        console.error("Error refreshing timeslots after payment:", error);
+      }
+    };
+
+    void refresh();
+  }, [formData.appointmentDate, formData.doctor?.id]);
+
+  const handleDepositFailure = useCallback((message?: string) => {
+    if (paymentHandledRef.current) return;
+    paymentHandledRef.current = true;
+    clearPaymentWatchers();
+    closePaymentPopup();
+    setLoading(false);
+    setBookingLifecycleState("FAILED");
+    setErrorMessage(message || "Thanh toán phí giữ chỗ thất bại hoặc đã bị hủy. Lịch hẹn chưa được xác nhận.");
+    setShowErrorModal(true);
+    refreshSlotsAfterPaymentEnd();
+  }, [clearPaymentWatchers, closePaymentPopup, refreshSlotsAfterPaymentEnd]);
+
+  const checkDepositStatus = useCallback(async (appointmentId: string) => {
+    const appointment = await appointmentService.getAppointmentById(appointmentId);
+    const depositStatus = appointment?.depositStatus;
+    const appointmentStatus = appointment?.appointmentStatus;
+
+    if (depositStatus === "PAID" && appointmentStatus === "CONFIRMED") {
+      handleDepositSuccess();
+      return "PAID";
+    }
+
+    if (depositStatus === "FAILED" || appointmentStatus === "FAILED" || appointmentStatus === "CANCELLED") {
+      handleDepositFailure();
+      return "FAILED";
+    }
+
+    return "PENDING";
+  }, [handleDepositFailure, handleDepositSuccess]);
+
+  const startDepositPolling = useCallback((appointmentId: string) => {
+    clearPaymentWatchers();
+
+    pollIntervalRef.current = setInterval(() => {
+      void checkDepositStatus(appointmentId).catch(() => {
+        // Keep polling through transient network/API errors.
+      });
+    }, DEPOSIT_PAYMENT_POLL_INTERVAL_MS);
+
+    popupCheckIntervalRef.current = setInterval(() => {
+      if (!popupRef.current || !popupRef.current.closed) return;
+
+      void checkDepositStatus(appointmentId)
+        .then((status) => {
+          if (status === "PENDING" && !paymentHandledRef.current) {
+            clearPaymentWatchers();
+            setLoading(false);
+            setBookingLifecycleState("PAYMENT_RETRY");
+            setErrorMessage("Cửa sổ thanh toán đã đóng. Thanh toán chưa được xác nhận.");
+            setShowErrorModal(true);
+            refreshSlotsAfterPaymentEnd();
+          }
+        })
+        .catch(() => {
+          clearPaymentWatchers();
+          setLoading(false);
+          setBookingLifecycleState("PAYMENT_RETRY");
+          setErrorMessage("Cửa sổ thanh toán đã đóng. Chưa thể xác nhận trạng thái thanh toán.");
+          setShowErrorModal(true);
+        });
+    }, DEPOSIT_POPUP_CHECK_INTERVAL_MS);
+
+    timeoutRef.current = setTimeout(() => {
+      if (paymentHandledRef.current) return;
+      clearPaymentWatchers();
+      closePaymentPopup();
+      setLoading(false);
+      setBookingLifecycleState("PAYMENT_TIMEOUT");
+      setErrorMessage("Phiên thanh toán đã hết hạn. Vui lòng thử đặt lịch lại.");
+      setShowErrorModal(true);
+      refreshSlotsAfterPaymentEnd();
+    }, DEPOSIT_PAYMENT_TIMEOUT_MS);
+
+    void checkDepositStatus(appointmentId).catch(() => {
+      // The interval will retry shortly.
+    });
+  }, [
+    checkDepositStatus,
+    clearPaymentWatchers,
+    closePaymentPopup,
+    refreshSlotsAfterPaymentEnd,
+  ]);
+
+  const openDepositPaymentWindow = useCallback((paymentUrl: string) => {
+    let popup = popupRef.current && !popupRef.current.closed ? popupRef.current : null;
+
+    if (popup) {
+      try {
+        popup.location.href = paymentUrl;
+      } catch {
+        popup = null;
+      }
+    }
+
+    if (!popup) {
+      popup = window.open(paymentUrl, "appointmentDepositPayment", "width=900,height=700");
+      popupRef.current = popup;
+    }
+
+    setIsPopupBlocked(!popup);
+
+    if (!popup) {
+      setErrorMessage("Trình duyệt đã chặn cửa sổ thanh toán. Vui lòng cho phép popup hoặc bấm nút mở thanh toán.");
+      setShowErrorModal(true);
+      return false;
+    }
+
+    try {
+      popup.focus();
+    } catch {
+      // Focus is best effort only.
+    }
+
+    return true;
+  }, []);
+
+  const prepareDepositPaymentWindow = useCallback(() => {
+    const popup = window.open("", "appointmentDepositPayment", "width=900,height=700");
+    popupRef.current = popup;
+    setIsPopupBlocked(!popup);
+
+    if (!popup) return;
+
+    try {
+      popup.document.write("<p style=\"font-family: sans-serif; padding: 24px;\">Dang tao lien ket thanh toan...</p>");
+      popup.document.close();
+      popup.focus();
+    } catch {
+      // The actual payment URL will still be assigned after booking succeeds.
+    }
+  }, []);
+
+  const handleOpenPaymentWindow = useCallback(() => {
+    if (!pendingPaymentUrl || !pendingAppointmentId) return;
+
+    setLoading(true);
+    setBookingLifecycleState("PENDING_PAYMENT");
+    setShowErrorModal(false);
+    setErrorMessage("");
+    paymentHandledRef.current = false;
+    openDepositPaymentWindow(pendingPaymentUrl);
+    startDepositPolling(pendingAppointmentId);
+  }, [openDepositPaymentWindow, pendingAppointmentId, pendingPaymentUrl, startDepositPolling]);
+
+  const handleCancelPaymentWaiting = useCallback(() => {
+    clearPaymentWatchers();
+    closePaymentPopup();
+    setLoading(false);
+    setBookingLifecycleState("PAYMENT_RETRY");
+    setErrorMessage("Thanh toán phí giữ chỗ chưa được xác nhận. Bạn có thể mở lại cửa sổ thanh toán hoặc đặt lịch lại.");
+    setShowErrorModal(true);
+    refreshSlotsAfterPaymentEnd();
+  }, [clearPaymentWatchers, closePaymentPopup, refreshSlotsAfterPaymentEnd]);
 
 
 
@@ -75,21 +327,28 @@ export const useAppointmentBooking = () => {
     }
   };
 
-  const handleChange = (name: keyof AppointmentBookingFormValues, value: any) => {
+  const handleChange = (
+    name: keyof AppointmentBookingFormValues,
+    value: AppointmentBookingFormValues[keyof AppointmentBookingFormValues]
+  ) => {
     setFormData((prev) => {
       if (name === "paymentCategory") {
         if (value === "BHYT") {
           return {
             ...prev,
             paymentCategory: "BHYT",
+            serviceType: "KHAM_BHYT",
             depositAmount: 0,
+            paymentMethod: "OFFLINE",
           };
         }
 
         return {
           ...prev,
           paymentCategory: "DICH_VU",
-          depositAmount: prev.depositAmount && prev.depositAmount > 0 ? prev.depositAmount : 100000,
+          serviceType: "KHAM_DICH_VU",
+          depositAmount: prev.depositAmount && prev.depositAmount > 0 ? prev.depositAmount : APPOINTMENT_DEPOSIT_AMOUNT,
+          paymentMethod: "VNPAY",
         };
       }
 
@@ -179,7 +438,15 @@ export const useAppointmentBooking = () => {
 
 
   const handleSubmit = async () => {
+    clearPaymentWatchers();
+    closePaymentPopup();
+    paymentHandledRef.current = false;
     setLoading(true);
+    setBookingLifecycleState("SUBMITTING");
+    setPendingAppointmentId(null);
+    setPendingPaymentUrl(null);
+    setPendingPaymentId(null);
+    setIsPopupBlocked(false);
     setResponse(null);
     setShowErrorModal(false);
     setShowSuccessModal(false);
@@ -189,6 +456,7 @@ export const useAppointmentBooking = () => {
     const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
     if (!selectedSlot) {
       setLoading(false);
+      setBookingLifecycleState("IDLE");
       setErrorMessage("Vui lòng chọn khung giờ hợp lệ trước khi đặt lịch.");
       setShowErrorModal(true);
       return;
@@ -210,35 +478,93 @@ export const useAppointmentBooking = () => {
       ? 0
       : Math.max(0, Number(formData.depositAmount) || 0);
     const normalizedPaymentMethod: AppointmentBookingFormValues["paymentMethod"] =
-      normalizedPaymentCategory === "BHYT" ? "OFFLINE" : "ONLINE";
+      normalizedPaymentCategory === "BHYT" ? "OFFLINE" : "VNPAY";
+
+    if (normalizedPaymentCategory === "DICH_VU" && normalizedDeposit <= 0) {
+      setLoading(false);
+      setBookingLifecycleState("IDLE");
+      setErrorMessage("Phí giữ chỗ phải lớn hơn 0 cho lịch khám dịch vụ.");
+      setShowErrorModal(true);
+      return;
+    }
 
     const payload = {
-      ...formData,
+      hospitalName: formData.hospitalName,
+      specialty: formData.specialty,
+      timeSlotId: formData.timeSlotId,
+      doctor: formData.doctor,
+      serviceType: normalizedPaymentCategory === "BHYT" ? "KHAM_BHYT" : formData.serviceType,
+      visitType: formData.visitType,
+      reasonForAppointment: formData.reasonForAppointment,
       appointmentDate: appointmentDateTimeUtc,
       bookingDate: bookingDateTimeUtc,
       paymentCategory: normalizedPaymentCategory,
-      depositAmount: normalizedDeposit,
       paymentMethod: normalizedPaymentMethod,
-      useCoin: false,
-      coinsToUse: 0,
+      ...(normalizedPaymentCategory === "DICH_VU" ? { depositAmount: normalizedDeposit } : { depositAmount: 0 }),
     };
+
+    if (normalizedPaymentCategory === "DICH_VU") {
+      prepareDepositPaymentWindow();
+    }
 
     try {
       const res = await appointmentService.book(payload);
       setResponse(res);
 
-      if (res?.code === "SUCCESS" || res?.code === "PENDING") {
-        setSuccessMessage("Lịch hẹn đã được đặt thành công. Bác sĩ sẽ xác nhận lịch hẹn của bạn.");
+      if (res?.code === "SUCCESS") {
+        setLoading(false);
+        setBookingLifecycleState("CONFIRMED");
+        setSuccessMessage(
+          normalizedPaymentCategory === "BHYT"
+            ? "Lịch khám BHYT đã được xác nhận. Không yêu cầu đặt cọc."
+            : "Lịch hẹn đã được xác nhận."
+        );
         setShowSuccessModal(true);
+        return;
+      }
+
+      if (res?.code === "PENDING") {
+        const paymentUrl = res.data?.paymentUrl;
+        if (paymentUrl) {
+          setSuccessMessage("Lịch hẹn đang chờ thanh toán phí giữ chỗ. Đang chuyển bạn đến VNPay...");
+          setShowSuccessModal(true);
+          const appointmentId = res.data?.appointmentId;
+          if (!appointmentId) {
+            setLoading(false);
+            setBookingLifecycleState("FAILED");
+            setErrorMessage("Lịch khám dịch vụ cần thanh toán phí giữ chỗ nhưng backend không trả về mã lịch hẹn.");
+            setShowErrorModal(true);
+            return;
+          }
+
+          setShowSuccessModal(false);
+          setPendingAppointmentId(appointmentId);
+          setPendingPaymentUrl(paymentUrl);
+          setPendingPaymentId(res.data?.depositPaymentId || null);
+          setBookingLifecycleState("PENDING_PAYMENT");
+          const popupOpened = openDepositPaymentWindow(paymentUrl);
+          startDepositPolling(appointmentId);
+
+          if (!popupOpened) {
+            setLoading(false);
+            setBookingLifecycleState("PAYMENT_RETRY");
+          }
+          return;
+        }
+
+        setErrorMessage("Lịch khám dịch vụ cần thanh toán phí giữ chỗ nhưng backend không trả về liên kết thanh toán.");
+        setShowErrorModal(true);
         return;
       }
 
       setErrorMessage(res?.message || "Đặt lịch thất bại. Vui lòng thử lại.");
       setShowErrorModal(true);
-    } catch (error: any) {
-      setErrorMessage(error?.response?.data?.message || error?.message || "Có lỗi xảy ra khi đặt lịch");
+    } catch (error: unknown) {
+      closePaymentPopup();
+      const message = getBookingErrorMessage(error);
+      setErrorMessage(message);
       setShowErrorModal(true);
-      setResponse({ success: false, error: error?.message || "Có lỗi xảy ra" });
+      setResponse({ success: false, error: message });
     } finally {
       setLoading(false);
     }
@@ -270,6 +596,13 @@ export const useAppointmentBooking = () => {
       // cleanup
     };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      clearPaymentWatchers();
+      closePaymentPopup();
+    };
+  }, [clearPaymentWatchers, closePaymentPopup]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -314,6 +647,12 @@ export const useAppointmentBooking = () => {
   return {
     formData,
     loading,
+    bookingLifecycleState,
+    isWaitingForPayment,
+    pendingAppointmentId,
+    pendingPaymentUrl,
+    pendingPaymentId,
+    isPopupBlocked,
     response,
     showSuccessModal,
     successMessage,
@@ -341,6 +680,8 @@ export const useAppointmentBooking = () => {
     handleDoctorSelect,
     handleDoctorBlur,
     handleSubmit,
+    handleOpenPaymentWindow,
+    handleCancelPaymentWaiting,
     getTimeSlotDisplay,
   };
 };

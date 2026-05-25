@@ -56,6 +56,15 @@ export const useWallet = () => {
     void loadData(1);
   }, [loadData]);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadData(1);
+    };
+
+    window.addEventListener("wallet:refresh", handleRefresh);
+    return () => window.removeEventListener("wallet:refresh", handleRefresh);
+  }, [loadData]);
+
   const handlePageChange = useCallback(
     (nextPage: number) => {
       if (!details) {

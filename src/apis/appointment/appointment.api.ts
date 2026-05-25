@@ -7,10 +7,12 @@ import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.u
 
 export type BookAppointmentResponse = DataResponse<{
   appointmentId?: string;
+  depositStatus?: "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
+  depositAmount?: number;
+  depositPaymentId?: string;
+  depositPaidAmount?: number;
+  depositPaidAt?: string | null;
   paymentUrl?: string;
-  originalAmount?: number;
-  discountAmount?: number;
-  finalAmount?: number;
 } | null>;
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {
@@ -227,12 +229,16 @@ export const rescheduleAppointment = async (data: {
   }
 };
 
-export const cancelAppointment = async (appointmentId: string) => {
+export const cancelAppointment = async (appointmentId: string, reason?: string) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", { 
-      appointmentId
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", {
+      appointmentId,
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
     });
     console.log("[Axios] Cancel appointment:", res.data);
+    if (res.data?.code && res.data.code !== "SUCCESS") {
+      throw { response: { data: res.data } };
+    }
     return res.data;
   } catch (e) {
     console.error("Failed to cancel appointment:", e);
