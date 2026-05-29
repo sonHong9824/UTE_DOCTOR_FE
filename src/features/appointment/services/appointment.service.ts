@@ -5,7 +5,7 @@ import {
     getDoctorBySpecialty,
     getSpecialties,
     getTimeSlotsByDoctorAndDate,
-    rescheduleAppointment,
+    rescheduleAppointmentById,
 } from "@/apis/appointment/appointment.api";
 import { getTimeslot } from "@/apis/timeslot/timeslot.api";
 import { getWalletBalance } from "@/apis/wallet/wallet.api";
@@ -35,7 +35,11 @@ export const appointmentService = {
   },
 
   async reschedule(payload: ReschedulePayload) {
-    return rescheduleAppointment(payload);
+    return rescheduleAppointmentById(payload.appointmentId, {
+      appointmentDate: payload.newDate,
+      timeSlotId: payload.newTimeSlotId,
+      reason: payload.reason,
+    });
   },
 
   async getSpecialties() {

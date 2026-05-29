@@ -2,10 +2,16 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { AppointmentListModel } from "@/features/appointment/types/appointment.types";
 import { TimeHelper } from "@/lib/time";
 import { useRouter } from "next/navigation";
+
+const canRescheduleVisit = (visitStatus?: string): boolean => {
+  if (!visitStatus) return true; // unknown — let backend decide
+  return visitStatus === VisitStatusEnum.CREATED;
+};
 
 interface AppointmentsListProps {
   appointments: AppointmentListModel[];
@@ -119,7 +125,8 @@ export default function AppointmentsList({
                 )}
 
                 <div className="mt-3 flex items-center justify-end gap-2">
-                  {(appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") && (
+                  {(appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") &&
+                    canRescheduleVisit(appt.visitStatus) && (
                     <Button
                       size="sm"
                       variant="outline"

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
+import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { RescheduleAppointmentModal } from "@/features/appointment/components/RescheduleAppointmentModal";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { AppointmentCardModel } from "@/features/appointment/types/appointment.types";
@@ -47,9 +48,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
   const { cancelLoading, rescheduleLoading, cancelAppointmentById, rescheduleByPayload } = useAppointmentActions();
 
+  const visitEligible =
+    !appointment.visitStatus || appointment.visitStatus === VisitStatusEnum.CREATED;
+
   const canReschedule =
-    appointment.appointmentStatus === AppointmentStatus.PENDING ||
-    appointment.appointmentStatus === AppointmentStatus.CONFIRMED;
+    visitEligible &&
+    (appointment.appointmentStatus === AppointmentStatus.PENDING ||
+      appointment.appointmentStatus === AppointmentStatus.CONFIRMED);
 
   const canCancel =
     appointment.appointmentStatus === AppointmentStatus.PENDING ||
@@ -194,7 +199,6 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           id: appointment.id,
           date: appointment.date,
           startTime: appointment.startTime,
-          consultationFee: appointment.consultationFee,
           doctorName: appointment.doctorName,
           specialization: appointment.specialization,
         }}

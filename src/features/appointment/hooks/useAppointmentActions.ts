@@ -3,6 +3,7 @@
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import { ReschedulePayload } from "@/features/appointment/types/appointment.types";
 import { getCancelAppointmentErrorMessage } from "@/features/appointment/utils/cancel-appointment-error";
+import { getRescheduleAppointmentErrorMessage } from "@/features/appointment/utils/reschedule-appointment-error";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -30,11 +31,11 @@ export const useAppointmentActions = () => {
     try {
       setRescheduleLoading(true);
       await appointmentService.reschedule(payload);
-      toast.success("Hoãn lịch hẹn thành công");
+      toast.success("Đổi lịch hẹn thành công");
       onSuccess?.();
     } catch (error: unknown) {
       console.error("Failed to reschedule appointment:", error);
-      toast.error(error instanceof Error ? error.message : "Lỗi khi hoãn lịch hẹn");
+      toast.error(getRescheduleAppointmentErrorMessage(error));
       throw error;
     } finally {
       setRescheduleLoading(false);

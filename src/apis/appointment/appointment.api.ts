@@ -145,36 +145,27 @@ export const getAppointments = async (
 export type RescheduleV2Payload = {
   appointmentDate: string;
   timeSlotId: string;
+  reason?: string;
 };
 
 export const getAppointmentDetailForReschedule = async (id: string) => {
-  try {
-    const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
-    return res.data;
-  } catch {
-    const res = await axiosClient.get<DataResponse<any>>(`/appointments/${id}`);
-    return res.data;
-  }
+  const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
+  return res.data;
 };
 
+// Contract: GET /doctors/doctor/:doctorId/date/:date — date must be YYYY-MM-DD only
 export const getAvailableTimeSlotsForReschedule = async (params: {
   doctorId: string;
-  date: string;
+  date: string; // YYYY-MM-DD
 }) => {
-  try {
-    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>("/time-slots", {
-      params,
-    });
-    return res.data;
-  } catch {
-    const encodedDate = encodeURIComponent(params.date);
-    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
-      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`
-    );
-    return res.data;
-  }
+  const encodedDate = encodeURIComponent(params.date);
+  const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
+    `/doctors/doctor/${params.doctorId}/date/${encodedDate}`
+  );
+  return res.data;
 };
 
+// Contract: PATCH /appointment/:id/reschedule
 export const rescheduleAppointmentById = async (
   appointmentId: string,
   payload: RescheduleV2Payload
@@ -185,23 +176,19 @@ export const rescheduleAppointmentById = async (
 
   assertValidISO(normalizedDate);
 
-  try {
-    const res = await axiosClient.patch<DataResponse<any>>(
-      `/appointments/${appointmentId}/reschedule`,
-      {
-        appointmentDate: normalizedDate,
-        timeSlotId: payload.timeSlotId,
-      }
-    );
-    return res.data;
-  } catch {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
-      appointmentId,
-      newDate: normalizedDate,
-      newTimeSlotId: payload.timeSlotId,
-    });
-    return res.data;
+  const body: Record<string, unknown> = {
+    appointmentDate: normalizedDate,
+    timeSlotId: payload.timeSlotId,
+  };
+  if (payload.reason?.trim()) {
+    body.reason = payload.reason.trim();
   }
+
+  const res = await axiosClient.patch<DataResponse<any>>(
+    `/appointment/${appointmentId}/reschedule`,
+    body
+  );
+  return res.data;
 };
 
 

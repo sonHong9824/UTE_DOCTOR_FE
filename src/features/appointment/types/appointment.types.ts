@@ -89,6 +89,7 @@ export type AppointmentCardModel = {
   startTime: string;
   endTime: string;
   appointmentStatus: AppointmentStatus;
+  visitStatus?: string;
   consultationFee: number;
   doctorName: string;
   specialization: string;
@@ -110,6 +111,7 @@ export type AppointmentListModel = {
   };
   serviceType?: string;
   appointmentStatus?: string;
+  visitStatus?: string;
   reasonForAppointment?: string;
   consultationFee?: number;
   depositStatus?: AppointmentDepositStatus;

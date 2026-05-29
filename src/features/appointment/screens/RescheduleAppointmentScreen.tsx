@@ -14,6 +14,8 @@ export default function RescheduleAppointmentScreen({ appointmentId }: Reschedul
     doctorName,
     currentDateTime,
     currentSlotLabel,
+    isEligible,
+    ineligibilityReason,
     formValues,
     slotOptions,
     loadingAppointment,
@@ -24,6 +26,7 @@ export default function RescheduleAppointmentScreen({ appointmentId }: Reschedul
     getDisplaySlotLabel,
     onDateChange,
     onTimeSlotChange,
+    onReasonChange,
     onSubmit,
   } = useRescheduleAppointment(appointmentId);
 
@@ -46,6 +49,8 @@ export default function RescheduleAppointmentScreen({ appointmentId }: Reschedul
         appointmentStatus={String(appointment.appointmentStatus || "")}
         currentScheduledDisplay={currentScheduledDisplay}
         currentSlotDisplay={currentSlotLabel}
+        isEligible={isEligible}
+        ineligibilityReason={ineligibilityReason}
         formValues={formValues}
         slotOptions={slotOptions}
         loadingSlots={loadingSlots}
@@ -55,6 +60,7 @@ export default function RescheduleAppointmentScreen({ appointmentId }: Reschedul
         getSlotLabel={getDisplaySlotLabel}
         onDateChange={onDateChange}
         onSlotChange={onTimeSlotChange}
+        onReasonChange={onReasonChange}
         onSubmit={onSubmit}
       />
     </div>
