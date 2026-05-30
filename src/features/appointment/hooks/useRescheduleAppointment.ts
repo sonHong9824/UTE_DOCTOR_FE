@@ -12,6 +12,10 @@ import {
   getRescheduleAppointmentErrorMessage,
   isSlotUnavailableError,
 } from "@/features/appointment/utils/reschedule-appointment-error";
+import {
+  notifyRescheduleOpener,
+  ReschedulePopupMessageType,
+} from "@/features/appointment/utils/reschedule-popup";
 import { formatApiDateToLocalTime, parseApiDateTimeToLocal, toLocalDateInput } from "@/utils/time.util";
 import { useEffect, useMemo, useState } from "react";
 
@@ -94,6 +98,17 @@ export const useRescheduleAppointment = (appointmentId: string) => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [rescheduleSucceeded, setRescheduleSucceeded] = useState(false);
+  // True when this page was opened as a popup from the appointment list/detail.
+  const [isPopup, setIsPopup] = useState(false);
+
+  useEffect(() => {
+    try {
+      setIsPopup(typeof window !== "undefined" && !!window.opener && window.opener !== window);
+    } catch {
+      setIsPopup(false);
+    }
+  }, []);
 
   const fetchAvailableSlots = async (date: string, doctorId: string) => {
     if (!doctorId || !date) {
@@ -212,6 +227,9 @@ export const useRescheduleAppointment = (appointmentId: string) => {
       }));
 
       setSuccessMessage("Đổi lịch thành công");
+      setRescheduleSucceeded(true);
+      // Notify the opener (appointment list/detail) so it can refresh its data.
+      notifyRescheduleOpener(ReschedulePopupMessageType.SUCCESS, appointmentId);
     } catch (error: unknown) {
       if (isSlotUnavailableError(error)) {
         void fetchAvailableSlots(formValues.appointmentDate, resolveDoctorId(appointment));
@@ -266,6 +284,8 @@ export const useRescheduleAppointment = (appointmentId: string) => {
     submitting,
     errorMessage,
     successMessage,
+    rescheduleSucceeded,
+    isPopup,
     getDisplaySlotLabel,
     onDateChange,
     onTimeSlotChange,

@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
+import { useReschedulePopup } from "@/features/appointment/hooks/useReschedulePopup";
 import { AppointmentListModel } from "@/features/appointment/types/appointment.types";
 import { TimeHelper } from "@/lib/time";
-import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const canRescheduleVisit = (visitStatus?: string): boolean => {
   if (!visitStatus) return true; // unknown — let backend decide
@@ -53,8 +54,13 @@ export default function AppointmentsList({
   totalPages = 1,
   onPageChange,
 }: AppointmentsListProps) {
-  const router = useRouter();
   const { cancelLoading, cancelAppointmentById } = useAppointmentActions();
+  const { activeAppointmentId, isRescheduling, openReschedulePopup } = useReschedulePopup({
+    onSuccess: () => {
+      toast.success("Đổi lịch hẹn thành công");
+      onRefresh?.();
+    },
+  });
 
   const handleCancel = async (appt: AppointmentListModel) => {
     if (!window.confirm("Bạn có chắc chắn muốn hủy cuộc hẹn này?")) return;
@@ -133,11 +139,13 @@ export default function AppointmentsList({
                       onClick={() => {
                         const appointmentId = appt._id || appt.id;
                         if (!appointmentId) return;
-                        router.push(`/appointments/reschedule/${encodeURIComponent(String(appointmentId))}`);
+                        openReschedulePopup(String(appointmentId));
                       }}
-                      disabled={loading}
+                      disabled={loading || isRescheduling}
                     >
-                      Đổi lịch
+                      {activeAppointmentId === (appt._id || appt.id)
+                        ? "Đang đổi lịch..."
+                        : "Đổi lịch"}
                     </Button>
                   )}
                   {appt.appointmentStatus !== "CANCELLED" && (
