@@ -60,8 +60,23 @@ export type AppointmentBookingResult = DataResponse<{
   depositAmount?: number;
   depositPaymentId?: string;
   depositPaidAmount?: number;
-  depositPaidAt?: string | null;
+  depositPaidAt?: number | null;
 } | null>;
+
+export type AppointmentDepositStatusResult = {
+  appointmentId: string;
+  appointmentStatus: AppointmentStatus;
+  paymentCategory: "BHYT" | "DICH_VU";
+  depositStatus: AppointmentDepositStatus;
+  depositAmount: number;
+  depositPaidAmount: number;
+  depositPaidAt: number | null;
+  depositPaymentId: string | null;
+  paymentStatus: "PENDING" | "SUCCESS" | "FAILED" | null;
+  paymentUrl: null;
+  isConfirmed: boolean;
+  isTerminal: boolean;
+};
 
 export type AppointmentDetail = {
   _id: string;

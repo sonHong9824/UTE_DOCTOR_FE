@@ -2,6 +2,7 @@ import {
     bookAppointment,
     cancelAppointment,
     getAppointmentById,
+    getAppointmentDepositStatus,
     getDoctorBySpecialty,
     getSpecialties,
     getTimeSlotsByDoctorAndDate,
@@ -28,6 +29,10 @@ export const appointmentService = {
   async getAppointmentById(appointmentId: string): Promise<AppointmentDetail> {
     const res = await getAppointmentById(appointmentId);
     return res?.data as AppointmentDetail;
+  },
+
+  async getDepositStatus(appointmentId: string) {
+    return getAppointmentDepositStatus(appointmentId);
   },
 
   async cancel(appointmentId: string, reason?: string) {

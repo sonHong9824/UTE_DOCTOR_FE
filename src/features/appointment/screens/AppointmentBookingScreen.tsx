@@ -13,6 +13,8 @@ export default function AppointmentBookingScreen() {
     pendingPaymentUrl,
     pendingPaymentId,
     isPopupBlocked,
+    isPopupClosedEarly,
+    paymentStatusMessage,
     showSuccessModal,
     successMessage,
     showErrorModal,
@@ -40,6 +42,7 @@ export default function AppointmentBookingScreen() {
     handleDoctorBlur,
     handleSubmit,
     handleOpenPaymentWindow,
+    handleRefreshDepositStatus,
     handleCancelPaymentWaiting,
     getTimeSlotDisplay,
   } = useAppointmentBooking();
@@ -270,7 +273,7 @@ export default function AppointmentBookingScreen() {
                         : "Thanh toán phí giữ chỗ chưa được xác nhận"}
                     </h3>
                     <p className="mt-1 text-sm text-blue-800">
-                      Vui lòng hoàn tất thanh toán trong cửa sổ thanh toán. Không đóng trang này.
+                      {paymentStatusMessage} Vui lòng không đóng trang này.
                     </p>
                     {pendingPaymentId && (
                       <p className="mt-2 text-xs font-mono text-blue-700">Mã thanh toán: {pendingPaymentId}</p>
@@ -278,6 +281,11 @@ export default function AppointmentBookingScreen() {
                     {isPopupBlocked && (
                       <p className="mt-2 text-sm font-medium text-amber-700">
                         Trình duyệt đã chặn cửa sổ thanh toán. Hãy cho phép popup hoặc mở thủ công.
+                      </p>
+                    )}
+                    {isPopupClosedEarly && (
+                      <p className="mt-2 text-sm font-medium text-amber-700">
+                        Cửa sổ thanh toán đã đóng. Hệ thống vẫn đang kiểm tra trạng thái thanh toán.
                       </p>
                     )}
                   </div>
@@ -292,6 +300,13 @@ export default function AppointmentBookingScreen() {
                         Mở cửa sổ thanh toán
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={handleRefreshDepositStatus}
+                      className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                    >
+                      Kiểm tra trạng thái
+                    </button>
                     {isWaitingForPayment && (
                       <button
                         type="button"

@@ -1,19 +1,15 @@
 import { TimeSlotStatusEnum } from "@/enum/timeslot-status.enum";
-import { AppointmentBookingPayload } from "@/features/appointment/types/appointment.types";
+import {
+  AppointmentBookingPayload,
+  AppointmentBookingResult,
+  AppointmentDepositStatusResult,
+} from "@/features/appointment/types/appointment.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.util";
 
-export type BookAppointmentResponse = DataResponse<{
-  appointmentId?: string;
-  depositStatus?: "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
-  depositAmount?: number;
-  depositPaymentId?: string;
-  depositPaidAmount?: number;
-  depositPaidAt?: string | null;
-  paymentUrl?: string;
-} | null>;
+export type BookAppointmentResponse = AppointmentBookingResult;
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
@@ -114,6 +110,13 @@ export const getAppointmentById = async (id: string) => {
     console.error("Failed to fetch appointment by id:", e);
     throw e;
   }
+};
+
+export const getAppointmentDepositStatus = async (appointmentId: string) => {
+  const res = await axiosClient.get<AppointmentDepositStatusResult>(
+    `/appointment/${appointmentId}/deposit-status`
+  );
+  return res.data;
 };
 
 export const getAppointments = async (

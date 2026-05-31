@@ -3,6 +3,7 @@
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
     AppointmentBookingFormValues,
+    BookingLifecycleState,
     DoctorOption,
     DoctorPayload,
     SpecialtyOption,
@@ -16,7 +17,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export const APPOINTMENT_DEPOSIT_AMOUNT = 100000;
 const DEPOSIT_PAYMENT_POLL_INTERVAL_MS = 3000;
 const DEPOSIT_POPUP_CHECK_INTERVAL_MS = 1000;
-const DEPOSIT_PAYMENT_TIMEOUT_MS = 5 * 60 * 1000;
+const DEPOSIT_PAYMENT_TIMEOUT_MS = 16 * 60 * 1000;
+const PENDING_DEPOSIT_STORAGE_KEY = "appointment.pendingDeposit";
 
 const getBookingErrorMessage = (error: unknown) => {
   if (error instanceof Error) {
@@ -66,22 +68,38 @@ export const useAppointmentBooking = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [bookingLifecycleState, setBookingLifecycleState] =
-    useState<"IDLE" | "SUBMITTING" | "PENDING_PAYMENT" | "PAYMENT_RETRY" | "PAYMENT_TIMEOUT" | "CONFIRMED" | "FAILED">("IDLE");
+  const [bookingLifecycleState, setBookingLifecycleState] = useState<BookingLifecycleState>("IDLE");
   const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
   const [pendingPaymentUrl, setPendingPaymentUrl] = useState<string | null>(null);
   const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
   const [isPopupBlocked, setIsPopupBlocked] = useState(false);
+  const [isPopupClosedEarly, setIsPopupClosedEarly] = useState(false);
+  const [paymentStatusMessage, setPaymentStatusMessage] = useState("Waiting for deposit payment...");
 
   const popupRef = useRef<Window | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const popupCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paymentHandledRef = useRef(false);
+  const didRestorePendingDepositRef = useRef(false);
+  const popupClosedEarlyRef = useRef(false);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
   const isWaitingForPayment = bookingLifecycleState === "PENDING_PAYMENT";
+
+  const clearPendingDeposit = useCallback(() => {
+    window.localStorage.removeItem(PENDING_DEPOSIT_STORAGE_KEY);
+  }, []);
+
+  const rememberPendingDeposit = useCallback((appointmentId: string, paymentUrl: string, paymentId?: string | null) => {
+    window.localStorage.setItem(PENDING_DEPOSIT_STORAGE_KEY, JSON.stringify({
+      appointmentId,
+      paymentUrl,
+      paymentId: paymentId || null,
+      expiresAt: Date.now() + DEPOSIT_PAYMENT_TIMEOUT_MS,
+    }));
+  }, []);
 
   const clearPaymentWatchers = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -112,24 +130,18 @@ export const useAppointmentBooking = () => {
     }
   }, []);
 
-  const refreshBookingPage = useCallback(() => {
-    router.refresh();
-    window.setTimeout(() => {
-      window.location.reload();
-    }, 1000);
-  }, [router]);
-
   const handleDepositSuccess = useCallback(() => {
     if (paymentHandledRef.current) return;
     paymentHandledRef.current = true;
     clearPaymentWatchers();
     closePaymentPopup();
+    clearPendingDeposit();
     setLoading(false);
     setBookingLifecycleState("CONFIRMED");
-    setSuccessMessage("Thanh toán phí giữ chỗ thành công. Lịch hẹn đã được xác nhận.");
+    setSuccessMessage("Payment confirmed. Your appointment has been booked.");
     setShowSuccessModal(true);
-    refreshBookingPage();
-  }, [clearPaymentWatchers, closePaymentPopup, refreshBookingPage]);
+    router.refresh();
+  }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup, router]);
 
   const refreshSlotsAfterPaymentEnd = useCallback(() => {
     const refresh = async () => {
@@ -155,81 +167,92 @@ export const useAppointmentBooking = () => {
     paymentHandledRef.current = true;
     clearPaymentWatchers();
     closePaymentPopup();
+    clearPendingDeposit();
     setLoading(false);
     setBookingLifecycleState("FAILED");
-    setErrorMessage(message || "Thanh toán phí giữ chỗ thất bại hoặc đã bị hủy. Lịch hẹn chưa được xác nhận.");
+    setErrorMessage(message || "Payment failed or expired. Please try again.");
     setShowErrorModal(true);
     refreshSlotsAfterPaymentEnd();
-  }, [clearPaymentWatchers, closePaymentPopup, refreshSlotsAfterPaymentEnd]);
+  }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup, refreshSlotsAfterPaymentEnd]);
+
+  const handleDepositPollingError = useCallback((error: unknown) => {
+    const status = typeof error === "object" && error && "response" in error
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined;
+
+    if (status === 404) {
+      handleDepositFailure("Appointment not found. Please choose another slot.");
+      return;
+    }
+
+    if (status === 403) {
+      handleDepositFailure("You do not have permission to check this appointment.");
+      return;
+    }
+
+    if (status === 401) {
+      handleDepositFailure("Your session has expired. Please sign in again.");
+      return;
+    }
+
+    setPaymentStatusMessage("Unable to check payment status. Retrying...");
+  }, [handleDepositFailure]);
 
   const checkDepositStatus = useCallback(async (appointmentId: string) => {
-    const appointment = await appointmentService.getAppointmentById(appointmentId);
-    const depositStatus = appointment?.depositStatus;
-    const appointmentStatus = appointment?.appointmentStatus;
+    const appointment = await appointmentService.getDepositStatus(appointmentId);
+    const { appointmentStatus, depositStatus, isConfirmed, isTerminal } = appointment;
 
-    if (depositStatus === "PAID" && appointmentStatus === "CONFIRMED") {
+    if (depositStatus === "PAID" && isConfirmed) {
       handleDepositSuccess();
       return "PAID";
     }
 
-    if (depositStatus === "FAILED" || appointmentStatus === "FAILED" || appointmentStatus === "CANCELLED") {
+    if (isTerminal || depositStatus === "FAILED" || appointmentStatus === "FAILED" || appointmentStatus === "CANCELLED") {
       handleDepositFailure();
       return "FAILED";
     }
 
+    setPaymentStatusMessage(popupClosedEarlyRef.current ? "Checking payment status..." : "Waiting for deposit payment...");
     return "PENDING";
   }, [handleDepositFailure, handleDepositSuccess]);
 
-  const startDepositPolling = useCallback((appointmentId: string) => {
+  const startDepositPolling = useCallback((appointmentId: string, timeoutMs = DEPOSIT_PAYMENT_TIMEOUT_MS) => {
     clearPaymentWatchers();
+    setPaymentStatusMessage("Waiting for deposit payment...");
 
     pollIntervalRef.current = setInterval(() => {
-      void checkDepositStatus(appointmentId).catch(() => {
-        // Keep polling through transient network/API errors.
-      });
+      void checkDepositStatus(appointmentId).catch(handleDepositPollingError);
     }, DEPOSIT_PAYMENT_POLL_INTERVAL_MS);
 
     popupCheckIntervalRef.current = setInterval(() => {
       if (!popupRef.current || !popupRef.current.closed) return;
 
-      void checkDepositStatus(appointmentId)
-        .then((status) => {
-          if (status === "PENDING" && !paymentHandledRef.current) {
-            clearPaymentWatchers();
-            setLoading(false);
-            setBookingLifecycleState("PAYMENT_RETRY");
-            setErrorMessage("Cửa sổ thanh toán đã đóng. Thanh toán chưa được xác nhận.");
-            setShowErrorModal(true);
-            refreshSlotsAfterPaymentEnd();
-          }
-        })
-        .catch(() => {
-          clearPaymentWatchers();
-          setLoading(false);
-          setBookingLifecycleState("PAYMENT_RETRY");
-          setErrorMessage("Cửa sổ thanh toán đã đóng. Chưa thể xác nhận trạng thái thanh toán.");
-          setShowErrorModal(true);
-        });
+      clearInterval(popupCheckIntervalRef.current!);
+      popupCheckIntervalRef.current = null;
+      popupClosedEarlyRef.current = true;
+      setIsPopupClosedEarly(true);
+      setPaymentStatusMessage("Checking payment status...");
     }, DEPOSIT_POPUP_CHECK_INTERVAL_MS);
 
     timeoutRef.current = setTimeout(() => {
       if (paymentHandledRef.current) return;
       clearPaymentWatchers();
       closePaymentPopup();
+      clearPendingDeposit();
       setLoading(false);
       setBookingLifecycleState("PAYMENT_TIMEOUT");
-      setErrorMessage("Phiên thanh toán đã hết hạn. Vui lòng thử đặt lịch lại.");
+      setErrorMessage("Payment remains pending for too long. Please try again.");
       setShowErrorModal(true);
       refreshSlotsAfterPaymentEnd();
-    }, DEPOSIT_PAYMENT_TIMEOUT_MS);
+    }, timeoutMs);
 
-    void checkDepositStatus(appointmentId).catch(() => {
-      // The interval will retry shortly.
-    });
+    void checkDepositStatus(appointmentId).catch(handleDepositPollingError);
   }, [
     checkDepositStatus,
     clearPaymentWatchers,
+    clearPendingDeposit,
     closePaymentPopup,
+    handleDepositPollingError,
     refreshSlotsAfterPaymentEnd,
   ]);
 
@@ -289,10 +312,18 @@ export const useAppointmentBooking = () => {
     setBookingLifecycleState("PENDING_PAYMENT");
     setShowErrorModal(false);
     setErrorMessage("");
+    popupClosedEarlyRef.current = false;
+    setIsPopupClosedEarly(false);
     paymentHandledRef.current = false;
     openDepositPaymentWindow(pendingPaymentUrl);
     startDepositPolling(pendingAppointmentId);
   }, [openDepositPaymentWindow, pendingAppointmentId, pendingPaymentUrl, startDepositPolling]);
+
+  const handleRefreshDepositStatus = useCallback(() => {
+    if (!pendingAppointmentId) return;
+    setPaymentStatusMessage("Checking payment status...");
+    void checkDepositStatus(pendingAppointmentId).catch(handleDepositPollingError);
+  }, [checkDepositStatus, handleDepositPollingError, pendingAppointmentId]);
 
   const handleCancelPaymentWaiting = useCallback(() => {
     clearPaymentWatchers();
@@ -447,11 +478,14 @@ export const useAppointmentBooking = () => {
     setPendingPaymentUrl(null);
     setPendingPaymentId(null);
     setIsPopupBlocked(false);
+    popupClosedEarlyRef.current = false;
+    setIsPopupClosedEarly(false);
     setResponse(null);
     setShowErrorModal(false);
     setShowSuccessModal(false);
     setErrorMessage("");
     setSuccessMessage("");
+    clearPendingDeposit();
 
     const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
     if (!selectedSlot) {
@@ -541,6 +575,7 @@ export const useAppointmentBooking = () => {
           setPendingAppointmentId(appointmentId);
           setPendingPaymentUrl(paymentUrl);
           setPendingPaymentId(res.data?.depositPaymentId || null);
+          rememberPendingDeposit(appointmentId, paymentUrl, res.data?.depositPaymentId);
           setBookingLifecycleState("PENDING_PAYMENT");
           const popupOpened = openDepositPaymentWindow(paymentUrl);
           startDepositPolling(appointmentId);
@@ -605,6 +640,39 @@ export const useAppointmentBooking = () => {
   }, [clearPaymentWatchers, closePaymentPopup]);
 
   useEffect(() => {
+    if (didRestorePendingDepositRef.current) return;
+    didRestorePendingDepositRef.current = true;
+
+    const rawPendingDeposit = window.localStorage.getItem(PENDING_DEPOSIT_STORAGE_KEY);
+    if (!rawPendingDeposit) return;
+
+    try {
+      const pendingDeposit = JSON.parse(rawPendingDeposit) as {
+        appointmentId?: string;
+        paymentUrl?: string;
+        paymentId?: string | null;
+        expiresAt?: number;
+      };
+
+      if (!pendingDeposit.appointmentId || !pendingDeposit.paymentUrl || !pendingDeposit.expiresAt || pendingDeposit.expiresAt <= Date.now()) {
+        clearPendingDeposit();
+        return;
+      }
+
+      setPendingAppointmentId(pendingDeposit.appointmentId);
+      setPendingPaymentUrl(pendingDeposit.paymentUrl);
+      setPendingPaymentId(pendingDeposit.paymentId || null);
+      setBookingLifecycleState("PENDING_PAYMENT");
+      popupClosedEarlyRef.current = true;
+      setIsPopupClosedEarly(true);
+      setPaymentStatusMessage("Checking payment status...");
+      startDepositPolling(pendingDeposit.appointmentId, pendingDeposit.expiresAt - Date.now());
+    } catch {
+      clearPendingDeposit();
+    }
+  }, [clearPendingDeposit, startDepositPolling]);
+
+  useEffect(() => {
     const timeout = setTimeout(() => {
       if (!specialtySearchTerm) {
         setSpecialtySuggestions([]);
@@ -653,6 +721,8 @@ export const useAppointmentBooking = () => {
     pendingPaymentUrl,
     pendingPaymentId,
     isPopupBlocked,
+    isPopupClosedEarly,
+    paymentStatusMessage,
     response,
     showSuccessModal,
     successMessage,
@@ -681,6 +751,7 @@ export const useAppointmentBooking = () => {
     handleDoctorBlur,
     handleSubmit,
     handleOpenPaymentWindow,
+    handleRefreshDepositStatus,
     handleCancelPaymentWaiting,
     getTimeSlotDisplay,
   };
