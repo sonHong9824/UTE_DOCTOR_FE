@@ -125,6 +125,8 @@ export default function Home() {
       router.replace('/admin/patients');
     } else if (role === 'DOCTOR') {
       router.replace('/doctor/patients');
+    } else if (role === 'RECEPTIONIST') {
+      router.replace('/receptionist/visits');
     }
   }, [router]);
 
