@@ -3,8 +3,6 @@
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAppointmentBooking } from "@/features/appointment/hooks/useAppointmentBooking";
 import { TimeHelper } from "@/lib/time";
-import { formatCoin, formatCurrency } from "@/utils/money.util";
-import { Coins } from "lucide-react";
 
 export default function AppointmentBookingScreen() {
   const {
@@ -15,8 +13,6 @@ export default function AppointmentBookingScreen() {
     showErrorModal,
     errorMessage,
     timeSlots,
-    coinBalance,
-    creditBalance,
     specialtySearchTerm,
     specialtySuggestions,
     doctorSearchTerm,
@@ -28,10 +24,6 @@ export default function AppointmentBookingScreen() {
     pendingAppointmentId,
     paymentUrl,
     isPaymentInteractionLocked,
-    originalAmount,
-    discountAmount,
-    finalAmount,
-    maxCoinDiscount,
 
     setShowSuccessModal,
     setShowErrorModal,
@@ -184,7 +176,7 @@ export default function AppointmentBookingScreen() {
                   )}
                 </div>
 
-                <div>
+                {/* <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Loại Dịch Vụ (ServiceType) *</label>
                   <select
                     value={formData.serviceType}
@@ -194,6 +186,17 @@ export default function AppointmentBookingScreen() {
                     <option value="KHAM_DICH_VU">Khám dịch vụ</option>
                     <option value="KHAM_BHYT">Khám BHYT</option>
                     <option value="KHAM_TONG_QUAT">Khám tổng quát</option>
+                  </select>
+                </div> */}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Loại hình thăm khám *</label>
+                  <select
+                    value={formData.visitType}
+                    onChange={(e) => handleChange("visitType", e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="OFFLINE">Khám trực tiếp (OFFLINE)</option>
                   </select>
                 </div>
 
@@ -213,118 +216,37 @@ export default function AppointmentBookingScreen() {
             <div className="bg-orange-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-orange-900 mb-4">Thông tin thanh toán</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Coin hiện có</p>
-                  <p className="mt-1 text-xl font-bold text-amber-900">{formatCoin(coinBalance)}</p>
-                </div>
-                <div className="rounded-xl border border-sky-200 bg-white/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Credit hiện có</p>
-                  <p className="mt-1 text-xl font-bold text-sky-900">{formatCurrency(creditBalance)}</p>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phương Thức Thanh Toán *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nhóm thanh toán *</label>
                   <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => handleChange("paymentMethod", e.target.value)}
+                    value={formData.paymentCategory}
+                    onChange={(e) => handleChange("paymentCategory", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option value="ONLINE">VNPay (online)</option>
-                    <option value="VNPAY">VNPay (gateway)</option>
-                    <option value="CREDIT">Credit wallet</option>
-                    <option value="OFFLINE">Thanh toán tại bệnh viện</option>
+                    <option value="DICH_VU">Dịch vụ</option>
+                    <option value="BHYT">BHYT</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Số tiền (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={formData.amount || ""}
-                    onChange={(e) => handleChange("amount", e.target.value ? Number(e.target.value) : 0)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Bệnh Nhân *</label>
-                  <input
-                    type="email"
-                    value={formData.patientEmail}
-                    onChange={(e) => handleChange("patientEmail", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div> */}
-              </div>
-
-              <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-white/80 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="font-semibold text-amber-900">Dùng coin để giảm giá</h4>
-                    <p className="text-sm text-amber-700">Coin chỉ được dùng như khoản giảm trừ cho hóa đơn, không còn là phương thức thanh toán riêng.</p>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tổng tiền dự kiến (VNĐ)</label>
+                  <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-800">
+                    {(formData.amount ?? 0).toLocaleString("vi-VN")} VNĐ
                   </div>
-
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formData.useCoin)}
-                      onChange={(e) => handleChange("useCoin", e.target.checked)}
-                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                    />
-                    Use coin
-                  </label>
                 </div>
-
-                {Boolean(formData.useCoin) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Số coin muốn dùng</label>
-                      <input
-                        type="number"
-                        value={formData.coinsToUse || 0}
-                        onChange={(e) => {
-                          const nextValue = Math.max(0, Math.min(Number(e.target.value) || 0, maxCoinDiscount));
-                          handleChange("coinsToUse", nextValue);
-                        }}
-                        max={maxCoinDiscount}
-                        min={0}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                        placeholder="Nhập số coin muốn dùng"
-                      />
-                      <p className="mt-2 text-xs text-gray-500">
-                        Tối đa {formatCoin(maxCoinDiscount)} trong giao dịch này.
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-                        <Coins className="h-4 w-4" />
-                        Xem trước giảm giá
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm">
-                        <div className="flex items-center justify-between text-gray-700">
-                          <span>Original</span>
-                          <span className="font-semibold">{formatCurrency(originalAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-rose-700">
-                          <span>Discount (coin)</span>
-                          <span className="font-semibold">-{formatCurrency(discountAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-amber-200 pt-2 text-emerald-700">
-                          <span className="font-semibold">Final</span>
-                          <span className="text-base font-bold">{formatCurrency(finalAmount)}</span>
-                        </div>
-                      </div>
+                {formData.paymentCategory === "DICH_VU" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tiền cọc (VNĐ)</label>
+                    <div className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-800">
+                      {(formData.depositAmount ?? 0).toLocaleString("vi-VN")} VNĐ
                     </div>
                   </div>
                 )}
 
-                {!formData.useCoin && (
-                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    Bật <span className="font-semibold">Use coin</span> để áp dụng giảm giá cho hóa đơn.
+                {formData.paymentCategory === "BHYT" && (
+                  <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    Thanh toán sau khi khám
                   </div>
                 )}
               </div>
