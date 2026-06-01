@@ -78,9 +78,12 @@ export type AppointmentDepositStatusResult = {
   isTerminal: boolean;
 };
 
+export type AssignmentStatus = "NONE" | "AWAITING_ASSIGNMENT" | "ASSIGNED";
+
 export type AppointmentDetail = {
   _id: string;
   appointmentStatus: AppointmentStatus;
+  assignmentStatus?: AssignmentStatus;
   date?: string;
   patientEmail?: string;
   depositStatus?: AppointmentDepositStatus;
@@ -118,6 +121,7 @@ export type AppointmentCardModel = {
 export type AppointmentListModel = {
   _id?: string;
   id?: string;
+  assignmentStatus?: AssignmentStatus;
   date: string;
   doctorId?: {
     profileId?: {

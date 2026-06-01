@@ -22,6 +22,29 @@ export const bookAppointment = async (form: AppointmentBookingPayload) => {
   }
 };
 
+// Broad booking: patient books without choosing a doctor/slot. The backend creates a
+// PENDING appointment (assignmentStatus = AWAITING_ASSIGNMENT) and a receptionist
+// assignment task. No appointmentDate/doctor/timeSlot are sent.
+export interface BroadBookingPayload {
+  broadBooking: true;
+  specialty?: string;
+  reasonForAppointment?: string;
+  paymentCategory: "BHYT" | "DICH_VU";
+  depositAmount?: number;
+  paymentMethod?: "VNPAY" | "OFFLINE";
+  serviceType?: string;
+}
+
+export const bookBroadAppointment = async (form: BroadBookingPayload) => {
+  try {
+    const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to create broad appointment: " + e);
+    throw e;
+  }
+};
+
 export const getSpecialties = async () => {
   try {
     const res = await axiosClient.get<DataResponse<{ _id: string; name: string }[]>>("/chuyenkhoa");

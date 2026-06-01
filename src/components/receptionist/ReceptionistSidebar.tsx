@@ -2,12 +2,13 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CalendarDays, ChevronRight, CreditCard, LogOut, ReceiptText } from "lucide-react";
+import { CalendarDays, ChevronRight, ClipboardList, CreditCard, LogOut, ReceiptText } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 const menuItems = [
   { name: "Today's Visits", icon: CalendarDays, path: "/receptionist/visits" },
+  { name: "Phân công bác sĩ", icon: ClipboardList, path: "/receptionist/assignments" },
   { name: "Billing", icon: ReceiptText, path: "/receptionist/billing" },
   { name: "Payments", icon: CreditCard, path: "/receptionist/payments" },
 ];
