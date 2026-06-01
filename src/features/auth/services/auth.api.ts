@@ -9,7 +9,7 @@ export interface LoginPayload {
   password: string;
 }
 
-export type RegisterRole = "PATIENT" | "DOCTOR";
+export type RegisterRole = "PATIENT" | "DOCTOR" | "RECEPTIONIST";
 
 export interface RegisterPayload {
   email: string;

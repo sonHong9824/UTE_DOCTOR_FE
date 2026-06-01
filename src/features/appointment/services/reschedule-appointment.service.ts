@@ -3,6 +3,7 @@ import {
     getAvailableTimeSlotsForReschedule,
     rescheduleAppointmentById,
 } from "@/apis/appointment/appointment.api";
+import { DoctorDetailDto, getDoctorById } from "@/apis/doctor/profile.api";
 import {
     RescheduleAppointmentDetail,
     RescheduleFormValues,
@@ -31,5 +32,10 @@ export const rescheduleAppointmentService = {
   async reschedule(appointmentId: string, payload: RescheduleFormValues): Promise<RescheduleAppointmentDetail> {
     const res = await rescheduleAppointmentById(appointmentId, payload);
     return unwrapPayload<RescheduleAppointmentDetail | null>(res, null) as RescheduleAppointmentDetail;
+  },
+
+  async getDoctorDetail(doctorId: string): Promise<DoctorDetailDto | null> {
+    const res = await getDoctorById(doctorId);
+    return unwrapPayload<DoctorDetailDto | null>(res, null);
   },
 };

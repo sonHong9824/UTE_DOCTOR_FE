@@ -48,10 +48,14 @@ export const updateAppointmentStatus = async (id: string, status: string) => {
 
 export const cancelAppointment = async (id: string, reason?: string) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>(`/appointments/${id}/cancel`, {
-      reason,
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", {
+      appointmentId: id,
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
     });
     console.log("[Axios] Cancel appointment:", res.data);
+    if (res.data?.code && res.data.code !== "SUCCESS") {
+      throw { response: { data: res.data } };
+    }
     return res.data;
   } catch (e) {
     console.error("Failed to cancel appointment:", e);
