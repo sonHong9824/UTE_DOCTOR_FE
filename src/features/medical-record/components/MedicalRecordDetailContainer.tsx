@@ -994,6 +994,12 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
           {apptLoading ? (
             <div className="py-8 text-center">Đang tải...</div>
           ) : apptData ? (
+            <>
+            {apptData.assignmentStatus === 'AWAITING_ASSIGNMENT' && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Đang chờ lễ tân phân công bác sĩ
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Left/Main: summary */}
               <div className="md:col-span-2">
@@ -1105,6 +1111,7 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                 </Card>
               </div>
             </div>
+            </>
           ) : (
             <div className="py-8 text-center">Không có dữ liệu cuộc hẹn.</div>
           )}

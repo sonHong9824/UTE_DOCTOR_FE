@@ -1,5 +1,7 @@
 import {
+    BroadBookingPayload,
     bookAppointment,
+    bookBroadAppointment,
     cancelAppointment,
     getAppointmentById,
     getAppointmentDepositStatus,
@@ -24,6 +26,12 @@ import {
 export const appointmentService = {
   async book(payload: AppointmentBookingPayload): Promise<AppointmentBookingResult> {
     return bookAppointment(payload);
+  },
+
+  // Broad booking: no doctor/slot. Backend creates a PENDING appointment
+  // (assignmentStatus = AWAITING_ASSIGNMENT) plus a receptionist assignment task.
+  async bookBroad(payload: BroadBookingPayload): Promise<AppointmentBookingResult> {
+    return bookBroadAppointment(payload);
   },
 
   async getAppointmentById(appointmentId: string): Promise<AppointmentDetail> {

@@ -1,9 +1,11 @@
 "use client";
 
+import { BroadBookingPayload } from "@/apis/appointment/appointment.api";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
     AppointmentBookingFormValues,
     BookingLifecycleState,
+    BookingStrategy,
     DoctorOption,
     DoctorPayload,
     SpecialtyOption,
@@ -47,8 +49,9 @@ const initialForm = (): AppointmentBookingFormValues => ({
   reasonForAppointment: "",
 });
 
-export const useAppointmentBooking = () => {
+export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL") => {
   const router = useRouter();
+  const [bookingStrategy, setBookingStrategy] = useState<BookingStrategy>(initialStrategy);
   const [timeSlots, setTimeSlots] = useState<TimeSlotDto[]>([]);
   const [doctorSearchTerm, setDoctorSearchTerm] = useState("");
   const [doctorSuggestions, setDoctorSuggestions] = useState<DoctorOption[]>([]);
@@ -83,6 +86,10 @@ export const useAppointmentBooking = () => {
   const paymentHandledRef = useRef(false);
   const didRestorePendingDepositRef = useRef(false);
   const popupClosedEarlyRef = useRef(false);
+  // Tracks whether the in-flight deposit belongs to a broad booking. A broad booking's
+  // appointment stays PENDING (awaiting receptionist assignment) even after the deposit is
+  // paid, so the deposit poller must resolve to AWAITING_ASSIGNMENT, not CONFIRMED.
+  const pendingIsBroadRef = useRef(false);
 
   const getTimeSlotDisplay = (slot: TimeSlotDto) => `${slot.label} (${slot.start} - ${slot.end})`;
 
@@ -92,11 +99,12 @@ export const useAppointmentBooking = () => {
     window.localStorage.removeItem(PENDING_DEPOSIT_STORAGE_KEY);
   }, []);
 
-  const rememberPendingDeposit = useCallback((appointmentId: string, paymentUrl: string, paymentId?: string | null) => {
+  const rememberPendingDeposit = useCallback((appointmentId: string, paymentUrl: string, paymentId?: string | null, isBroad = false) => {
     window.localStorage.setItem(PENDING_DEPOSIT_STORAGE_KEY, JSON.stringify({
       appointmentId,
       paymentUrl,
       paymentId: paymentId || null,
+      broad: isBroad,
       expiresAt: Date.now() + DEPOSIT_PAYMENT_TIMEOUT_MS,
     }));
   }, []);
@@ -139,6 +147,22 @@ export const useAppointmentBooking = () => {
     setLoading(false);
     setBookingLifecycleState("CONFIRMED");
     setSuccessMessage("Payment confirmed. Your appointment has been booked.");
+    setShowSuccessModal(true);
+    router.refresh();
+  }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup, router]);
+
+  // Broad DICH_VU: deposit paid, but the appointment is NOT confirmed yet — a receptionist
+  // still has to assign a doctor/slot. Show the waiting-assignment state (never a confirmed
+  // doctor/time), distinct from the normal CONFIRMED path above.
+  const handleBroadDepositPaid = useCallback(() => {
+    if (paymentHandledRef.current) return;
+    paymentHandledRef.current = true;
+    clearPaymentWatchers();
+    closePaymentPopup();
+    clearPendingDeposit();
+    setLoading(false);
+    setBookingLifecycleState("AWAITING_ASSIGNMENT");
+    setSuccessMessage("Đã thanh toán phí giữ chỗ. Đang chờ lễ tân phân công bác sĩ.");
     setShowSuccessModal(true);
     router.refresh();
   }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup, router]);
@@ -202,9 +226,17 @@ export const useAppointmentBooking = () => {
     const appointment = await appointmentService.getDepositStatus(appointmentId);
     const { appointmentStatus, depositStatus, isConfirmed, isTerminal } = appointment;
 
-    if (depositStatus === "PAID" && isConfirmed) {
-      handleDepositSuccess();
-      return "PAID";
+    if (depositStatus === "PAID") {
+      // Broad booking resolves on deposit PAID alone (it never auto-confirms — a
+      // receptionist must assign a doctor); normal booking waits for confirmation too.
+      if (pendingIsBroadRef.current) {
+        handleBroadDepositPaid();
+        return "PAID";
+      }
+      if (isConfirmed) {
+        handleDepositSuccess();
+        return "PAID";
+      }
     }
 
     if (isTerminal || depositStatus === "FAILED" || appointmentStatus === "FAILED" || appointmentStatus === "CANCELLED") {
@@ -214,7 +246,7 @@ export const useAppointmentBooking = () => {
 
     setPaymentStatusMessage(popupClosedEarlyRef.current ? "Checking payment status..." : "Waiting for deposit payment...");
     return "PENDING";
-  }, [handleDepositFailure, handleDepositSuccess]);
+  }, [handleBroadDepositPaid, handleDepositFailure, handleDepositSuccess]);
 
   const startDepositPolling = useCallback((appointmentId: string, timeoutMs = DEPOSIT_PAYMENT_TIMEOUT_MS) => {
     clearPaymentWatchers();
@@ -486,6 +518,107 @@ export const useAppointmentBooking = () => {
     setErrorMessage("");
     setSuccessMessage("");
     clearPendingDeposit();
+    pendingIsBroadRef.current = bookingStrategy === "BROAD";
+
+    // ── Broad booking: no doctor/slot/date. Backend creates a PENDING appointment with
+    // assignmentStatus=AWAITING_ASSIGNMENT and a receptionist assignment task. ──
+    if (bookingStrategy === "BROAD") {
+      const normalizedPaymentCategory: AppointmentBookingFormValues["paymentCategory"] =
+        formData.paymentCategory === "BHYT" ? "BHYT" : "DICH_VU";
+      const normalizedDeposit = normalizedPaymentCategory === "BHYT"
+        ? 0
+        : Math.max(0, Number(formData.depositAmount) || 0);
+      const normalizedPaymentMethod: AppointmentBookingFormValues["paymentMethod"] =
+        normalizedPaymentCategory === "BHYT" ? "OFFLINE" : "VNPAY";
+
+      // Contract requires at least one routing hint (specialty OR reason). We send the
+      // specialty name (not its id) to match the broad booking contract / task queue.
+      const broadSpecialty = selectedSpecialty?.name?.trim() || undefined;
+      const broadReason = formData.reasonForAppointment?.trim() || undefined;
+      if (!broadSpecialty && !broadReason) {
+        setLoading(false);
+        setBookingLifecycleState("IDLE");
+        setErrorMessage("Vui lòng chọn chuyên khoa hoặc nhập lý do khám để lễ tân phân công bác sĩ.");
+        setShowErrorModal(true);
+        return;
+      }
+      if (normalizedPaymentCategory === "DICH_VU" && normalizedDeposit <= 0) {
+        setLoading(false);
+        setBookingLifecycleState("IDLE");
+        setErrorMessage("Phí giữ chỗ phải lớn hơn 0 cho lịch khám dịch vụ.");
+        setShowErrorModal(true);
+        return;
+      }
+
+      const broadPayload: BroadBookingPayload = {
+        broadBooking: true,
+        specialty: broadSpecialty,
+        reasonForAppointment: broadReason,
+        paymentCategory: normalizedPaymentCategory,
+        paymentMethod: normalizedPaymentMethod,
+        serviceType: normalizedPaymentCategory === "BHYT" ? "KHAM_BHYT" : "KHAM_DICH_VU",
+        ...(normalizedPaymentCategory === "DICH_VU" ? { depositAmount: normalizedDeposit } : {}),
+      };
+
+      if (normalizedPaymentCategory === "DICH_VU") {
+        prepareDepositPaymentWindow();
+      }
+
+      try {
+        const res = await appointmentService.bookBroad(broadPayload);
+        setResponse(res);
+
+        const paymentUrl = res?.data?.paymentUrl;
+        if (paymentUrl) {
+          // DICH_VU broad: reuse the existing deposit popup + polling. The poller resolves
+          // to AWAITING_ASSIGNMENT (not CONFIRMED) because pendingIsBroadRef is set.
+          const appointmentId = res.data?.appointmentId;
+          if (!appointmentId) {
+            closePaymentPopup();
+            setLoading(false);
+            setBookingLifecycleState("FAILED");
+            setErrorMessage("Đặt khám cần thanh toán phí giữ chỗ nhưng backend không trả về mã lịch hẹn.");
+            setShowErrorModal(true);
+            return;
+          }
+          setPendingAppointmentId(appointmentId);
+          setPendingPaymentUrl(paymentUrl);
+          setPendingPaymentId(res.data?.depositPaymentId || null);
+          rememberPendingDeposit(appointmentId, paymentUrl, res.data?.depositPaymentId, true);
+          setBookingLifecycleState("PENDING_PAYMENT");
+          const popupOpened = openDepositPaymentWindow(paymentUrl);
+          startDepositPolling(appointmentId);
+          if (!popupOpened) {
+            setLoading(false);
+            setBookingLifecycleState("PAYMENT_RETRY");
+          }
+          return;
+        }
+
+        // BHYT broad (no deposit) — or any broad response without a payment URL.
+        if (res?.code === "PENDING" || res?.code === "SUCCESS") {
+          closePaymentPopup();
+          setLoading(false);
+          setBookingLifecycleState("AWAITING_ASSIGNMENT");
+          setSuccessMessage("Đã tạo yêu cầu đặt khám. Đang chờ lễ tân phân công bác sĩ.");
+          setShowSuccessModal(true);
+          return;
+        }
+
+        closePaymentPopup();
+        setErrorMessage(res?.message || "Đặt khám thất bại. Vui lòng thử lại.");
+        setShowErrorModal(true);
+      } catch (error: unknown) {
+        closePaymentPopup();
+        const message = getBookingErrorMessage(error);
+        setErrorMessage(message);
+        setShowErrorModal(true);
+        setResponse({ success: false, error: message });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     const selectedSlot = timeSlots.find((slot) => slot.id === formData.timeSlotId);
     if (!selectedSlot) {
@@ -651,6 +784,7 @@ export const useAppointmentBooking = () => {
         appointmentId?: string;
         paymentUrl?: string;
         paymentId?: string | null;
+        broad?: boolean;
         expiresAt?: number;
       };
 
@@ -659,6 +793,7 @@ export const useAppointmentBooking = () => {
         return;
       }
 
+      pendingIsBroadRef.current = Boolean(pendingDeposit.broad);
       setPendingAppointmentId(pendingDeposit.appointmentId);
       setPendingPaymentUrl(pendingDeposit.paymentUrl);
       setPendingPaymentId(pendingDeposit.paymentId || null);
@@ -714,6 +849,8 @@ export const useAppointmentBooking = () => {
 
   return {
     formData,
+    bookingStrategy,
+    setBookingStrategy,
     loading,
     bookingLifecycleState,
     isWaitingForPayment,

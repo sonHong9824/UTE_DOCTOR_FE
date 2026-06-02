@@ -44,6 +44,10 @@ export type AppointmentBookingPayload = AppointmentBookingFormValues & {
   bookingDate?: string;
 };
 
+// Patient chooses between a normal booking (doctor + slot selected up front) and a
+// broad booking (no doctor/slot — a receptionist assigns one later).
+export type BookingStrategy = "NORMAL" | "BROAD";
+
 export type BookingLifecycleState =
   | "IDLE"
   | "SUBMITTING"
@@ -51,6 +55,9 @@ export type BookingLifecycleState =
   | "PAYMENT_RETRY"
   | "PAYMENT_TIMEOUT"
   | "CONFIRMED"
+  // Broad booking submitted (BHYT) or its deposit paid (DICH_VU): the appointment is
+  // created but stays PENDING/AWAITING_ASSIGNMENT until a receptionist assigns a doctor.
+  | "AWAITING_ASSIGNMENT"
   | "FAILED";
 
 export type AppointmentBookingResult = DataResponse<{
@@ -61,6 +68,9 @@ export type AppointmentBookingResult = DataResponse<{
   depositPaymentId?: string;
   depositPaidAmount?: number;
   depositPaidAt?: number | null;
+  // Present only for broad bookings (broadBooking: true).
+  assignmentTaskId?: string;
+  assignmentStatus?: AssignmentStatus;
 } | null>;
 
 export type AppointmentDepositStatusResult = {

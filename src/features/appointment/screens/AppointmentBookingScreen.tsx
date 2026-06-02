@@ -2,11 +2,19 @@
 
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAppointmentBooking } from "@/features/appointment/hooks/useAppointmentBooking";
+import { BookingStrategy } from "@/features/appointment/types/appointment.types";
 import { TimeHelper } from "@/lib/time";
 
-export default function AppointmentBookingScreen() {
+interface AppointmentBookingScreenProps {
+  // Deep links (e.g. /appointments/broad) can default the screen to broad booking.
+  initialStrategy?: BookingStrategy;
+}
+
+export default function AppointmentBookingScreen({ initialStrategy = "NORMAL" }: AppointmentBookingScreenProps) {
   const {
     formData,
+    bookingStrategy,
+    setBookingStrategy,
     loading,
     bookingLifecycleState,
     isWaitingForPayment,
@@ -45,10 +53,12 @@ export default function AppointmentBookingScreen() {
     handleRefreshDepositStatus,
     handleCancelPaymentWaiting,
     getTimeSlotDisplay,
-  } = useAppointmentBooking();
+  } = useAppointmentBooking(initialStrategy);
 
+  const isBroad = bookingStrategy === "BROAD";
   const isPaymentFlowActive = isWaitingForPayment || bookingLifecycleState === "PAYMENT_RETRY";
   const isFormDisabled = loading || isPaymentFlowActive;
+  const isAwaitingAssignment = bookingLifecycleState === "AWAITING_ASSIGNMENT";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -59,6 +69,35 @@ export default function AppointmentBookingScreen() {
           </div>
 
           <div className="space-y-6">
+            {/* Booking strategy: pick a specific doctor/slot, or let a receptionist assign one. */}
+            <div className="bg-indigo-50 p-5 rounded-xl">
+              <h3 className="text-lg font-semibold text-indigo-900 mb-3">Hình thức đặt lịch</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={isFormDisabled}
+                  onClick={() => setBookingStrategy("NORMAL")}
+                  className={`rounded-xl border-2 p-4 text-left transition disabled:opacity-60 ${
+                    !isBroad ? "border-indigo-500 bg-white shadow" : "border-transparent bg-white/60 hover:bg-white"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800">Chọn bác sĩ cụ thể</p>
+                  <p className="mt-1 text-sm text-gray-600">Bạn tự chọn bác sĩ và khung giờ khám.</p>
+                </button>
+                <button
+                  type="button"
+                  disabled={isFormDisabled}
+                  onClick={() => setBookingStrategy("BROAD")}
+                  className={`rounded-xl border-2 p-4 text-left transition disabled:opacity-60 ${
+                    isBroad ? "border-indigo-500 bg-white shadow" : "border-transparent bg-white/60 hover:bg-white"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800">Để lễ tân phân công bác sĩ</p>
+                  <p className="mt-1 text-sm text-gray-600">Không cần chọn bác sĩ/khung giờ — lễ tân sẽ phân công.</p>
+                </button>
+              </div>
+            </div>
+
             <div className="bg-blue-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-blue-900 mb-4">Thông tin bệnh viện</h3>
 
@@ -74,7 +113,9 @@ export default function AppointmentBookingScreen() {
                 </div>
 
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chuyên Khoa *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Chuyên Khoa {isBroad ? "(chọn chuyên khoa hoặc nhập lý do bên dưới)" : "*"}
+                  </label>
 
                   <input
                     type="text"
@@ -107,125 +148,128 @@ export default function AppointmentBookingScreen() {
               </div>
             </div>
 
-            <div className="bg-purple-50 p-5 rounded-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-purple-900">Thông tin bác sĩ</h3>
-              </div>
+            {/* Doctor & schedule pickers — only for normal booking. */}
+            {!isBroad && (
+              <>
+                <div className="bg-purple-50 p-5 rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-purple-900">Thông tin bác sĩ</h3>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
-                  <input
-                    type="text"
-                    value={doctorSearchTerm}
-                    disabled={isFormDisabled}
-                    onFocus={() => setIsDoctorFocused(true)}
-                  onBlur={() => {
-                    setTimeout(() => setIsDoctorFocused(false), 150);
-                    handleDoctorBlur();
-                  }}
-                  onChange={(e) => handleDoctorSearch(e.target.value)}
-                  placeholder="Nhập tên bác sĩ..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
+                    <input
+                      type="text"
+                      value={doctorSearchTerm}
+                      disabled={isFormDisabled}
+                      onFocus={() => setIsDoctorFocused(true)}
+                      onBlur={() => {
+                        setTimeout(() => setIsDoctorFocused(false), 150);
+                        handleDoctorBlur();
+                      }}
+                      onChange={(e) => handleDoctorSearch(e.target.value)}
+                      placeholder="Nhập tên bác sĩ..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
 
-                {doctorSuggestions.length > 0 && isDoctorFocused && (
-                  <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
-                    {doctorSuggestions.map((doc) => (
-                      <li
-                        key={doc.id}
-                        className="px-4 py-2 cursor-pointer hover:bg-purple-100"
-                        onClick={() => {
-                          handleDoctorSelect(doc);
-                          setIsDoctorFocused(false);
+                    {doctorSuggestions.length > 0 && isDoctorFocused && (
+                      <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
+                        {doctorSuggestions.map((doc) => (
+                          <li
+                            key={doc.id}
+                            className="px-4 py-2 cursor-pointer hover:bg-purple-100"
+                            onClick={() => {
+                              handleDoctorSelect(doc);
+                              setIsDoctorFocused(false);
+                            }}
+                          >
+                            {doc.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {doctorSuggestions.length === 0 && doctorSearchTerm && (
+                      <p className="text-sm text-amber-600 mt-2">Không tìm thấy bác sĩ phù hợp</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-green-50 p-5 rounded-xl">
+                  <h3 className="text-lg font-semibold text-green-900 mb-4">Thông tin lịch hẹn</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
+                      <DatePicker
+                        value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
+                        onChange={(date) => {
+                          if (!isFormDisabled) {
+                            handleDateChange(date ?? null);
+                          }
                         }}
+                        className={isFormDisabled ? "pointer-events-none opacity-60" : ""}
+                        limitDays={30}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Khung Giờ Khám *</label>
+                      <select
+                        value={formData.timeSlotId}
+                        disabled={isFormDisabled}
+                        onChange={(e) => handleChange("timeSlotId", e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       >
-                        {doc.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                        <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
+                        {timeSlots.map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {getTimeSlotDisplay(slot)}
+                          </option>
+                        ))}
+                      </select>
+                      {formData.timeSlotId && (
+                        <p className="text-xs text-gray-500 mt-1 font-mono">ID: {formData.timeSlotId}</p>
+                      )}
+                    </div>
 
-                {doctorSuggestions.length === 0 && doctorSearchTerm && (
-                  <p className="text-sm text-amber-600 mt-2">Không tìm thấy bác sĩ phù hợp</p>
-                )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Loại hình thăm khám *</label>
+                      <select
+                        value={formData.visitType}
+                        disabled={isFormDisabled}
+                        onChange={(e) => handleChange("visitType", e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      >
+                        <option value="OFFLINE">Khám trực tiếp (OFFLINE)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Broad booking explainer. */}
+            {isBroad && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                Bạn không cần chọn bác sĩ và khung giờ. Sau khi đặt, lễ tân sẽ phân công bác sĩ và lịch khám phù hợp.
+                Vui lòng cung cấp chuyên khoa và/hoặc lý do khám để hỗ trợ phân công.
               </div>
-            </div>
+            )}
 
+            {/* Reason — used as a routing hint for broad booking and as a note for normal booking. */}
             <div className="bg-green-50 p-5 rounded-xl">
-              <h3 className="text-lg font-semibold text-green-900 mb-4">Thông tin lịch hẹn</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
-                  <DatePicker
-                    value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
-                    onChange={(date) => {
-                      if (!isFormDisabled) {
-                        handleDateChange(date ?? null);
-                      }
-                    }}
-                    className={isFormDisabled ? "pointer-events-none opacity-60" : ""}
-                    limitDays={30}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Khung Giờ Khám *</label>
-                  <select
-                    value={formData.timeSlotId}
-                    disabled={isFormDisabled}
-                    onChange={(e) => handleChange("timeSlotId", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
-                    {timeSlots.map((slot) => (
-                      <option key={slot.id} value={slot.id}>
-                        {getTimeSlotDisplay(slot)}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.timeSlotId && (
-                    <p className="text-xs text-gray-500 mt-1 font-mono">ID: {formData.timeSlotId}</p>
-                  )}
-                </div>
-
-                {/* <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Loại Dịch Vụ (ServiceType) *</label>
-                  <select
-                    value={formData.serviceType}
-                    onChange={(e) => handleChange("serviceType", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="KHAM_DICH_VU">Khám dịch vụ</option>
-                    <option value="KHAM_BHYT">Khám BHYT</option>
-                    <option value="KHAM_TONG_QUAT">Khám tổng quát</option>
-                  </select>
-                </div> */}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Loại hình thăm khám *</label>
-                  <select
-                    value={formData.visitType}
-                    disabled={isFormDisabled}
-                    onChange={(e) => handleChange("visitType", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="OFFLINE">Khám trực tiếp (OFFLINE)</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Lý do khám *</label>
-                  <textarea
-                    value={formData.reasonForAppointment}
-                    disabled={isFormDisabled}
-                    onChange={(e) => handleChange("reasonForAppointment", e.target.value)}
-                    placeholder="Mô tả ngắn về lý do khám"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
-                    rows={3}
-                  />
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Lý do khám {isBroad ? "(bắt buộc nếu chưa chọn chuyên khoa)" : "*"}
+              </label>
+              <textarea
+                value={formData.reasonForAppointment}
+                disabled={isFormDisabled}
+                onChange={(e) => handleChange("reasonForAppointment", e.target.value)}
+                placeholder="Mô tả ngắn về triệu chứng / lý do khám"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
+                rows={3}
+              />
             </div>
 
             <div className="bg-orange-50 p-5 rounded-xl">
@@ -251,17 +295,33 @@ export default function AppointmentBookingScreen() {
                       <span className="font-medium">Phí giữ chỗ</span>
                       <span className="text-lg font-bold">{(formData.depositAmount ?? 0).toLocaleString("vi-VN")}đ</span>
                     </div>
-                    <p>Lịch khám dịch vụ chỉ được xác nhận sau khi thanh toán phí giữ chỗ qua VNPay thành công.</p>
+                    <p>
+                      {isBroad
+                        ? "Phí giữ chỗ được thanh toán qua VNPay trước khi lễ tân phân công bác sĩ."
+                        : "Lịch khám dịch vụ chỉ được xác nhận sau khi thanh toán phí giữ chỗ qua VNPay thành công."}
+                    </p>
                   </div>
                 )}
 
                 {formData.paymentCategory === "BHYT" && (
                   <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                    Không yêu cầu đặt cọc. Lịch khám BHYT sẽ được xác nhận sau khi đặt lịch thành công.
+                    {isBroad
+                      ? "Không yêu cầu đặt cọc. Lễ tân sẽ phân công bác sĩ sau khi yêu cầu được tạo."
+                      : "Không yêu cầu đặt cọc. Lịch khám BHYT sẽ được xác nhận sau khi đặt lịch thành công."}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Broad booking submitted / deposit paid → waiting for receptionist assignment. */}
+            {isAwaitingAssignment && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5 text-emerald-900">
+                <h3 className="text-lg font-semibold">Đang chờ lễ tân phân công bác sĩ</h3>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Yêu cầu của bạn đã được tạo. Lễ tân sẽ phân công bác sĩ và khung giờ khám; bạn sẽ nhận được thông báo khi hoàn tất.
+                </p>
+              </div>
+            )}
 
             {isPaymentFlowActive && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-900">
@@ -326,7 +386,7 @@ export default function AppointmentBookingScreen() {
               disabled={isFormDisabled}
               className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Đang xử lý..." : "Đặt Lịch Khám"}
+              {loading ? "Đang xử lý..." : isBroad ? "Gửi yêu cầu đặt khám" : "Đặt Lịch Khám"}
             </button>
 
           </div>
