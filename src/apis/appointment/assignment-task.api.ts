@@ -98,7 +98,10 @@ export const extractBlockedReason = (error: unknown): string | undefined => {
 const BLOCKED_REASON_MESSAGES: Record<string, string> = {
   TASK_NOT_FOUND: "Không tìm thấy yêu cầu phân công.",
   TASK_NOT_PENDING: "Yêu cầu không còn ở trạng thái chờ.",
+  // Durable: another receptionist has already claimed (owns) the task — it is gone for us.
   TASK_ALREADY_ACCEPTED: "Yêu cầu đã được lễ tân khác nhận.",
+  // Transient: another receptionist is processing this task right now (short Redis lock). Retry/refresh.
+  TASK_LOCK_HELD: "Yêu cầu đang được lễ tân khác xử lý. Vui lòng thử lại.",
   TASK_NOT_ASSIGNED: "Yêu cầu chưa được nhận.",
   TASK_NOT_OWNED: "Bạn không phải người đã nhận yêu cầu này.",
   APPOINTMENT_NOT_ASSIGNABLE: "Lịch hẹn không thể phân công (đã có bác sĩ hoặc đã hủy).",
@@ -114,3 +117,9 @@ export const getBlockedReasonMessage = (error: unknown, fallback: string): strin
   const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
   return reason ?? message ?? fallback;
 };
+
+// TASK_LOCK_HELD is a transient conflict (someone else is mid-action): keep the card, let the
+// user retry, just refresh. TASK_ALREADY_ACCEPTED / TASK_NOT_PENDING are durable: the task has
+// moved on, so the stale card should drop out after a refresh.
+export const isTransientBlockedReason = (error: unknown): boolean =>
+  extractBlockedReason(error) === "TASK_LOCK_HELD";
