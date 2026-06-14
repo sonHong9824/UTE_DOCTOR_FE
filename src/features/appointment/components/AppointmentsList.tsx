@@ -141,7 +141,10 @@ export default function AppointmentsList({
                 )}
 
                 <div className="mt-3 flex items-center justify-end gap-2">
-                  {(appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") &&
+                  {/* Reschedule is not available for broad/unassigned appointments: there is no
+                      doctor/slot to move yet, and the backend rejects it (APPOINTMENT_DOCTOR_NOT_ASSIGNED). */}
+                  {!awaiting &&
+                    (appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") &&
                     canRescheduleVisit(appt.visitStatus) && (
                     <Button
                       size="sm"

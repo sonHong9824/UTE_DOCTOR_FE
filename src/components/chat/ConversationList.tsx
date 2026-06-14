@@ -1,24 +1,21 @@
 "use client";
 
-import { listConversations } from '@/apis/chat/chat.api';
-import { useEffect, useState } from 'react';
-
-interface Participant {
-  accountId: string;
-  email?: string;
-  role: string;
-  displayName: string;
-  avatarUrl?: string;
-}
+import { listConversations } from "@/apis/chat/chat.api";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import type { ChatParticipant } from "@/features/chat/types/chat.types";
+import { getOtherParticipant, normalizeId } from "@/features/chat/utils/chat-message.util";
+import { AlertCircle, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Conversation {
   _id: string;
-  type: 'direct' | 'group';
-  participants: Participant[];
+  type: "direct" | "group";
+  participants: ChatParticipant[];
   title?: string;
   lastMessage?: {
     content: string;
-    senderId: string;
+    senderId: string | number;
     createdAt?: string;
     at?: string;
   };
@@ -30,136 +27,158 @@ interface ConversationListProps {
   onSelectConversation: (conversationId: string, receiver: { name: string; avatarUrl?: string }) => void;
 }
 
+const limit = 20;
+
+const formatTime = (date: string) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const now = new Date();
+  const isSameDay = d.toDateString() === now.toDateString();
+  if (isSameDay) {
+    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Hôm qua";
+
+  return d.toLocaleDateString("vi-VN", { day: "numeric", month: "short" });
+};
+
+const getInitials = (name?: string) => {
+  if (!name) return "U";
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] || "";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  return (first + last).toUpperCase() || "U";
+};
+
 export default function ConversationList({ currentUserId, onSelectConversation }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [skip, setSkip] = useState(0);
-  const limit = 20;
+  const skipRef = useRef(0);
 
-  const loadConversations = async (reset = false) => {
-    const currentSkip = reset ? 0 : skip;
-    setLoading(true);
-    try {
-      const res = await listConversations(currentSkip, limit);
-      const newData = res?.data?.data || [];
-      const total = res?.data?.total || 0;
-      
-      if (reset) {
-        setConversations(newData);
-        setSkip(limit);
-      } else {
-        setConversations((prev) => [...prev, ...newData]);
-        setSkip((prev) => prev + limit);
+  const loadConversations = useCallback(
+    async (reset = false) => {
+      const currentSkip = reset ? 0 : skipRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await listConversations(currentSkip, limit);
+        const newData = Array.isArray(res?.data?.data) ? res.data.data : [];
+        const total = Number(res?.data?.total || 0);
+
+        if (reset) {
+          setConversations(newData);
+          skipRef.current = limit;
+        } else {
+          setConversations((prev) => [...prev, ...newData]);
+          skipRef.current = currentSkip + limit;
+        }
+
+        setHasMore(currentSkip + newData.length < total);
+      } catch {
+        setError("Không thể tải danh sách trò chuyện.");
+      } finally {
+        setLoading(false);
       }
-      
-      setHasMore(currentSkip + newData.length < total);
-    } catch (err) {
-      console.error('[ConversationList] Error loading conversations:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    []
+  );
 
   useEffect(() => {
-    if (currentUserId) loadConversations(true);
-  }, [currentUserId]);
+    if (currentUserId) void loadConversations(true);
+  }, [currentUserId, loadConversations]);
 
-  const formatTime = (date: string) => {
-    const d = new Date(date);
-    if (Number.isNaN(d.getTime())) return '--';
+  if (loading && conversations.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-gray-500">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+        Đang tải cuộc trò chuyện...
+      </div>
+    );
+  }
 
-    const now = new Date();
-    const isSameDay = d.toDateString() === now.toDateString();
-    if (isSameDay) {
-      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-
-    return d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
-  };
-
-  const getReceiver = (conv: Conversation) => {
-    const receiver = conv.participants.find(p => p.accountId !== currentUserId);
-    return receiver || conv.participants[0];
-  };
-
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(/\s+/);
-    const first = parts[0]?.[0] || '';
-    const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : '';
-    return (first + last).toUpperCase();
-  };
+  if (error && conversations.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center text-sm text-gray-600 dark:text-gray-300">
+        <AlertCircle className="h-7 w-7 text-red-500" />
+        <div>{error}</div>
+        <Button variant="outline" size="sm" onClick={() => void loadConversations(true)}>
+          Thử lại
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
-        {loading && conversations.length === 0 && (
-          <div className="text-center py-8 text-gray-500">Loading conversations...</div>
-        )}
-        
-        {!loading && conversations.length === 0 && (
-          <div className="text-center py-8 text-gray-400">No conversations yet</div>
-        )}
-        
-        {conversations.map((conv) => {
-          const receiver = getReceiver(conv);
-          const isUnread = false; // TODO: implement unread logic
-          const latestTimestamp = conv.lastMessage?.at || conv.lastMessage?.createdAt || conv.updatedAt;
-          
-          return (
-            <button
-              key={conv._id}
-              onClick={() => onSelectConversation(conv._id, { name: receiver.displayName, avatarUrl: receiver.avatarUrl })}
-              className="w-full p-4 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-800 border-b transition-colors"
-            >
-              {/* Avatar */}
-              {receiver.avatarUrl ? (
-                <img src={receiver.avatarUrl} alt={receiver.displayName} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-sm font-medium flex-shrink-0">
-                  {getInitials(receiver.displayName)}
-                </div>
-              )}
-              
-              {/* Content */}
-              <div className="flex-1 min-w-0 text-left">
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className={`font-medium truncate ${isUnread ? 'text-blue-600' : ''}`}>
-                    {conv.title || receiver.displayName}
-                  </span>
-                  <span className="text-xs text-gray-500 flex-shrink-0">
-                    {formatTime(latestTimestamp)}
-                  </span>
-                </div>
-                
-                {conv.lastMessage && (
-                  <p className={`text-sm truncate ${isUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
-                    {conv.lastMessage.senderId === currentUserId ? 'You: ' : ''}
-                    {conv.lastMessage.content}
-                  </p>
-                )}
-              </div>
-              
-              {isUnread && (
-                <div className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0 mt-2" />
-              )}
-            </button>
-          );
-        })}
-        
-        {hasMore && (
+    <div className="flex h-full flex-col overflow-y-auto">
+      {!loading && conversations.length === 0 && (
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <div className="mb-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+            Chưa có cuộc trò chuyện
+          </div>
+          <p className="text-sm text-gray-500">Tìm liên hệ để bắt đầu nhắn tin.</p>
+        </div>
+      )}
+
+      {conversations.map((conversation) => {
+        const receiver = getOtherParticipant(conversation.participants, currentUserId);
+        const receiverName = receiver?.displayName || receiver?.email || conversation.title || "Người dùng";
+        const latestTimestamp = conversation.lastMessage?.at || conversation.lastMessage?.createdAt || conversation.updatedAt;
+        const isMine = normalizeId(conversation.lastMessage?.senderId) === normalizeId(currentUserId);
+
+        return (
           <button
-            onClick={() => loadConversations(false)}
-            disabled={loading}
-            className="w-full p-4 text-sm text-blue-600 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+            key={conversation._id}
+            onClick={() =>
+              onSelectConversation(conversation._id, {
+                name: receiverName,
+                avatarUrl: receiver?.avatarUrl || undefined,
+              })
+            }
+            className="flex w-full items-start gap-3 border-b border-gray-100 p-4 text-left transition hover:bg-gray-50 dark:border-gray-900 dark:hover:bg-gray-900"
           >
-            {loading ? 'Loading...' : 'Load more'}
+            <Avatar className="h-11 w-11">
+              {receiver?.avatarUrl && <AvatarImage src={receiver.avatarUrl} alt={receiverName} />}
+              <AvatarFallback className="bg-gray-200 text-sm font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                {getInitials(receiverName)}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-semibold text-gray-950 dark:text-gray-50">
+                  {conversation.title || receiverName}
+                </span>
+                <span className="shrink-0 text-xs text-gray-500">{formatTime(latestTimestamp)}</span>
+              </div>
+
+              {conversation.lastMessage ? (
+                <p className="truncate text-sm text-gray-600 dark:text-gray-400">
+                  {isMine ? "Bạn: " : ""}
+                  {conversation.lastMessage.content || "(Không có nội dung)"}
+                </p>
+              ) : (
+                <p className="truncate text-sm text-gray-400">Chưa có tin nhắn</p>
+              )}
+            </div>
           </button>
-        )}
+        );
+      })}
+
+      {hasMore && (
+        <button
+          onClick={() => void loadConversations(false)}
+          disabled={loading}
+          className="w-full p-4 text-sm font-medium text-blue-600 transition hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-gray-900"
+        >
+          {loading ? "Đang tải..." : "Tải thêm"}
+        </button>
+      )}
     </div>
   );
 }

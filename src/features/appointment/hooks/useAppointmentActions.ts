@@ -14,9 +14,16 @@ export const useAppointmentActions = () => {
   const cancelAppointmentById = async (appointmentId: string, onSuccess?: () => void, reason?: string) => {
     try {
       setCancelLoading(true);
-      await appointmentService.cancel(appointmentId, reason);
+      const result = await appointmentService.cancel(appointmentId, reason);
       window.dispatchEvent(new Event("wallet:refresh"));
-      toast.success("Hủy cuộc hẹn thành công");
+      // Surface the refunded deposit (if any) so the patient sees the outcome immediately;
+      // the list refetch via onSuccess then reflects depositStatus = REFUNDED.
+      const refundAmount = Number((result as { data?: { refundAmount?: number } })?.data?.refundAmount ?? 0);
+      toast.success(
+        refundAmount > 0
+          ? `Hủy cuộc hẹn thành công. Đã hoàn ${refundAmount.toLocaleString("vi-VN")}đ vào ví.`
+          : "Hủy cuộc hẹn thành công",
+      );
       onSuccess?.();
     } catch (error: unknown) {
       console.error("Failed to cancel appointment:", error);

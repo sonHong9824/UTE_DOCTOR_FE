@@ -159,6 +159,34 @@ export default function NotificationBell({
     void refreshBell();
   }, [refreshBell]);
 
+  // Keep the bell tied to the auth boundary even if it stays mounted across an account switch:
+  // wipe the previous user's notifications/count on logout, and refetch for the new user on login.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleAuthLogout = () => {
+      setNotifications([]);
+      setUnreadCount(0);
+      setSelectedNotif(null);
+      setPage(1);
+      setHasMore(true);
+    };
+
+    const handleUserLoggedIn = () => {
+      void refreshBell();
+    };
+
+    window.addEventListener("auth-logout", handleAuthLogout);
+    window.addEventListener("user-logged-in", handleUserLoggedIn);
+
+    return () => {
+      window.removeEventListener("auth-logout", handleAuthLogout);
+      window.removeEventListener("user-logged-in", handleUserLoggedIn);
+    };
+  }, [refreshBell]);
+
   useEffect(() => {
     const notificationSocket = createNotificationSocket();
 

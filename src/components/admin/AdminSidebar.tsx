@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import axiosClient from '@/lib/axiosClient';
 import { toast } from 'sonner';
+import { clearAuthSession } from '@/features/auth/utils/auth-storage';
 
 const menuItems = [
   // { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
@@ -46,9 +47,8 @@ export default function AdminSidebar({ collapsed, setCollapsed }: AdminSidebarPr
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return;
-    // keys to clear
-    const keys = ['accessToken', 'refreshToken', 'email', 'id', 'accountId', 'userId', 'role', 'name', 'doctorId', 'patientId'];
-    keys.forEach((k) => localStorage.removeItem(k));
+    // Clears the session AND emits `auth-logout` so the shared sockets disconnect.
+    clearAuthSession();
 
     // clear axios default auth header
     try {

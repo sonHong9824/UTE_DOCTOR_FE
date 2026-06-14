@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { CalendarDays, ChevronRight, ClipboardList, CreditCard, LogOut, ReceiptText } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { clearAuthSession } from "@/features/auth/utils/auth-storage";
 
 const menuItems = [
   { name: "Today's Visits", icon: CalendarDays, path: "/receptionist/visits" },
@@ -24,21 +25,8 @@ export default function ReceptionistSidebar({ collapsed, onToggle }: Receptionis
 
   const handleLogout = () => {
     if (typeof window === "undefined") return;
-    const keys = [
-      "isLoggedIn",
-      "accessToken",
-      "refreshToken",
-      "email",
-      "id",
-      "accountId",
-      "userId",
-      "role",
-      "name",
-      "doctorId",
-      "patientId",
-      "profileId",
-    ];
-    keys.forEach((k) => localStorage.removeItem(k));
+    // Clears the session AND emits `auth-logout` so the shared sockets disconnect.
+    clearAuthSession();
     router.push("/");
   };
 

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import NotificationBell from "./notification/notification-bell";
 import { useRouter } from "next/navigation";
+import { clearAuthSession } from "@/features/auth/utils/auth-storage";
 
 
 const Navbar = () => {
@@ -34,21 +35,9 @@ const Navbar = () => {
 
   const handleLogout = () => {
     if (typeof window === "undefined") return;
-    const keys = [
-      "isLoggedIn",
-      "accessToken",
-      "refreshToken",
-      "email",
-      "id",
-      "accountId",
-      "userId",
-      "role",
-      "name",
-      "doctorId",
-      "patientId",
-      "profileId",
-    ];
-    keys.forEach((k) => localStorage.removeItem(k));
+    // Clears the session AND emits `auth-logout` so the shared sockets (notification bell) disconnect
+    // instead of staying authenticated as this user.
+    clearAuthSession();
     setEmail(null);
     setRole("");
     router.push('/');
