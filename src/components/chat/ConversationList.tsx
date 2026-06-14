@@ -96,7 +96,7 @@ export default function ConversationList({ currentUserId, onSelectConversation }
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-y-auto visible-scrollbar">
         {loading && conversations.length === 0 && (
           <div className="text-center py-8 text-gray-500">Loading conversations...</div>
         )}

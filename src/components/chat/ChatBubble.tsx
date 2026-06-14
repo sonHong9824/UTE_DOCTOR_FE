@@ -58,9 +58,7 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
     if (stored) setConversationId(stored);
   }, []);
 
-  const positionClass = currentUser.role === 'DOCTOR'
-    ? 'left-6 bottom-6'
-    : 'right-6 bottom-6';
+  const positionClass = 'left-6 bottom-6';
 
   // Search contacts state
   const [q, setQ] = useState('');
@@ -112,10 +110,11 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
   return (
     <>
       <button
-        className={`fixed ${positionClass} z-50 rounded-full shadow-lg px-4 py-3 bg-blue-600 text-white hover:bg-blue-700`}
+        className={`fixed ${positionClass} z-50 flex h-12 w-12 items-center justify-center rounded-full shadow-lg bg-blue-600 text-white hover:bg-blue-700`}
         onClick={async () => { await ensureConversation(); setOpen(!open); }}
+        aria-label={open ? 'Đóng chat' : 'Mở chat'}
       >
-        {open ? 'Close Chat' : 'Chat'}
+        {open ? '×' : '💬'}
       </button>
 
       {open && (
@@ -174,7 +173,7 @@ export default function ChatBubble({ defaultTitle, defaultParticipants }: ChatBu
                     />
                     <button onClick={runSearch} className="px-3 py-2 rounded bg-blue-600 text-white">Tìm</button>
                   </div>
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto visible-scrollbar">
                     {searching && <div className="text-gray-500">Đang tìm...</div>}
                     {!searching && results.length === 0 && <div className="text-gray-500">Không có kết quả</div>}
                     {!searching && results.map((r) => (

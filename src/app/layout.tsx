@@ -1,4 +1,5 @@
 import { ThemeProvider } from "@/components/theme-provider";
+import MedicalAssistantWidget from "@/components/assistant/MedicalAssistantWidget";
 import { ChatSocketProvider } from "@/contexts/ChatSocketContext";
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
@@ -34,6 +35,7 @@ export default function RootLayout({
         >
           <ChatSocketProvider>
             {children}
+            <MedicalAssistantWidget />
           </ChatSocketProvider>
         </ThemeProvider>
       </body>

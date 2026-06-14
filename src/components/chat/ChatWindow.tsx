@@ -205,7 +205,7 @@ export default function ChatWindow({ conversationId, currentUser, onBack, title,
           <div className="font-medium truncate">{receiver?.name || title || 'Chat'}</div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3" ref={messagesContainerRef} onScroll={handleScroll}>
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 visible-scrollbar" ref={messagesContainerRef} onScroll={handleScroll}>
         {loadingMore && <div className="text-sm text-gray-500 text-center py-2">Loading older messages...</div>}
         {loading && <div className="text-sm text-gray-500 text-center py-4">Loading messages...</div>}
         {!loading && messages.length === 0 && <div className="text-sm text-gray-400 text-center py-4">No messages yet</div>}
