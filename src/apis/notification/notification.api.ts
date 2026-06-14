@@ -12,8 +12,13 @@ const notificationTypeAliasMap: Record<string, NotificationType> = {
   appointment_success: "APPOINTMENT_SUCCESS",
   appointment_booking_success: "APPOINTMENT_SUCCESS",
   appointment_cancelled: "APPOINTMENT_CANCELLED",
+  appointment_rescheduled: "APPOINTMENT_RESCHEDULED",
   payment_success: "PAYMENT_SUCCESS",
   payment_update: "PAYMENT_SUCCESS",
+  assignment_task_created: "ASSIGNMENT_TASK_CREATED",
+  assignment_task_reminder: "ASSIGNMENT_TASK_REMINDER",
+  assignment_task_expired: "ASSIGNMENT_TASK_EXPIRED",
+  appointment_doctor_assigned: "APPOINTMENT_DOCTOR_ASSIGNED",
 };
 
 const normalizeNotificationType = (notification: Notification): NotificationType | undefined => {
@@ -58,7 +63,17 @@ const notificationDataNormalizers: NotificationDataNormalizerMap = {
     ...data,
     date: normalizeDataDateValue(data.date),
   }),
+  APPOINTMENT_RESCHEDULED: (data) => ({
+    ...data,
+    date: normalizeDataDateValue(data.date),
+  }),
   PAYMENT_SUCCESS: (data) => data,
+  // Assignment DTOs carry epoch-ms timestamps (deadlineAt / scheduledAt) consumed as numbers,
+  // so they pass through unchanged — no string-date normalization.
+  ASSIGNMENT_TASK_CREATED: (data) => data,
+  ASSIGNMENT_TASK_REMINDER: (data) => data,
+  ASSIGNMENT_TASK_EXPIRED: (data) => data,
+  APPOINTMENT_DOCTOR_ASSIGNED: (data) => data,
 };
 
 const normalizeNotificationData = (
@@ -69,27 +84,13 @@ const normalizeNotificationData = (
     return data;
   }
 
-  if (type === "COIN_EXPIRY_REMINDER") {
-    return notificationDataNormalizers.COIN_EXPIRY_REMINDER(
-      data as NotificationMap["COIN_EXPIRY_REMINDER"]
-    );
-  }
+  // Direct lookup keeps every NotificationType handled (the map is exhaustive over the union),
+  // so new notification types are normalized without extending an if-chain.
+  const normalizer = notificationDataNormalizers[type] as
+    | ((value: Notification["data"]) => Notification["data"])
+    | undefined;
 
-  if (type === "APPOINTMENT_SUCCESS") {
-    return notificationDataNormalizers.APPOINTMENT_SUCCESS(
-      data as NotificationMap["APPOINTMENT_SUCCESS"]
-    );
-  }
-
-  if (type === "APPOINTMENT_CANCELLED") {
-    return notificationDataNormalizers.APPOINTMENT_CANCELLED(
-      data as NotificationMap["APPOINTMENT_CANCELLED"]
-    );
-  }
-
-  return notificationDataNormalizers.PAYMENT_SUCCESS(
-    data as NotificationMap["PAYMENT_SUCCESS"]
-  );
+  return normalizer ? normalizer(data) : data;
 };
 
 const normalizeNotificationDate = (notification: Notification): Notification => {

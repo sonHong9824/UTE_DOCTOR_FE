@@ -9,10 +9,16 @@ import {
     NotificationMap,
     NotificationPayload,
 } from "@/types/notification.dto";
+import {
+    APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+    ASSIGNMENT_TASKS_CHANGED_EVENT,
+    emitAppRealtimeEvent,
+} from "@/lib/realtimeEvents";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import NotificationList from "./notification-list";
 
 interface Props {
@@ -37,8 +43,27 @@ const handlers: NotificationHandlerMap = {
   APPOINTMENT_CANCELLED: (data) => {
     console.log("Appointment cancelled", data);
   },
+  APPOINTMENT_RESCHEDULED: (data) => {
+    console.log("Appointment rescheduled", data);
+  },
   PAYMENT_SUCCESS: (data) => {
     console.log("Payment success", data);
+  },
+  // Broad-booking / assignment events. Realtime is a best-effort nudge: we broadcast a window
+  // event so the receptionist queue (or patient appointment list) refreshes sooner. Correctness
+  // still comes from polling / list APIs, so we never branch on `data.online`.
+  ASSIGNMENT_TASK_CREATED: (data) => {
+    emitAppRealtimeEvent(ASSIGNMENT_TASKS_CHANGED_EVENT, data);
+  },
+  ASSIGNMENT_TASK_REMINDER: (data) => {
+    emitAppRealtimeEvent(ASSIGNMENT_TASKS_CHANGED_EVENT, data);
+  },
+  ASSIGNMENT_TASK_EXPIRED: (data) => {
+    emitAppRealtimeEvent(ASSIGNMENT_TASKS_CHANGED_EVENT, data);
+  },
+  APPOINTMENT_DOCTOR_ASSIGNED: (data) => {
+    emitAppRealtimeEvent(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, data);
+    toast.success("Bác sĩ đã được phân công cho lịch hẹn của bạn.");
   },
 };
 
@@ -111,7 +136,14 @@ export default function NotificationBell({
 
   const dispatchNotification = useCallback(
     <K extends keyof NotificationMap>(payload: { type: K; data: NotificationMap[K] }) => {
-      handlers[payload.type](payload.data);
+      // Defensive: the backend may emit a notification type the FE has not mapped yet. Skip it
+      // (the bell list/count still refreshes) instead of crashing on `handlers[type]` undefined.
+      const handler = handlers[payload.type];
+      if (typeof handler === "function") {
+        handler(payload.data);
+      } else {
+        console.warn("[NotificationBell] Unhandled notification type:", payload.type);
+      }
     },
     []
   );
@@ -125,6 +157,34 @@ export default function NotificationBell({
 
   useEffect(() => {
     void refreshBell();
+  }, [refreshBell]);
+
+  // Keep the bell tied to the auth boundary even if it stays mounted across an account switch:
+  // wipe the previous user's notifications/count on logout, and refetch for the new user on login.
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleAuthLogout = () => {
+      setNotifications([]);
+      setUnreadCount(0);
+      setSelectedNotif(null);
+      setPage(1);
+      setHasMore(true);
+    };
+
+    const handleUserLoggedIn = () => {
+      void refreshBell();
+    };
+
+    window.addEventListener("auth-logout", handleAuthLogout);
+    window.addEventListener("user-logged-in", handleUserLoggedIn);
+
+    return () => {
+      window.removeEventListener("auth-logout", handleAuthLogout);
+      window.removeEventListener("user-logged-in", handleUserLoggedIn);
+    };
   }, [refreshBell]);
 
   useEffect(() => {

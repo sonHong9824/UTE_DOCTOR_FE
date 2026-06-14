@@ -3,12 +3,12 @@
 import { BroadBookingPayload } from "@/apis/appointment/appointment.api";
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import {
-    AppointmentBookingFormValues,
-    BookingLifecycleState,
-    BookingStrategy,
-    DoctorOption,
-    DoctorPayload,
-    SpecialtyOption,
+  AppointmentBookingFormValues,
+  BookingLifecycleState,
+  BookingStrategy,
+  DoctorOption,
+  DoctorPayload,
+  SpecialtyOption,
 } from "@/features/appointment/types/appointment.types";
 import { getTodayLocalDate } from "@/features/appointment/utils/appointment-date";
 import { TimeSlotDto } from "@/types/timeslot.dto";
@@ -531,11 +531,10 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
       const normalizedPaymentMethod: AppointmentBookingFormValues["paymentMethod"] =
         normalizedPaymentCategory === "BHYT" ? "OFFLINE" : "VNPAY";
 
-      // Contract requires at least one routing hint (specialty OR reason). We send the
-      // specialty name (not its id) to match the broad booking contract / task queue.
-      const broadSpecialty = selectedSpecialty?.name?.trim() || undefined;
+      // Backend validates broad booking specialty as an ObjectId.
+      const broadSpecialtyId = selectedSpecialty?._id?.trim() || undefined;
       const broadReason = formData.reasonForAppointment?.trim() || undefined;
-      if (!broadSpecialty && !broadReason) {
+      if (!broadSpecialtyId && !broadReason) {
         setLoading(false);
         setBookingLifecycleState("IDLE");
         setErrorMessage("Vui lòng chọn chuyên khoa hoặc nhập lý do khám để lễ tân phân công bác sĩ.");
@@ -552,7 +551,7 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
 
       const broadPayload: BroadBookingPayload = {
         broadBooking: true,
-        specialty: broadSpecialty,
+        specialty: broadSpecialtyId,
         reasonForAppointment: broadReason,
         paymentCategory: normalizedPaymentCategory,
         paymentMethod: normalizedPaymentMethod,

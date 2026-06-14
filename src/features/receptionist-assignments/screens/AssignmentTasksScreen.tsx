@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, Loader2, RefreshCcw } from "lucide-react";
 
@@ -20,10 +20,17 @@ import {
   AssignmentTask,
   acceptAssignmentTask,
   getBlockedReasonMessage,
+  isTransientBlockedReason,
   listAssignmentTasks,
   releaseAssignmentTask,
 } from "@/apis/appointment/assignment-task.api";
 import { AssignDoctorSlotDialog } from "../components/AssignDoctorSlotDialog";
+import { useAssignmentTaskRealtime } from "../hooks/useAssignmentTaskRealtime";
+
+// The DB queue is the source of truth; poll so the screen stays correct with zero realtime.
+const QUEUE_POLL_INTERVAL_MS = 20_000;
+
+type LoadMode = "initial" | "refresh" | "silent";
 
 type StatusFilter = "PENDING" | "ASSIGNED";
 
@@ -49,32 +56,55 @@ export default function AssignmentTasksScreen() {
   const [assignTask, setAssignTask] = useState<AssignmentTask | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string>("");
 
+  // Keep the latest filter readable from interval/realtime callbacks without re-subscribing.
+  const filterRef = useRef<StatusFilter>(filter);
+  filterRef.current = filter;
+  // Guard so background (poll/realtime) refreshes never stack on top of each other.
+  const inFlightRef = useRef(false);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       setCurrentAccountId(localStorage.getItem("accountId") ?? localStorage.getItem("id") ?? "");
     }
   }, []);
 
-  const load = useCallback(
-    async (status: StatusFilter, showRefreshing = false) => {
-      if (showRefreshing) setRefreshing(true);
-      else setLoading(true);
-      try {
-        const res = await listAssignmentTasks({ status, limit: 50 });
-        setTasks(res.data?.items ?? []);
-      } catch (error) {
+  const load = useCallback(async (status: StatusFilter, mode: LoadMode = "initial") => {
+    if (mode === "silent" && inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (mode === "initial") setLoading(true);
+    else if (mode === "refresh") setRefreshing(true);
+    try {
+      const res = await listAssignmentTasks({ status, limit: 50 });
+      setTasks(res.data?.items ?? []);
+    } catch (error) {
+      // Background refresh failures must not spam toasts — the next poll tick retries.
+      if (mode !== "silent") {
         toast.error(getBlockedReasonMessage(error, "Không thể tải danh sách yêu cầu phân công."));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
       }
-    },
-    []
-  );
+    } finally {
+      inFlightRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    void load(filter, false);
+    void load(filter, "initial");
   }, [filter, load]);
+
+  // Polling fallback: works even if every realtime notification is missed.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      void load(filterRef.current, "silent");
+    }, QUEUE_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Realtime nudge (best-effort): refresh sooner when an ASSIGNMENT_TASK_* notification arrives.
+  useAssignmentTaskRealtime(() => {
+    void load(filterRef.current, "silent");
+  });
 
   const handleAccept = useCallback(
     async (task: AssignmentTask) => {
@@ -83,11 +113,19 @@ export default function AssignmentTasksScreen() {
       try {
         await acceptAssignmentTask(task._id);
         toast.success("Đã nhận yêu cầu. Hãy phân công bác sĩ và khung giờ.");
-        await load(filter, true);
+        await load(filter, "refresh");
       } catch (error) {
-        toast.error(getBlockedReasonMessage(error, "Không thể nhận yêu cầu."));
-        // A lost race likely means the queue changed; refresh it.
-        await load(filter, true);
+        const message = getBlockedReasonMessage(error, "Không thể nhận yêu cầu.");
+        // TASK_LOCK_HELD is transient (another receptionist is mid-action) → retryable info toast;
+        // the task is still PENDING so its card stays visible after refresh. A durable reason
+        // (e.g. TASK_ALREADY_ACCEPTED) is an error and the stale card drops out of the PENDING
+        // filter automatically. Either way, refresh to reflect the DB truth.
+        if (isTransientBlockedReason(error)) {
+          toast.info(message);
+        } else {
+          toast.error(message);
+        }
+        await load(filter, "refresh");
       } finally {
         setBusyTaskId(null);
       }
@@ -102,7 +140,7 @@ export default function AssignmentTasksScreen() {
       try {
         await releaseAssignmentTask(task._id);
         toast.success("Đã trả yêu cầu về hàng đợi.");
-        await load(filter, true);
+        await load(filter, "refresh");
       } catch (error) {
         toast.error(getBlockedReasonMessage(error, "Không thể trả yêu cầu."));
       } finally {
@@ -132,7 +170,7 @@ export default function AssignmentTasksScreen() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => void load(filter, true)}
+              onClick={() => void load(filter, "refresh")}
               disabled={refreshing}
               className="gap-2"
             >
@@ -248,7 +286,7 @@ export default function AssignmentTasksScreen() {
         onClose={() => setAssignTask(null)}
         onAssigned={() => {
           setAssignTask(null);
-          void load(filter, true);
+          void load(filter, "refresh");
         }}
       />
     </div>
