@@ -1,4 +1,10 @@
 import axios from "axios";
+import { refreshAccessToken } from "@/lib/authRefresh";
+import {
+  clearAuthTokens,
+  emitAuthLogout,
+  getAccessToken,
+} from "@/lib/authTokenStore";
 
 const axiosClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api",
@@ -7,13 +13,7 @@ const axiosClient = axios.create({
   },
 });
 
-// Plain axios instance without interceptors for refresh token calls
-const refreshClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api",
-  headers: { "Content-Type": "application/json" },
-});
-
-// Flag để tránh gọi refresh token nhiều lần cùng lúc
+// Flag để tránh retry nhiều request cùng lúc trong khi refresh
 let isRefreshing = false;
 let failedQueue: Array<{
   resolve: (token: string) => void;
@@ -33,11 +33,9 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 axiosClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -57,9 +55,8 @@ axiosClient.interceptors.response.use(
         if (originalRequest.url && originalRequest.url.includes("/auth/refresh")) {
           console.error("Refresh token expired or invalid, redirecting to login");
           if (typeof window !== "undefined") {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("refreshToken");
-            window.dispatchEvent(new Event("auth-logout"));
+            clearAuthTokens();
+            emitAuthLogout();
             window.location.href = "/login";
           }
           return Promise.reject(error);
@@ -82,33 +79,10 @@ axiosClient.interceptors.response.use(
 
         try {
           if (typeof window !== "undefined") {
-            const refreshToken = localStorage.getItem("refreshToken");
-
-            console.log("Attempting to refresh token", refreshToken);
-
-            if (!refreshToken) {
-              throw new Error("No refresh token available");
-            }
-
-            // Gọi endpoint refresh using plain client (no interceptors)
-            const response = await refreshClient.post<{
-              data: { accessToken: string; refreshToken: string };
-            }>("/auth/refresh", { refreshToken });
-
-            const newAccessToken = response.data.data.accessToken;
-            const newRefreshToken = response.data.data.refreshToken;
-
-            localStorage.setItem("accessToken", newAccessToken);
-            localStorage.setItem("refreshToken", newRefreshToken);
+            const newAccessToken = await refreshAccessToken();
 
             axiosClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-
-            // Notify all sockets to reconnect with new token
-            if (typeof window !== 'undefined') {
-              const event = new Event('token-refreshed');
-              window.dispatchEvent(event);
-            }
 
             processQueue(null, newAccessToken);
             return axiosClient(originalRequest);
@@ -118,9 +92,8 @@ axiosClient.interceptors.response.use(
           processQueue(refreshError, null);
 
           if (typeof window !== "undefined") {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("refreshToken");
-            window.dispatchEvent(new Event("auth-logout"));
+            clearAuthTokens();
+            emitAuthLogout();
             alert("Session hết hạn, vui lòng đăng nhập lại.");
             window.location.replace("/login");
           }

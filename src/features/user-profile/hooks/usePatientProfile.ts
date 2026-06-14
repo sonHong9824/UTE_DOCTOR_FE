@@ -4,53 +4,189 @@ import { ResponseCode as rc } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
 import { getPatientProfile } from "@/features/user-profile/services/user-profile.api";
 import { getStoredEmail, getStoredPatientId } from "@/features/user-profile/utils/user-storage";
+import { getAccessToken } from "@/lib/authTokenStore";
 import { createPatientProfileSocket } from "@/services/socket/socket-client";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+const USER_PROFILE_TABS = [
+  "general-health",
+  "personal-info",
+  "password",
+  "medical-detail",
+  "appointments",
+  "notifications",
+  "wallet",
+] as const;
 
 // View-model hook: fetches and subscribes to patient profile updates.
 export const usePatientProfile = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [user, setUser] = useState<PatientProfileDto | null>(null);
   const [activeTab, setActiveTab] = useState<string>("general-health");
   const [loading, setLoading] = useState(true);
 
+  const queryTab = searchParams.get("tab");
+  const initialTab = useMemo(() => {
+    if (queryTab && USER_PROFILE_TABS.includes(queryTab as (typeof USER_PROFILE_TABS)[number])) {
+      return queryTab;
+    }
+
+    return "general-health";
+  }, [queryTab]);
+
+  useEffect(() => {
+    if (activeTab !== initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [activeTab, initialTab]);
+
+  const handleSetActiveTab = useCallback(
+    (tab: string) => {
+      if (!USER_PROFILE_TABS.includes(tab as (typeof USER_PROFILE_TABS)[number])) {
+        return;
+      }
+
+      setActiveTab(tab);
+      router.replace(`${pathname}?tab=${tab}`, { scroll: false });
+    },
+    [pathname, router]
+  );
+
   useEffect(() => {
     const email = getStoredEmail();
-    if (!email) {
+    const accessToken = getAccessToken();
+    console.log("[usePatientProfile] bootstrap", {
+      hasAccessToken: Boolean(accessToken),
+      hasEmail: Boolean(email),
+      email,
+    });
+    if (!accessToken || !email) {
+      console.log("[usePatientProfile] skip bootstrap because token/email is missing");
       setLoading(false);
       return;
     }
 
     const patientProfileSocket = createPatientProfileSocket();
+    let mounted = true;
+    let roomJoined = false;
 
     const fetchUserProfile = async () => {
+      console.log("[usePatientProfile] http trigger start: getPatientProfile");
       try {
         const response = await getPatientProfile();
-        if (response?.code === rc.SUCCESS) {
+        console.log("[usePatientProfile] http trigger success", response);
+        if (mounted && response?.code === rc.SUCCESS) {
           setUser(response.data);
+          console.log("[usePatientProfile] profile state updated from HTTP response");
         }
-      } catch (err) {
-        toast.error("Can not fetch patient profile");
+      } catch {
+        console.log("[usePatientProfile] http trigger failed");
+        if (mounted) {
+          toast.error("Can not fetch patient profile");
+        }
       } finally {
-        setLoading(false);
+        console.log("[usePatientProfile] http trigger finished");
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
-    patientProfileSocket.once(SocketEventsEnum.ROOM_JOINED, () => {
-      fetchUserProfile();
-    });
-
-    patientProfileSocket.on(SocketEventsEnum.PATIENT_PROFILE, (data: any) => {
-      if (data?.code === rc.SUCCESS) {
-        setUser(data.data);
+    const handlePatientProfile = (data: unknown) => {
+      console.log("[usePatientProfile] PATIENT_PROFILE event received", data);
+      const payload = data as { code?: string; data?: PatientProfileDto };
+      if (mounted && payload?.code === rc.SUCCESS) {
+        setUser(payload.data || null);
+        console.log("[usePatientProfile] profile state updated from socket event");
       }
-    });
+    };
 
-    patientProfileSocket.emitSafe(SocketEventsEnum.JOIN_ROOM, { email });
+    const handleConnect = () => {
+      console.log("[usePatientProfile] socket connected -> emit JOIN_ROOM");
+      void patientProfileSocket.joinRoom();
+    };
+
+    const waitForRoomJoin = async () => {
+      console.log("[usePatientProfile] waiting for ROOM_JOINED");
+      const joined = await new Promise<boolean>((resolve) => {
+        const handleRoomJoined = (data: unknown) => {
+          console.log("[usePatientProfile] ROOM_JOINED event received", data);
+          const payload = data as { email?: string } | undefined;
+          if (payload?.email && payload.email !== email) {
+            console.log("[usePatientProfile] ROOM_JOINED ignored because email does not match current user", {
+              expectedEmail: email,
+              receivedEmail: payload.email,
+            });
+            return;
+          }
+
+          roomJoined = true;
+          console.log("[usePatientProfile] room join confirmed");
+          patientProfileSocket.off(SocketEventsEnum.ROOM_JOINED, handleRoomJoined);
+          patientProfileSocket.offConnect(handleConnect);
+          resolve(true);
+        };
+
+        patientProfileSocket.onConnect(handleConnect);
+        console.log("[usePatientProfile] connect listener attached");
+        patientProfileSocket.on(SocketEventsEnum.ROOM_JOINED, handleRoomJoined);
+        console.log("[usePatientProfile] ROOM_JOINED listener attached");
+
+        const connected = patientProfileSocket.connect();
+        console.log("[usePatientProfile] socket connect called", { connected });
+        if (!connected) {
+          console.log("[usePatientProfile] socket connect failed before join");
+          patientProfileSocket.off(SocketEventsEnum.ROOM_JOINED, handleRoomJoined);
+          patientProfileSocket.offConnect(handleConnect);
+          resolve(false);
+          return;
+        }
+
+        if (patientProfileSocket.isConnected()) {
+          console.log("[usePatientProfile] socket already connected -> emit JOIN_ROOM immediately");
+          void patientProfileSocket.joinRoom();
+        }
+      });
+
+      console.log("[usePatientProfile] ROOM_JOINED wait resolved", { joined });
+      return joined;
+    };
+
+    const bootstrap = async () => {
+      console.log("[usePatientProfile] bootstrap started");
+      const joined = await waitForRoomJoin();
+      if (!mounted || !joined || !roomJoined) {
+        console.log("[usePatientProfile] bootstrap stopped before HTTP trigger", {
+          mounted,
+          joined,
+          roomJoined,
+        });
+        setLoading(false);
+        return;
+      }
+
+      console.log("[usePatientProfile] room joined and listener ready -> attach PATIENT_PROFILE listener");
+      patientProfileSocket.on(SocketEventsEnum.PATIENT_PROFILE, handlePatientProfile);
+      console.log("[usePatientProfile] PATIENT_PROFILE listener attached -> start HTTP trigger");
+      await fetchUserProfile();
+    };
+
+    void bootstrap();
 
     return () => {
-      patientProfileSocket.disconnect();
+      console.log("[usePatientProfile] cleanup start");
+      mounted = false;
+      patientProfileSocket.offConnect(handleConnect);
+      patientProfileSocket.off(SocketEventsEnum.ROOM_JOINED);
+      patientProfileSocket.off(SocketEventsEnum.PATIENT_PROFILE, handlePatientProfile);
+      patientProfileSocket.off(SocketEventsEnum.PATIENT_PROFILE);
+      console.log("[usePatientProfile] cleanup done");
     };
   }, []);
 
@@ -58,7 +194,7 @@ export const usePatientProfile = () => {
     user,
     loading,
     activeTab,
-    setActiveTab,
+    setActiveTab: handleSetActiveTab,
     patientId: getStoredPatientId(),
     email: getStoredEmail(),
   };

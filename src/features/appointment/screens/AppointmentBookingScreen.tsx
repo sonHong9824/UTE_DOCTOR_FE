@@ -2,36 +2,38 @@
 
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAppointmentBooking } from "@/features/appointment/hooks/useAppointmentBooking";
+import { BookingStrategy } from "@/features/appointment/types/appointment.types";
 import { TimeHelper } from "@/lib/time";
-import { formatCoin, formatCurrency } from "@/utils/money.util";
-import { Coins } from "lucide-react";
 
-export default function AppointmentBookingScreen() {
+interface AppointmentBookingScreenProps {
+  // Deep links (e.g. /appointments/broad) can default the screen to broad booking.
+  initialStrategy?: BookingStrategy;
+}
+
+export default function AppointmentBookingScreen({ initialStrategy = "NORMAL" }: AppointmentBookingScreenProps) {
   const {
     formData,
+    bookingStrategy,
+    setBookingStrategy,
     loading,
+    bookingLifecycleState,
+    isWaitingForPayment,
+    pendingPaymentUrl,
+    pendingPaymentId,
+    isPopupBlocked,
+    isPopupClosedEarly,
+    paymentStatusMessage,
     showSuccessModal,
     successMessage,
     showErrorModal,
     errorMessage,
     timeSlots,
-    coinBalance,
-    creditBalance,
     specialtySearchTerm,
     specialtySuggestions,
     doctorSearchTerm,
     doctorSuggestions,
     isDoctorFocused,
     showSpecialtySuggestions,
-    hasPendingPayment,
-    bookingLifecycleState,
-    pendingAppointmentId,
-    paymentUrl,
-    isPaymentInteractionLocked,
-    originalAmount,
-    discountAmount,
-    finalAmount,
-    maxCoinDiscount,
 
     setShowSuccessModal,
     setShowErrorModal,
@@ -47,11 +49,16 @@ export default function AppointmentBookingScreen() {
     handleDoctorSelect,
     handleDoctorBlur,
     handleSubmit,
-    handleRetryStatusCheck,
-    handleCancelPendingPayment,
-    openPaymentWindow,
+    handleOpenPaymentWindow,
+    handleRefreshDepositStatus,
+    handleCancelPaymentWaiting,
     getTimeSlotDisplay,
-  } = useAppointmentBooking();
+  } = useAppointmentBooking(initialStrategy);
+
+  const isBroad = bookingStrategy === "BROAD";
+  const isPaymentFlowActive = isWaitingForPayment || bookingLifecycleState === "PAYMENT_RETRY";
+  const isFormDisabled = loading || isPaymentFlowActive;
+  const isAwaitingAssignment = bookingLifecycleState === "AWAITING_ASSIGNMENT";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -62,6 +69,35 @@ export default function AppointmentBookingScreen() {
           </div>
 
           <div className="space-y-6">
+            {/* Booking strategy: pick a specific doctor/slot, or let a receptionist assign one. */}
+            <div className="bg-indigo-50 p-5 rounded-xl">
+              <h3 className="text-lg font-semibold text-indigo-900 mb-3">Hình thức đặt lịch</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={isFormDisabled}
+                  onClick={() => setBookingStrategy("NORMAL")}
+                  className={`rounded-xl border-2 p-4 text-left transition disabled:opacity-60 ${
+                    !isBroad ? "border-indigo-500 bg-white shadow" : "border-transparent bg-white/60 hover:bg-white"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800">Chọn bác sĩ cụ thể</p>
+                  <p className="mt-1 text-sm text-gray-600">Bạn tự chọn bác sĩ và khung giờ khám.</p>
+                </button>
+                <button
+                  type="button"
+                  disabled={isFormDisabled}
+                  onClick={() => setBookingStrategy("BROAD")}
+                  className={`rounded-xl border-2 p-4 text-left transition disabled:opacity-60 ${
+                    isBroad ? "border-indigo-500 bg-white shadow" : "border-transparent bg-white/60 hover:bg-white"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800">Để lễ tân phân công bác sĩ</p>
+                  <p className="mt-1 text-sm text-gray-600">Không cần chọn bác sĩ/khung giờ — lễ tân sẽ phân công.</p>
+                </button>
+              </div>
+            </div>
+
             <div className="bg-blue-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-blue-900 mb-4">Thông tin bệnh viện</h3>
 
@@ -77,11 +113,14 @@ export default function AppointmentBookingScreen() {
                 </div>
 
                 <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Chuyên Khoa *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Chuyên Khoa {isBroad ? "(chọn chuyên khoa hoặc nhập lý do bên dưới)" : "*"}
+                  </label>
 
                   <input
                     type="text"
                     value={specialtySearchTerm}
+                    disabled={isFormDisabled}
                     onChange={(e) => {
                       handleSpecialtySearch(e.target.value);
                       setShowSpecialtySuggestions(true);
@@ -109,272 +148,247 @@ export default function AppointmentBookingScreen() {
               </div>
             </div>
 
-            <div className="bg-purple-50 p-5 rounded-xl">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-purple-900">Thông tin bác sĩ</h3>
-              </div>
+            {/* Doctor & schedule pickers — only for normal booking. */}
+            {!isBroad && (
+              <>
+                <div className="bg-purple-50 p-5 rounded-xl">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-purple-900">Thông tin bác sĩ</h3>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
-                <input
-                  type="text"
-                  value={doctorSearchTerm}
-                  onFocus={() => setIsDoctorFocused(true)}
-                  onBlur={() => {
-                    setTimeout(() => setIsDoctorFocused(false), 150);
-                    handleDoctorBlur();
-                  }}
-                  onChange={(e) => handleDoctorSearch(e.target.value)}
-                  placeholder="Nhập tên bác sĩ..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tìm bác sĩ *</label>
+                    <input
+                      type="text"
+                      value={doctorSearchTerm}
+                      disabled={isFormDisabled}
+                      onFocus={() => setIsDoctorFocused(true)}
+                      onBlur={() => {
+                        setTimeout(() => setIsDoctorFocused(false), 150);
+                        handleDoctorBlur();
+                      }}
+                      onChange={(e) => handleDoctorSearch(e.target.value)}
+                      placeholder="Nhập tên bác sĩ..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
 
-                {doctorSuggestions.length > 0 && isDoctorFocused && (
-                  <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
-                    {doctorSuggestions.map((doc) => (
-                      <li
-                        key={doc.id}
-                        className="px-4 py-2 cursor-pointer hover:bg-purple-100"
-                        onClick={() => {
-                          handleDoctorSelect(doc);
-                          setIsDoctorFocused(false);
+                    {doctorSuggestions.length > 0 && isDoctorFocused && (
+                      <ul className="border border-gray-300 mt-1 rounded-lg max-h-60 overflow-y-auto bg-white shadow-md">
+                        {doctorSuggestions.map((doc) => (
+                          <li
+                            key={doc.id}
+                            className="px-4 py-2 cursor-pointer hover:bg-purple-100"
+                            onClick={() => {
+                              handleDoctorSelect(doc);
+                              setIsDoctorFocused(false);
+                            }}
+                          >
+                            {doc.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {doctorSuggestions.length === 0 && doctorSearchTerm && (
+                      <p className="text-sm text-amber-600 mt-2">Không tìm thấy bác sĩ phù hợp</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-green-50 p-5 rounded-xl">
+                  <h3 className="text-lg font-semibold text-green-900 mb-4">Thông tin lịch hẹn</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
+                      <DatePicker
+                        value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
+                        onChange={(date) => {
+                          if (!isFormDisabled) {
+                            handleDateChange(date ?? null);
+                          }
                         }}
+                        className={isFormDisabled ? "pointer-events-none opacity-60" : ""}
+                        limitDays={30}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Khung Giờ Khám *</label>
+                      <select
+                        value={formData.timeSlotId}
+                        disabled={isFormDisabled}
+                        onChange={(e) => handleChange("timeSlotId", e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                       >
-                        {doc.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                        <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
+                        {timeSlots.map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {getTimeSlotDisplay(slot)}
+                          </option>
+                        ))}
+                      </select>
+                      {formData.timeSlotId && (
+                        <p className="text-xs text-gray-500 mt-1 font-mono">ID: {formData.timeSlotId}</p>
+                      )}
+                    </div>
 
-                {doctorSuggestions.length === 0 && doctorSearchTerm && (
-                  <p className="text-sm text-amber-600 mt-2">Không tìm thấy bác sĩ phù hợp</p>
-                )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Loại hình thăm khám *</label>
+                      <select
+                        value={formData.visitType}
+                        disabled={isFormDisabled}
+                        onChange={(e) => handleChange("visitType", e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      >
+                        <option value="OFFLINE">Khám trực tiếp (OFFLINE)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Broad booking explainer. */}
+            {isBroad && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                Bạn không cần chọn bác sĩ và khung giờ. Sau khi đặt, lễ tân sẽ phân công bác sĩ và lịch khám phù hợp.
+                Vui lòng cung cấp chuyên khoa và/hoặc lý do khám để hỗ trợ phân công.
               </div>
-            </div>
+            )}
 
+            {/* Reason — used as a routing hint for broad booking and as a note for normal booking. */}
             <div className="bg-green-50 p-5 rounded-xl">
-              <h3 className="text-lg font-semibold text-green-900 mb-4">Thông tin lịch hẹn</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ngày và giờ hẹn *</label>
-                  <DatePicker
-                    value={formData.appointmentDate ? TimeHelper.toSafeDate(formData.appointmentDate) ?? undefined : undefined}
-                    onChange={(date) => handleDateChange(date ?? null)}
-                    limitDays={30}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Khung Giờ Khám *</label>
-                  <select
-                    value={formData.timeSlotId}
-                    onChange={(e) => handleChange("timeSlotId", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option key="__empty_slot__" value="">-- Chọn khung giờ --</option>
-                    {timeSlots.map((slot) => (
-                      <option key={slot.id} value={slot.id}>
-                        {getTimeSlotDisplay(slot)}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.timeSlotId && (
-                    <p className="text-xs text-gray-500 mt-1 font-mono">ID: {formData.timeSlotId}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Loại Dịch Vụ (ServiceType) *</label>
-                  <select
-                    value={formData.serviceType}
-                    onChange={(e) => handleChange("serviceType", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="KHAM_DICH_VU">Khám dịch vụ</option>
-                    <option value="KHAM_BHYT">Khám BHYT</option>
-                    <option value="KHAM_TONG_QUAT">Khám tổng quát</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Lý do khám *</label>
-                  <textarea
-                    value={formData.reasonForAppointment}
-                    onChange={(e) => handleChange("reasonForAppointment", e.target.value)}
-                    placeholder="Mô tả ngắn về lý do khám"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
-                    rows={3}
-                  />
-                </div>
-              </div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Lý do khám {isBroad ? "(bắt buộc nếu chưa chọn chuyên khoa)" : "*"}
+              </label>
+              <textarea
+                value={formData.reasonForAppointment}
+                disabled={isFormDisabled}
+                onChange={(e) => handleChange("reasonForAppointment", e.target.value)}
+                placeholder="Mô tả ngắn về triệu chứng / lý do khám"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-y"
+                rows={3}
+              />
             </div>
 
             <div className="bg-orange-50 p-5 rounded-xl">
               <h3 className="text-lg font-semibold text-orange-900 mb-4">Thông tin thanh toán</h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Coin hiện có</p>
-                  <p className="mt-1 text-xl font-bold text-amber-900">{formatCoin(coinBalance)}</p>
-                </div>
-                <div className="rounded-xl border border-sky-200 bg-white/80 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Credit hiện có</p>
-                  <p className="mt-1 text-xl font-bold text-sky-900">{formatCurrency(creditBalance)}</p>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phương Thức Thanh Toán *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nhóm thanh toán *</label>
                   <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => handleChange("paymentMethod", e.target.value)}
+                    value={formData.paymentCategory}
+                    disabled={isFormDisabled}
+                    onChange={(e) => handleChange("paymentCategory", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   >
-                    <option value="ONLINE">VNPay (online)</option>
-                    <option value="VNPAY">VNPay (gateway)</option>
-                    <option value="CREDIT">Credit wallet</option>
-                    <option value="OFFLINE">Thanh toán tại bệnh viện</option>
+                    <option value="DICH_VU">Dịch vụ</option>
+                    <option value="BHYT">BHYT</option>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Số tiền (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={formData.amount || ""}
-                    onChange={(e) => handleChange("amount", e.target.value ? Number(e.target.value) : 0)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Bệnh Nhân *</label>
-                  <input
-                    type="email"
-                    value={formData.patientEmail}
-                    onChange={(e) => handleChange("patientEmail", e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div> */}
-              </div>
-
-              <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-white/80 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="font-semibold text-amber-900">Dùng coin để giảm giá</h4>
-                    <p className="text-sm text-amber-700">Coin chỉ được dùng như khoản giảm trừ cho hóa đơn, không còn là phương thức thanh toán riêng.</p>
-                  </div>
-
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formData.useCoin)}
-                      onChange={(e) => handleChange("useCoin", e.target.checked)}
-                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                    />
-                    Use coin
-                  </label>
-                </div>
-
-                {Boolean(formData.useCoin) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Số coin muốn dùng</label>
-                      <input
-                        type="number"
-                        value={formData.coinsToUse || 0}
-                        onChange={(e) => {
-                          const nextValue = Math.max(0, Math.min(Number(e.target.value) || 0, maxCoinDiscount));
-                          handleChange("coinsToUse", nextValue);
-                        }}
-                        max={maxCoinDiscount}
-                        min={0}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                        placeholder="Nhập số coin muốn dùng"
-                      />
-                      <p className="mt-2 text-xs text-gray-500">
-                        Tối đa {formatCoin(maxCoinDiscount)} trong giao dịch này.
-                      </p>
+                {formData.paymentCategory === "DICH_VU" && (
+                  <div className="md:col-span-2 space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium">Phí giữ chỗ</span>
+                      <span className="text-lg font-bold">{(formData.depositAmount ?? 0).toLocaleString("vi-VN")}đ</span>
                     </div>
-
-                    <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-                        <Coins className="h-4 w-4" />
-                        Xem trước giảm giá
-                      </div>
-                      <div className="mt-3 space-y-2 text-sm">
-                        <div className="flex items-center justify-between text-gray-700">
-                          <span>Original</span>
-                          <span className="font-semibold">{formatCurrency(originalAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-rose-700">
-                          <span>Discount (coin)</span>
-                          <span className="font-semibold">-{formatCurrency(discountAmount)}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-amber-200 pt-2 text-emerald-700">
-                          <span className="font-semibold">Final</span>
-                          <span className="text-base font-bold">{formatCurrency(finalAmount)}</span>
-                        </div>
-                      </div>
-                    </div>
+                    <p>
+                      {isBroad
+                        ? "Phí giữ chỗ được thanh toán qua VNPay trước khi lễ tân phân công bác sĩ."
+                        : "Lịch khám dịch vụ chỉ được xác nhận sau khi thanh toán phí giữ chỗ qua VNPay thành công."}
+                    </p>
                   </div>
                 )}
 
-                {!formData.useCoin && (
-                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    Bật <span className="font-semibold">Use coin</span> để áp dụng giảm giá cho hóa đơn.
+                {formData.paymentCategory === "BHYT" && (
+                  <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                    {isBroad
+                      ? "Không yêu cầu đặt cọc. Lễ tân sẽ phân công bác sĩ sau khi yêu cầu được tạo."
+                      : "Không yêu cầu đặt cọc. Lịch khám BHYT sẽ được xác nhận sau khi đặt lịch thành công."}
                   </div>
                 )}
               </div>
             </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={loading || hasPendingPayment}
-              className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading
-                ? "Đang xử lý..."
-                : hasPendingPayment
-                  ? "Hoàn tất thanh toán trước khi đặt lịch mới"
-                  : "Đặt Lịch Khám"}
-            </button>
+            {/* Broad booking submitted / deposit paid → waiting for receptionist assignment. */}
+            {isAwaitingAssignment && (
+              <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5 text-emerald-900">
+                <h3 className="text-lg font-semibold">Đang chờ lễ tân phân công bác sĩ</h3>
+                <p className="mt-1 text-sm text-emerald-800">
+                  Yêu cầu của bạn đã được tạo. Lễ tân sẽ phân công bác sĩ và khung giờ khám; bạn sẽ nhận được thông báo khi hoàn tất.
+                </p>
+              </div>
+            )}
 
-            {bookingLifecycleState === "PENDING_PAYMENT" && pendingAppointmentId && (
-              <div className="mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50">
-                <h4 className="font-semibold text-amber-800">Trạng thái: Chờ thanh toán</h4>
-                <p className="text-sm text-amber-700 mt-1">
-                  Mã lịch hẹn: <span className="font-mono">{pendingAppointmentId}</span>
-                </p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Hệ thống sẽ tự động kiểm tra trạng thái sau thanh toán. Bạn cũng có thể kiểm tra thủ công.
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={handleRetryStatusCheck}
-                    className="px-3 py-2 text-sm rounded-lg bg-amber-600 text-white hover:bg-amber-700"
-                  >
-                    Kiểm tra trạng thái
-                  </button>
-                  {paymentUrl && (
+            {isPaymentFlowActive && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-900">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {isWaitingForPayment
+                        ? "Đang chờ thanh toán phí giữ chỗ..."
+                        : "Thanh toán phí giữ chỗ chưa được xác nhận"}
+                    </h3>
+                    <p className="mt-1 text-sm text-blue-800">
+                      {paymentStatusMessage} Vui lòng không đóng trang này.
+                    </p>
+                    {pendingPaymentId && (
+                      <p className="mt-2 text-xs font-mono text-blue-700">Mã thanh toán: {pendingPaymentId}</p>
+                    )}
+                    {isPopupBlocked && (
+                      <p className="mt-2 text-sm font-medium text-amber-700">
+                        Trình duyệt đã chặn cửa sổ thanh toán. Hãy cho phép popup hoặc mở thủ công.
+                      </p>
+                    )}
+                    {isPopupClosedEarly && (
+                      <p className="mt-2 text-sm font-medium text-amber-700">
+                        Cửa sổ thanh toán đã đóng. Hệ thống vẫn đang kiểm tra trạng thái thanh toán.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex shrink-0 flex-col gap-2 sm:min-w-52">
+                    {pendingPaymentUrl && (
+                      <button
+                        type="button"
+                        onClick={handleOpenPaymentWindow}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        Mở cửa sổ thanh toán
+                      </button>
+                    )}
                     <button
-                      onClick={openPaymentWindow}
-                      className="px-3 py-2 text-sm rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-100"
+                      type="button"
+                      onClick={handleRefreshDepositStatus}
+                      className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                     >
-                      Mở lại cổng thanh toán
+                      Kiểm tra trạng thái
                     </button>
-                  )}
-                  <button
-                    onClick={handleCancelPendingPayment}
-                    className="px-3 py-2 text-sm rounded-lg bg-white border border-red-300 text-red-700 hover:bg-red-50"
-                  >
-                    Hủy phiên chờ thanh toán
-                  </button>
+                    {isWaitingForPayment && (
+                      <button
+                        type="button"
+                        onClick={handleCancelPaymentWaiting}
+                        className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        Dừng chờ thanh toán
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={isFormDisabled}
+              className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Đang xử lý..." : isBroad ? "Gửi yêu cầu đặt khám" : "Đặt Lịch Khám"}
+            </button>
+
           </div>
 
           {showSuccessModal && (
@@ -384,12 +398,7 @@ export default function AppointmentBookingScreen() {
                 <p className="text-sm text-gray-700 mb-4">{successMessage}</p>
                 <div className="flex justify-end">
                   <button
-                    onClick={() => {
-                      if (bookingLifecycleState === "PENDING_PAYMENT" && paymentUrl) {
-                        openPaymentWindow();
-                      }
-                      setShowSuccessModal(false);
-                    }}
+                    onClick={() => setShowSuccessModal(false)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     OK
@@ -416,19 +425,6 @@ export default function AppointmentBookingScreen() {
             </div>
           )}
 
-          {isPaymentInteractionLocked && (
-            <div className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]">
-              <div className="flex h-full items-center justify-center p-4">
-                <div className="w-full max-w-md rounded-2xl border border-white/30 bg-white/95 p-6 text-center shadow-2xl">
-                  <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
-                  <h4 className="text-lg font-semibold text-gray-900">Đang chờ kết quả thanh toán</h4>
-                  <p className="mt-2 text-sm text-gray-600">
-                    Vui lòng hoàn tất giao dịch trên cửa sổ VNPay. Hệ thống sẽ tự động mở lại thao tác khi có kết quả hoặc khi bạn đóng cửa sổ thanh toán.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

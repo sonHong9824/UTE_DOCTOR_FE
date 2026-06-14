@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
+import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { RescheduleAppointmentModal } from "@/features/appointment/components/RescheduleAppointmentModal";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { AppointmentCardModel } from "@/features/appointment/types/appointment.types";
@@ -19,6 +20,25 @@ interface AppointmentCardProps {
   onCancelSuccess?: () => void;
 }
 
+const getDepositStatusLabel = (status?: string) => {
+  switch (status) {
+    case "PENDING":
+      return "Chờ thanh toán phí giữ chỗ";
+    case "PAID":
+      return "Đã thanh toán phí giữ chỗ";
+    case "NOT_REQUIRED":
+      return "Không yêu cầu đặt cọc";
+    case "FAILED":
+      return "Thanh toán phí giữ chỗ thất bại";
+    case "REFUNDED":
+      return "Đã hoàn phí giữ chỗ";
+    case "FORFEITED":
+      return "Phí giữ chỗ không được hoàn";
+    default:
+      return null;
+  }
+};
+
 export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   appointment,
   availableTimeSlots = [],
@@ -28,9 +48,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
   const { cancelLoading, rescheduleLoading, cancelAppointmentById, rescheduleByPayload } = useAppointmentActions();
 
+  const visitEligible =
+    !appointment.visitStatus || appointment.visitStatus === VisitStatusEnum.CREATED;
+
   const canReschedule =
-    appointment.appointmentStatus === AppointmentStatus.PENDING ||
-    appointment.appointmentStatus === AppointmentStatus.CONFIRMED;
+    visitEligible &&
+    (appointment.appointmentStatus === AppointmentStatus.PENDING ||
+      appointment.appointmentStatus === AppointmentStatus.CONFIRMED);
 
   const canCancel =
     appointment.appointmentStatus === AppointmentStatus.PENDING ||
@@ -116,6 +140,18 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
             </p>
           </div>
 
+          {getDepositStatusLabel(appointment.depositStatus) && (
+            <div className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">
+              <p className="font-medium">{getDepositStatusLabel(appointment.depositStatus)}</p>
+              {appointment.depositStatus === "PENDING" && typeof appointment.depositAmount === "number" && (
+                <p>{appointment.depositAmount.toLocaleString("vi-VN")} VNĐ cần thanh toán để xác nhận lịch.</p>
+              )}
+              {appointment.depositStatus === "PAID" && typeof appointment.depositPaidAmount === "number" && (
+                <p>Đã thanh toán {appointment.depositPaidAmount.toLocaleString("vi-VN")} VNĐ.</p>
+              )}
+            </div>
+          )}
+
           {!isUpcoming && (
             <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
               <AlertCircle className="h-4 w-4" />
@@ -163,7 +199,6 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           id: appointment.id,
           date: appointment.date,
           startTime: appointment.startTime,
-          consultationFee: appointment.consultationFee,
           doctorName: appointment.doctorName,
           specialization: appointment.specialization,
         }}

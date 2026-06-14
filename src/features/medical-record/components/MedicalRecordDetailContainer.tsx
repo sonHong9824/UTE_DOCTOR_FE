@@ -12,10 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AppointmentStatus from "@/enum/appointment-status.enum";
 import AppointmentsList from "@/features/appointment/components/AppointmentsList";
 import { useMedicalRecordDetailPdf } from "@/features/medical-record/hooks/useMedicalRecordDetailPdf";
+import { APPOINTMENT_DOCTOR_ASSIGNED_EVENT } from "@/lib/realtimeEvents";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
 
@@ -549,6 +550,21 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
     }
   };
 
+  // Patient broad booking: a receptionist may assign a doctor/slot after the booking was created.
+  // The patient is notified via APPOINTMENT_DOCTOR_ASSIGNED — refresh the list so the assigned
+  // doctor/time shows up. Realtime is best-effort; a manual refresh / re-open also re-fetches.
+  const loadAppointmentsRef = useRef(loadAppointments);
+  loadAppointmentsRef.current = loadAppointments;
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  useEffect(() => {
+    const handleDoctorAssigned = () => {
+      void loadAppointmentsRef.current(currentPageRef.current);
+    };
+    window.addEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleDoctorAssigned);
+    return () => window.removeEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleDoctorAssigned);
+  }, []);
+
 
 
   async function handleCancelAppointment(apptData: any): Promise<void> {
@@ -994,6 +1010,12 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
           {apptLoading ? (
             <div className="py-8 text-center">Đang tải...</div>
           ) : apptData ? (
+            <>
+            {apptData.assignmentStatus === 'AWAITING_ASSIGNMENT' && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Đang chờ lễ tân phân công bác sĩ
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Left/Main: summary */}
               <div className="md:col-span-2">
@@ -1105,6 +1127,7 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                 </Card>
               </div>
             </div>
+            </>
           ) : (
             <div className="py-8 text-center">Không có dữ liệu cuộc hẹn.</div>
           )}

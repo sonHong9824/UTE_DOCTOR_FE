@@ -8,6 +8,7 @@ import {
   WalletTransactionApiDto,
   WalletTransactionDirection,
 } from "@/features/wallet/types/wallet.types";
+import { parseApiDateTimeToLocal } from "@/utils/time.util";
 
 const getCoinBreakdownRank = (item: WalletCoinBreakdownItem): number => {
   if (item.category === "expired") return 0;
@@ -17,7 +18,17 @@ const getCoinBreakdownRank = (item: WalletCoinBreakdownItem): number => {
 
 const getExpirySortTime = (item: WalletCoinBreakdownItem): number => {
   if (!item.expiresAt) return Number.MAX_SAFE_INTEGER;
-  const parsed = new Date(item.expiresAt).getTime();
+
+  const parsedDate = parseApiDateTimeToLocal(item.expiresAt);
+  const parsed = parsedDate ? parsedDate.getTime() : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const getCreatedSortTime = (item: WalletCoinBreakdownItem): number => {
+  if (!item.createdAt) return Number.MAX_SAFE_INTEGER;
+
+  const parsedDate = parseApiDateTimeToLocal(item.createdAt);
+  const parsed = parsedDate ? parsedDate.getTime() : Number.NaN;
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 };
 
@@ -29,8 +40,53 @@ const sortCoinBreakdownByFEFO = (items: WalletCoinBreakdownItem[]): WalletCoinBr
     const expiryDiff = getExpirySortTime(left) - getExpirySortTime(right);
     if (expiryDiff !== 0) return expiryDiff;
 
+    const createdDiff = getCreatedSortTime(left) - getCreatedSortTime(right);
+    if (createdDiff !== 0) return createdDiff;
+
     return left.transactionId.localeCompare(right.transactionId);
   });
+};
+
+const normalizeEpochLikeValue = (value: number | string | null | undefined): number | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const numeric = Number(trimmed);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+const normalizeCoinBreakdownItem = (
+  item: {
+    transactionId: string;
+    amount: number;
+    used: number;
+    remaining: number;
+    createdAt: number | string;
+    expiresAt: number | string | null;
+    category: WalletCoinBreakdownItem["category"];
+    isExpiringSoon: boolean;
+  }
+): WalletCoinBreakdownItem => {
+  return {
+    transactionId: item.transactionId,
+    amount: Number(item.amount ?? 0),
+    used: Number(item.used ?? 0),
+    remaining: Number(item.remaining ?? 0),
+    createdAt: normalizeEpochLikeValue(item.createdAt),
+    expiresAt: normalizeEpochLikeValue(item.expiresAt),
+    category: item.category,
+    isExpiringSoon: Boolean(item.isExpiringSoon),
+  };
 };
 
 const inferWalletType = (walletType: WalletAccountType | undefined, reason: string, type: string): WalletAccountType => {
@@ -103,7 +159,7 @@ const getDetails = async (page = 1, limit = 10): Promise<WalletDetails> => {
   ]);
 
   const coinSummary = coinSummaryResponse.data;
-  const coinBreakdown = sortCoinBreakdownByFEFO(coinSummary?.breakdown ?? []);
+  const coinBreakdown = sortCoinBreakdownByFEFO((coinSummary?.breakdown ?? []).map(normalizeCoinBreakdownItem));
   const coinTransactions = (response.data.transactions ?? []).map((transaction) =>
     normalizeTransaction(transaction, "coin")
   );

@@ -1,251 +1,384 @@
 "use client";
 
-import { getMessages, markRead } from '@/apis/chat/chat.api';
-import { useChatSocket } from '@/contexts/ChatSocketContext';
-import { SocketEventsEnum } from '@/enum/socket-events.enum';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { getMessages, markRead } from "@/apis/chat/chat.api";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useChatSocket } from "@/contexts/ChatSocketContext";
+import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import type { ChatMessage, ChatReceiverInfo } from "@/features/chat/types/chat.types";
+import {
+  getMessageDedupeKey,
+  mergeChatMessages,
+  normalizeChatMessage,
+  normalizeChatMessages,
+} from "@/features/chat/utils/chat-message.util";
+import { cn } from "@/lib/utils";
+import { AlertCircle, ArrowLeft, Loader2, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface ChatWindowProps {
   conversationId: string;
   currentUser: { accountId: string; email?: string };
   onBack?: () => void;
   title?: string;
-  receiver?: { name: string; avatarUrl?: string };
+  receiver?: ChatReceiverInfo;
   showBack?: boolean;
 }
 
-export default function ChatWindow({ conversationId, currentUser, onBack, title, receiver, showBack = false }: ChatWindowProps) {
+type ChatMessageResponse = {
+  code?: number | string;
+  data?: unknown;
+};
+
+const getInitials = (name?: string) => {
+  if (!name) return "U";
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] || "";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : "";
+  return (first + last).toUpperCase() || "U";
+};
+
+const formatMessageDate = (date: string) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) return "Hôm nay";
+  if (d.toDateString() === yesterday.toDateString()) return "Hôm qua";
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const formatMessageTime = (date: string) => {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+};
+
+const getSenderLabel = (message: ChatMessage, receiver?: ChatReceiverInfo) => {
+  if (message.isMine) return "Bạn";
+  return message.senderName || receiver?.name || message.senderEmail || "Người dùng";
+};
+
+export default function ChatWindow({
+  conversationId,
+  currentUser,
+  onBack,
+  title,
+  receiver,
+  showBack = false,
+}: ChatWindowProps) {
   const router = useRouter();
   const chatSocket = useChatSocket();
-  const [messages, setMessages] = useState<any[]>([]);
-  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  // using shared chat socket via context
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const getInitials = (name?: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(/\s+/);
-    const first = parts[0]?.[0] || '';
-    const last = parts.length > 1 ? parts[parts.length - 1]?.[0] : '';
-    return (first + last).toUpperCase();
-  };
+  const loadRequestRef = useRef(0);
 
-  const scrollToBottom = (smooth = true) => {
+  const scrollToBottom = useCallback((smooth = true) => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
-    } else if (messagesContainerRef.current) {
-      const c = messagesContainerRef.current;
-      c.scrollTop = c.scrollHeight;
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+      return;
+    }
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, []);
+
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+  }, []);
+
+  const loadInitialMessages = useCallback(async () => {
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getMessages(conversationId, undefined, 20);
+      if (loadRequestRef.current !== requestId) return;
+      const data = Array.isArray(res?.data) ? res.data : [];
+      setMessages(normalizeChatMessages(data, currentUser.accountId, conversationId));
+      setTimeout(() => scrollToBottom(false), 0);
+    } catch {
+      if (loadRequestRef.current !== requestId) return;
+      setError("Không thể tải tin nhắn. Vui lòng thử lại.");
+    } finally {
+      if (loadRequestRef.current === requestId) {
+        setLoading(false);
+      }
+    }
+  }, [conversationId, currentUser.accountId, scrollToBottom]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (messages.length === 0 || loadingMore) return;
+    const oldestMessage = messages[0];
+    const container = messagesContainerRef.current;
+    const previousScrollHeight = container?.scrollHeight ?? 0;
+
+    setLoadingMore(true);
+    try {
+      const res = await getMessages(conversationId, oldestMessage.createdAt, 20);
+      const data = Array.isArray(res?.data) ? res.data : [];
+      const olderMessages = normalizeChatMessages(data, currentUser.accountId, conversationId);
+
+      if (olderMessages.length > 0) {
+        setMessages((prev) => mergeChatMessages(prev, olderMessages));
+        window.requestAnimationFrame(() => {
+          if (!container) return;
+          container.scrollTop = container.scrollHeight - previousScrollHeight;
+        });
+      }
+    } catch {
+      // Older-message pagination failure should not replace the current conversation view.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [conversationId, currentUser.accountId, loadingMore, messages]);
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    if (event.currentTarget.scrollTop <= 8) {
+      void loadOlderMessages();
     }
   };
 
   const handleBack = () => {
-    if (onBack) return onBack();
-    router.back();
-  };
-
-  // Load more messages when scrolling up
-  const handleScroll = async (e: React.UIEvent<HTMLDivElement>) => {
-    const container = e.currentTarget;
-    if (container.scrollTop === 0 && messages.length > 0 && !loadingMore) {
-      const oldestMessage = messages[0];
-      console.log('[ChatWindow] Loading older messages before:', oldestMessage.createdAt);
-      setLoadingMore(true);
-      try {
-        const res = await getMessages(conversationId, oldestMessage.createdAt, 20);
-        const newMessages = res?.data || [];
-        if (newMessages.length > 0) {
-          const olderReversed = newMessages.reverse();
-          setMessages((prev) => [...olderReversed, ...prev]);
-          console.log('[ChatWindow] Loaded', newMessages.length, 'older messages');
-        }
-      } catch (err) {
-        console.error('[ChatWindow] Error loading older messages:', err);
-      }
-      setLoadingMore(false);
+    if (onBack) {
+      onBack();
+      return;
     }
+    router.back();
   };
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
-    console.log('[ChatWindow] Loading messages for conversation:', conversationId);
-    console.log('[ChatWindow] Socket connected:', chatSocket.connected);
-    console.log('[ChatWindow] Current user:', currentUser);
-    
-    getMessages(conversationId, undefined, 20)
-      .then((res) => {
-        if (!mounted) return;
-        console.log('[ChatWindow] API response:', res);
-        const data = res?.data || [];
-        console.log('[ChatWindow] Messages loaded count:', data.length);
-        console.log('[ChatWindow] Messages data:', data);
-        setMessages(data.reverse()); // chronological (oldest first)
-        setLoading(false);
-        // Scroll to bottom after initial load
-        setTimeout(() => scrollToBottom(false), 0);
-      })
-      .catch((err) => {
-        console.error('[ChatWindow] Error loading messages:', err);
-        setLoading(false);
-      });
+    setMessages([]);
 
-    // socket managed by ChatSocketProvider
+    void loadInitialMessages();
 
-    // join conversation room
-    chatSocket.emitSafe(SocketEventsEnum.CHAT_JOIN_CONVERSATION, { conversationId });
+    const handleConnect = () => {
+      void chatSocket.joinConversation(conversationId);
+    };
 
-    // receive new messages
-    chatSocket.on<{ code: number; data: any }>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, (payload) => {
-      if (payload?.data?.conversationId === conversationId) {
-        setMessages((prev) => {
-          const newMsg = payload.data;
-          const msgId = newMsg._id || newMsg.clientMessageId;
-          // Check if message already exists
-          const exists = prev.some(m => (m._id || m.clientMessageId) === msgId);
-          if (exists) {
-            console.log('[ChatWindow] Duplicate message ignored:', msgId);
-            return prev;
-          }
-          return [...prev, newMsg];
-        });
-      }
-    });
+    const handleMessageReceived = (payload: ChatMessageResponse) => {
+      const rawMessage = payload?.data;
+      const message = normalizeChatMessage(rawMessage, currentUser.accountId, conversationId);
+      if (message.conversationId !== conversationId || !mounted) return;
 
-    // mark read on load
-    markRead(conversationId).catch(() => {});
+      setMessages((prev) => mergeChatMessages(prev, [message]));
+      void markRead(conversationId).catch(() => {});
+    };
+
+    chatSocket.onConnect(handleConnect);
+    chatSocket.connect();
+    if (chatSocket.isConnected()) {
+      void chatSocket.joinConversation(conversationId);
+    }
+
+    chatSocket.on<ChatMessageResponse>(SocketEventsEnum.CHAT_MESSAGE_RECEIVED, handleMessageReceived);
+    void markRead(conversationId).catch(() => {});
 
     return () => {
-      chatSocket.emit(SocketEventsEnum.CHAT_LEAVE_CONVERSATION, { conversationId });
-      chatSocket.off(SocketEventsEnum.CHAT_MESSAGE_RECEIVED);
       mounted = false;
+      void chatSocket.leaveConversation(conversationId);
+      chatSocket.offConnect(handleConnect);
+      chatSocket.off(
+        SocketEventsEnum.CHAT_MESSAGE_RECEIVED,
+        handleMessageReceived as (...args: unknown[]) => void
+      );
     };
-  }, [conversationId, chatSocket]);
+  }, [chatSocket, conversationId, currentUser.accountId, loadInitialMessages]);
 
   useEffect(() => {
-    if (!messagesContainerRef.current || messages.length === 0) return;
-    const c = messagesContainerRef.current;
-    const nearBottom = c.scrollHeight - c.scrollTop - c.clientHeight < 120;
+    if (messages.length === 0) return;
     const last = messages[messages.length - 1];
-    if (!last) return;
-    // Auto-scroll on new own message, or when user is near bottom
-    if (last.senderId === currentUser.accountId || nearBottom) {
+    if (last.isMine || isNearBottom()) {
       scrollToBottom(true);
     }
-  }, [messages, currentUser.accountId]);
+  }, [isNearBottom, messages, scrollToBottom]);
 
   const sendMessage = () => {
-    if (!input.trim()) return;
-    const msg = input.trim();
-    console.log('[ChatWindow] Sending message:', { 
-      conversationId, 
-      senderId: currentUser.accountId, 
-      content: msg,
-      connected: chatSocket.connected 
-    });
+    const content = input.trim();
+    if (!content) return;
+
     chatSocket.emit(SocketEventsEnum.CHAT_MESSAGE_SEND, {
       conversationId,
-      senderId: currentUser.accountId,
-      senderEmail: currentUser.email,
-      content: msg,
-      clientMessageId: `${currentUser.accountId}-${Date.now()}`,
+      content,
+      clientMessageId: `${currentUser.accountId || "user"}-${Date.now()}`,
     });
-    setInput('');
+    setInput("");
   };
 
-  // Group messages by date
-  const formatDate = (date: string | Date) => {
-    const d = new Date(date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (d.toDateString() === today.toDateString()) return 'Today';
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
-  };
-
-  const groupedMessages: { [key: string]: any[] } = {};
-  messages.forEach((msg) => {
-    const dateKey = formatDate(msg.createdAt);
-    if (!groupedMessages[dateKey]) {
-      groupedMessages[dateKey] = [];
-    }
-    groupedMessages[dateKey].push(msg);
-  });
+  const groupedMessages = useMemo(() => {
+    return messages.reduce<Record<string, ChatMessage[]>>((groups, message) => {
+      const dateKey = formatMessageDate(message.createdAt);
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(message);
+      return groups;
+    }, {});
+  }, [messages]);
 
   const dateGroups = Object.entries(groupedMessages);
+  const headerName = receiver?.name || title || "Chat";
+  const canSend = input.trim().length > 0;
 
   return (
-    <div className="flex flex-col h-full border rounded-md">
-      <div className="flex items-center gap-3 p-3 border-b">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
         {showBack && (
-          <button
-            onClick={handleBack}
-            className="p-2 rounded hover:bg-gray-100"
-            aria-label="Back"
-          >
-            {/* Chevron Left Icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-              <path fillRule="evenodd" d="M15.78 4.22a.75.75 0 010 1.06L9.06 12l6.72 6.72a.75.75 0 11-1.06 1.06l-7.25-7.25a.75.75 0 010-1.06l7.25-7.25a.75.75 0 011.06 0z" clipRule="evenodd" />
-            </svg>
-          </button>
+          <Button variant="ghost" size="icon" onClick={handleBack} aria-label="Quay lại">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         )}
-        <div className="flex items-center gap-2 min-w-0">
-          {receiver?.avatarUrl ? (
-            <img src={receiver.avatarUrl} alt={receiver.name} className="h-8 w-8 rounded-full object-cover" />
-          ) : (
-            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600">
-              {getInitials(receiver?.name)}
-            </div>
-          )}
-          <div className="font-medium truncate">{receiver?.name || title || 'Chat'}</div>
+
+        <Avatar className="h-10 w-10">
+          {receiver?.avatarUrl && <AvatarImage src={receiver.avatarUrl} alt={headerName} />}
+          <AvatarFallback className="bg-blue-50 text-sm font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+            {getInitials(headerName)}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-gray-950 dark:text-gray-50">{headerName}</div>
+          <div className="text-xs text-gray-500">{chatSocket.connected ? "Đang hoạt động" : "Đang kết nối..."}</div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3" ref={messagesContainerRef} onScroll={handleScroll}>
-        {loadingMore && <div className="text-sm text-gray-500 text-center py-2">Loading older messages...</div>}
-        {loading && <div className="text-sm text-gray-500 text-center py-4">Loading messages...</div>}
-        {!loading && messages.length === 0 && <div className="text-sm text-gray-400 text-center py-4">No messages yet</div>}
-        {!loading && dateGroups.map(([dateKey, msgs]) => (
-          <div key={dateKey}>
-            {/* Date separator */}
-            <div className="flex items-center gap-2 my-3">
-              <div className="flex-1 h-px bg-gray-300"></div>
-              <span className="text-xs text-gray-500 px-2">{dateKey}</span>
-              <div className="flex-1 h-px bg-gray-300"></div>
+
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto bg-gray-50 px-3 py-4 dark:bg-gray-900/40 sm:px-4"
+      >
+        {loadingMore && (
+          <div className="mb-3 flex items-center justify-center gap-2 text-xs text-gray-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Đang tải tin nhắn cũ...
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 text-sm text-gray-500">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            Đang tải tin nhắn...
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 text-center text-sm text-gray-600 dark:text-gray-300">
+            <AlertCircle className="h-7 w-7 text-red-500" />
+            <div>{error}</div>
+            <Button variant="outline" size="sm" onClick={() => void loadInitialMessages()}>
+              Thử lại
+            </Button>
+          </div>
+        )}
+
+        {!loading && !error && messages.length === 0 && (
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center text-center">
+            <div className="mb-2 rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200">
+              Chưa có tin nhắn
             </div>
-            {/* Messages for this date */}
-            <div className="space-y-2">
-              {msgs.map((m) => (
-                <div
-                  key={m._id || m.clientMessageId}
-                  className={`flex ${m.senderId === currentUser.accountId ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[70%] p-2 rounded-md text-sm ${m.senderId === currentUser.accountId ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-900'}`}>
-                    <div>{m.content}</div>
-                    <div className={`text-xs mt-1 ${m.senderId === currentUser.accountId ? 'text-blue-100' : 'text-gray-500'}`}>
-                      {new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+            <p className="max-w-[260px] text-sm text-gray-500">
+              Bắt đầu cuộc trò chuyện bằng cách gửi tin nhắn đầu tiên.
+            </p>
+          </div>
+        )}
+
+        {!loading &&
+          !error &&
+          dateGroups.map(([dateKey, groupMessages]) => (
+            <div key={dateKey} className="space-y-3">
+              <div className="sticky top-0 z-10 my-3 flex justify-center">
+                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-gray-500 shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
+                  {dateKey}
+                </span>
+              </div>
+
+              {groupMessages.map((message) => {
+                const senderLabel = getSenderLabel(message, receiver);
+                const avatarName = message.isMine ? "Bạn" : senderLabel;
+                const avatarUrl = message.isMine ? undefined : message.senderAvatarUrl || receiver?.avatarUrl;
+
+                return (
+                  <div
+                    key={getMessageDedupeKey(message)}
+                    className={cn("flex items-end gap-2", message.isMine ? "justify-end" : "justify-start")}
+                  >
+                    {!message.isMine && (
+                      <Avatar className="h-8 w-8">
+                        {avatarUrl && <AvatarImage src={avatarUrl} alt={avatarName} />}
+                        <AvatarFallback className="bg-gray-200 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                          {getInitials(avatarName)}
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+
+                    <div className={cn("max-w-[78%] sm:max-w-[70%]", message.isMine && "items-end")}>
+                      {!message.isMine && (
+                        <div className="mb-1 px-1 text-xs font-medium text-gray-500">{senderLabel}</div>
+                      )}
+                      <div
+                        className={cn(
+                          "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm",
+                          message.isMine
+                            ? "rounded-br-md bg-blue-600 text-white"
+                            : "rounded-bl-md bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-950 dark:text-gray-100 dark:ring-gray-800"
+                        )}
+                      >
+                        <div className="whitespace-pre-wrap break-words">{message.content || "(Không có nội dung)"}</div>
+                        <div
+                          className={cn(
+                            "mt-1 text-right text-[11px]",
+                            message.isMine ? "text-blue-100" : "text-gray-400"
+                          )}
+                        >
+                          {formatMessageTime(message.createdAt)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-        ))}
+          ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="p-3 flex gap-2 border-t">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
-          className="flex-1 border rounded px-3 py-2"
-          placeholder="Type a message"
-        />
-        <button onClick={sendMessage} className="px-4 py-2 rounded bg-blue-600 text-white">Send</button>
+
+      <div className="border-t border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
+        <div className="flex items-center gap-2">
+          <Input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+              }
+            }}
+            className="h-11 rounded-full bg-gray-50 px-4 dark:bg-gray-900"
+            placeholder="Nhập tin nhắn..."
+          />
+          <Button
+            onClick={sendMessage}
+            disabled={!canSend}
+            size="icon"
+            className="h-11 w-11 rounded-full bg-blue-600 hover:bg-blue-700"
+            aria-label="Gửi tin nhắn"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

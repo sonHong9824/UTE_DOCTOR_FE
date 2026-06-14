@@ -2,6 +2,8 @@
 
 import { appointmentService } from "@/features/appointment/services/appointment.service";
 import { ReschedulePayload } from "@/features/appointment/types/appointment.types";
+import { getCancelAppointmentErrorMessage } from "@/features/appointment/utils/cancel-appointment-error";
+import { getRescheduleAppointmentErrorMessage } from "@/features/appointment/utils/reschedule-appointment-error";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,15 +11,23 @@ export const useAppointmentActions = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
-  const cancelAppointmentById = async (appointmentId: string, onSuccess?: () => void) => {
+  const cancelAppointmentById = async (appointmentId: string, onSuccess?: () => void, reason?: string) => {
     try {
       setCancelLoading(true);
-      await appointmentService.cancel(appointmentId);
-      toast.success("Hủy cuộc hẹn thành công");
+      const result = await appointmentService.cancel(appointmentId, reason);
+      window.dispatchEvent(new Event("wallet:refresh"));
+      // Surface the refunded deposit (if any) so the patient sees the outcome immediately;
+      // the list refetch via onSuccess then reflects depositStatus = REFUNDED.
+      const refundAmount = Number((result as { data?: { refundAmount?: number } })?.data?.refundAmount ?? 0);
+      toast.success(
+        refundAmount > 0
+          ? `Hủy cuộc hẹn thành công. Đã hoàn ${refundAmount.toLocaleString("vi-VN")}đ vào ví.`
+          : "Hủy cuộc hẹn thành công",
+      );
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to cancel appointment:", error);
-      toast.error(error?.message || "Hủy cuộc hẹn thất bại");
+      toast.error(getCancelAppointmentErrorMessage(error));
       throw error;
     } finally {
       setCancelLoading(false);
@@ -28,11 +38,11 @@ export const useAppointmentActions = () => {
     try {
       setRescheduleLoading(true);
       await appointmentService.reschedule(payload);
-      toast.success("Hoãn lịch hẹn thành công");
+      toast.success("Đổi lịch hẹn thành công");
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to reschedule appointment:", error);
-      toast.error(error?.message || "Lỗi khi hoãn lịch hẹn");
+      toast.error(getRescheduleAppointmentErrorMessage(error));
       throw error;
     } finally {
       setRescheduleLoading(false);

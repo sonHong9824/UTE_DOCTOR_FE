@@ -1,5 +1,12 @@
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
 
+// Broad-appointment routing label. A broad appointment stays appointmentStatus=PENDING
+// with assignmentStatus=AWAITING_ASSIGNMENT until a receptionist assigns a doctor/slot.
+export const AWAITING_ASSIGNMENT_LABEL = "Đang chờ lễ tân phân công bác sĩ";
+
+export const isAwaitingAssignment = (assignmentStatus?: string): boolean =>
+  assignmentStatus === "AWAITING_ASSIGNMENT";
+
 export const getAppointmentStatusClass = (status: AppointmentStatus) => {
   switch (status) {
     case AppointmentStatus.PENDING:

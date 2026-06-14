@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { getAppointmentsAdmin, cancelAppointment, confirmAppointment } from "@/apis/admin/appointments.api";
 import { getPatientsAdmin } from "@/apis/admin/patients.api";
 import { getActiveDoctors } from "@/apis/admin/admin.api";
+import { getCancelAppointmentErrorMessage } from "@/features/appointment/utils/cancel-appointment-error";
 
 export default function AdminAppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -138,13 +139,14 @@ export default function AdminAppointmentsPage() {
     setProcessingIds((s) => new Set(s).add(selectedAppointment._id));
     try {
       await cancelAppointment(selectedAppointment._id, cancelReason);
+      window.dispatchEvent(new Event("wallet:refresh"));
       toast.success("Hủy cuộc hẹn thành công");
       setOpenCancel(false);
       setCancelReason("");
       await fetchAppointments();
     } catch (err) {
       console.error("Failed to cancel appointment", err);
-      toast.error("Không thể hủy cuộc hẹn");
+      toast.error(getCancelAppointmentErrorMessage(err));
     } finally {
       setProcessingIds((s) => {
         const next = new Set(s);
