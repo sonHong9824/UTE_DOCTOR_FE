@@ -111,7 +111,8 @@ const normalizeNotificationDate = (notification: Notification): Notification => 
  * Lấy notification của user hiện tại (identity từ JWT) với phân trang.
  */
 export const getNotificationsByEmail = async (
-  pagination: PaginationQueryDto
+  pagination: PaginationQueryDto,
+  options?: { signal?: AbortSignal }
 ): Promise<DataResponse<PaginationResult<Notification>> | undefined> => {
   try {
     const res = await axiosClient.get<DataResponse<PaginationResult<Notification>>>(
@@ -121,6 +122,7 @@ export const getNotificationsByEmail = async (
           page: pagination.page,
           limit: pagination.limit,
         },
+        signal: options?.signal,
       }
     );
 
@@ -136,10 +138,12 @@ export const getNotificationsByEmail = async (
 };
 
 export const getUnreadNotificationCount = async (
+  options?: { signal?: AbortSignal }
 ): Promise<DataResponse<number> | undefined> => {
   try {
     const res = await axiosClient.get<DataResponse<number>>("/notifications/count", {
       params: {},
+      signal: options?.signal,
     });
     console.log("[Axios] Get unread notification count:", res.data);
     return res.data;
