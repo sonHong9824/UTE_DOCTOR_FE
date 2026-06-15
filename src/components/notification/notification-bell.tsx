@@ -1,19 +1,27 @@
 "use client";
 
-import { getNotificationsByEmail, getUnreadNotificationCount, markNotificationAsRead } from "@/apis/notification/notification.api";
+import {
+  getNotificationsByEmail,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+} from "@/apis/notification/notification.api";
 import { ResponseCode } from "@/enum/response-code.enum";
 import { SocketEventsEnum } from "@/enum/socket-events.enum";
+import {
+  AuthIdentity,
+  getCurrentAuthIdentity,
+} from "@/features/auth/utils/auth-identity";
+import {
+  APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+  ASSIGNMENT_TASKS_CHANGED_EVENT,
+  emitAppRealtimeEvent,
+} from "@/lib/realtimeEvents";
 import { createNotificationSocket } from "@/services/socket/socket-client";
 import {
-    Notification,
-    NotificationMap,
-    NotificationPayload,
+  Notification,
+  NotificationMap,
+  NotificationPayload,
 } from "@/types/notification.dto";
-import {
-    APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
-    ASSIGNMENT_TASKS_CHANGED_EVENT,
-    emitAppRealtimeEvent,
-} from "@/lib/realtimeEvents";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -49,9 +57,6 @@ const handlers: NotificationHandlerMap = {
   PAYMENT_SUCCESS: (data) => {
     console.log("Payment success", data);
   },
-  // Broad-booking / assignment events. Realtime is a best-effort nudge: we broadcast a window
-  // event so the receptionist queue (or patient appointment list) refreshes sooner. Correctness
-  // still comes from polling / list APIs, so we never branch on `data.online`.
   ASSIGNMENT_TASK_CREATED: (data) => {
     emitAppRealtimeEvent(ASSIGNMENT_TASKS_CHANGED_EVENT, data);
   },
@@ -67,6 +72,17 @@ const handlers: NotificationHandlerMap = {
   },
 };
 
+const isNotificationPayloadForIdentity = (
+  payload: NotificationPayload,
+  identity: AuthIdentity | null
+) => {
+  if (!payload.recipientEmail) {
+    return true;
+  }
+
+  return payload.recipientEmail.trim().toLowerCase() === identity?.email;
+};
+
 export default function NotificationBell({
   pageSize = 10,
   buttonClassName,
@@ -74,17 +90,34 @@ export default function NotificationBell({
   badgeClassName,
 }: Props) {
   const router = useRouter();
+  const [authIdentity, setAuthIdentity] = useState<AuthIdentity | null>(() =>
+    getCurrentAuthIdentity()
+  );
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
 
   const bellRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const authIdentityRef = useRef<AuthIdentity | null>(authIdentity);
+  const requestVersionRef = useRef(0);
 
-  const [unreadCount, setUnreadCount] = useState(0);  
+  useEffect(() => {
+    authIdentityRef.current = authIdentity;
+  }, [authIdentity]);
 
-  const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
+  const resetBellState = useCallback(() => {
+    requestVersionRef.current += 1;
+    setOpen(false);
+    setNotifications([]);
+    setUnreadCount(0);
+    setSelectedNotif(null);
+    setPage(1);
+    setHasMore(true);
+  }, []);
 
   const toggleBell = () => {
     setOpen((prev) => {
@@ -102,80 +135,124 @@ export default function NotificationBell({
     router.push("/user/my-profile?tab=notifications");
   };
 
-    const handleClickNotification = async (notif: Notification) => {
-    setSelectedNotif(notif); // mở modal
-    if (!notif.isRead) {
-        const res = await markNotificationAsRead(notif._id);
-        if (res?.code === ResponseCode.SUCCESS) {
-        setNotifications(prev =>
-            prev.map(n => n._id === notif._id ? { ...n, isRead: true } : n)
-        );
-        setUnreadCount(prev => Math.max(prev - 1, 0));
+  const handleClickNotification = async (notif: Notification) => {
+    const identityKey = authIdentityRef.current?.key;
+    if (!identityKey) {
+      return;
+    }
+
+    setSelectedNotif(notif);
+    if (notif.isRead) {
+      return;
+    }
+
+    const res = await markNotificationAsRead(notif._id);
+    if (authIdentityRef.current?.key !== identityKey) {
+      return;
+    }
+
+    if (res?.code === ResponseCode.SUCCESS) {
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notif._id ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(prev - 1, 0));
+    }
+  };
+
+  const refreshBell = useCallback(
+    async (signal?: AbortSignal) => {
+      const identityKey = authIdentityRef.current?.key;
+      if (!identityKey) {
+        resetBellState();
+        return;
+      }
+
+      const requestVersion = ++requestVersionRef.current;
+
+      try {
+        const [countRes, notifRes] = await Promise.all([
+          getUnreadNotificationCount({ signal }),
+          getNotificationsByEmail({ page: 1, limit: pageSize }, { signal }),
+        ]);
+
+        if (
+          signal?.aborted ||
+          requestVersion !== requestVersionRef.current ||
+          authIdentityRef.current?.key !== identityKey
+        ) {
+          return;
         }
-    }
-    };
 
-  const refreshBell = useCallback(async () => {
-    try {
-      const [countRes, notifRes] = await Promise.all([
-        getUnreadNotificationCount(),
-        getNotificationsByEmail({ page: 1, limit: pageSize }),
-      ]);
-      if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === "number") {
-        setUnreadCount(countRes.data);
-      }
-      if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
-        setNotifications(notifRes.data.data);
-        setHasMore(notifRes.data.data.length === pageSize);
-        setPage(1);
-      }
-    } catch (err) {
-      console.error("[NotificationBell] Failed to refresh notifications", err);
-    }
-  }, [pageSize]);
+        if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === "number") {
+          setUnreadCount(countRes.data);
+        }
 
-  const dispatchNotification = useCallback(
-    <K extends keyof NotificationMap>(payload: { type: K; data: NotificationMap[K] }) => {
-      // Defensive: the backend may emit a notification type the FE has not mapped yet. Skip it
-      // (the bell list/count still refreshes) instead of crashing on `handlers[type]` undefined.
-      const handler = handlers[payload.type];
-      if (typeof handler === "function") {
-        handler(payload.data);
-      } else {
-        console.warn("[NotificationBell] Unhandled notification type:", payload.type);
+        if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
+          setNotifications(notifRes.data.data);
+          setHasMore(notifRes.data.data.length === pageSize);
+          setPage(1);
+        }
+      } catch (err) {
+        if (signal?.aborted) {
+          return;
+        }
+        console.error("[NotificationBell] Failed to refresh notifications", err);
       }
     },
-    []
+    [pageSize, resetBellState]
   );
+
+  const dispatchNotification = useCallback((payload: NotificationPayload) => {
+    const handler = handlers[payload.type] as
+      | ((data: NotificationPayload["data"]) => void)
+      | undefined;
+
+    if (typeof handler === "function") {
+      handler(payload.data);
+      return;
+    }
+
+    console.warn("[NotificationBell] Unhandled notification type:", payload.type);
+  }, []);
 
   const handleNotification = useCallback(
     (payload: NotificationPayload) => {
+      if (!isNotificationPayloadForIdentity(payload, authIdentityRef.current)) {
+        return;
+      }
+
       dispatchNotification(payload);
     },
     [dispatchNotification]
   );
 
   useEffect(() => {
-    void refreshBell();
-  }, [refreshBell]);
+    if (!authIdentity?.key) {
+      resetBellState();
+      return;
+    }
 
-  // Keep the bell tied to the auth boundary even if it stays mounted across an account switch:
-  // wipe the previous user's notifications/count on logout, and refetch for the new user on login.
+    const controller = new AbortController();
+    void refreshBell(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [authIdentity?.key, refreshBell, resetBellState]);
+
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
     const handleAuthLogout = () => {
-      setNotifications([]);
-      setUnreadCount(0);
-      setSelectedNotif(null);
-      setPage(1);
-      setHasMore(true);
+      resetBellState();
+      setAuthIdentity(null);
     };
 
     const handleUserLoggedIn = () => {
-      void refreshBell();
+      resetBellState();
+      setAuthIdentity(getCurrentAuthIdentity());
     };
 
     window.addEventListener("auth-logout", handleAuthLogout);
@@ -185,9 +262,13 @@ export default function NotificationBell({
       window.removeEventListener("auth-logout", handleAuthLogout);
       window.removeEventListener("user-logged-in", handleUserLoggedIn);
     };
-  }, [refreshBell]);
+  }, [resetBellState]);
 
   useEffect(() => {
+    if (!authIdentity?.key) {
+      return;
+    }
+
     const notificationSocket = createNotificationSocket();
 
     const joinNotificationRoom = async () => {
@@ -205,15 +286,17 @@ export default function NotificationBell({
         return;
       }
 
-      handleNotification(payload as NotificationPayload);
+      const typedPayload = payload as NotificationPayload;
+      if (!isNotificationPayloadForIdentity(typedPayload, authIdentityRef.current)) {
+        return;
+      }
+
+      handleNotification(typedPayload);
       await refreshBell();
     };
 
     notificationSocket.onConnect(handleConnect);
-    notificationSocket.on(
-      SocketEventsEnum.NOTIFICATION_RECEIVED,
-      onNotificationReceived
-    );
+    notificationSocket.on(SocketEventsEnum.NOTIFICATION_RECEIVED, onNotificationReceived);
 
     notificationSocket.connect();
     if (notificationSocket.isConnected()) {
@@ -221,22 +304,35 @@ export default function NotificationBell({
     }
 
     return () => {
-      notificationSocket.off(
-        SocketEventsEnum.NOTIFICATION_RECEIVED,
-        onNotificationReceived
-      );
+      notificationSocket.off(SocketEventsEnum.NOTIFICATION_RECEIVED, onNotificationReceived);
       notificationSocket.offConnect(handleConnect);
+      notificationSocket.disconnect();
     };
-  }, [handleNotification, refreshBell]);
-
+  }, [authIdentity?.key, handleNotification, refreshBell]);
 
   const loadNotifications = async (pageToLoad: number, replace = false) => {
+    const identityKey = authIdentityRef.current?.key;
+    if (!identityKey) {
+      resetBellState();
+      return;
+    }
+
+    const requestVersion = ++requestVersionRef.current;
+
     try {
       const res = await getNotificationsByEmail({ page: pageToLoad, limit: pageSize });
+      if (
+        requestVersion !== requestVersionRef.current ||
+        authIdentityRef.current?.key !== identityKey
+      ) {
+        return;
+      }
+
       if (res?.code === ResponseCode.SUCCESS && res.data?.data) {
         const newData = res.data.data;
         setNotifications((prev) => (replace ? newData : [...prev, ...newData]));
         setHasMore(newData.length === pageSize);
+        setPage(pageToLoad);
       }
     } catch (e) {
       console.error("Failed to load notifications:", e);
@@ -244,30 +340,29 @@ export default function NotificationBell({
   };
 
   const handleShowMore = () => {
-    const nextPage = page + 1;
-    void loadNotifications(nextPage);
-    setPage(nextPage);
+    void loadNotifications(page + 1);
   };
 
-    useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-        if (
+      if (
         bellRef.current &&
         dropdownRef.current &&
         !bellRef.current.contains(event.target as Node) &&
         !dropdownRef.current.contains(event.target as Node)
-        ) {
+      ) {
         setSelectedNotif(null);
         setOpen(false);
-        }
+      }
     };
 
-  if (open) document.addEventListener("mousedown", handleClickOutside);
-  return () => document.removeEventListener("mousedown", handleClickOutside);
-}, [open]);
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
 
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
 
-  // portal dropdown + overlay
   const rect = bellRef.current?.getBoundingClientRect();
   const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
   const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
@@ -275,63 +370,67 @@ export default function NotificationBell({
   const dropdownWidth = 320;
   const dropdownLeft = Math.max(8, (rect?.right ?? 0) + scrollX - dropdownWidth);
 
-  const dropdownElement = open && typeof document !== "undefined" ? (
-    createPortal(
-      <>
-        {/* overlay */}
-        <div
-          className="fixed inset-0 z-40 bg-black/20"
-          onClick={() => {
-            setSelectedNotif(null);
-            setOpen(false);
-          }}
-        />
-        {/* dropdown panel */}
-        <div
-          ref={dropdownRef}
-          className="absolute z-50 max-h-80 w-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg animate-fadeIn dark:border-gray-800 dark:bg-gray-900"
-          style={{
-            top: dropdownTop,
-            left: dropdownLeft,
-          }}
-        >
-          <NotificationList
-            notifications={notifications}
-            hasMore={hasMore}
-            onLoadMore={handleShowMore}
-            onClickNotification={(noti) => {
-              void handleClickNotification(noti);
-            }}
-          />
-          <div className="mt-3 border-t border-gray-200 pt-2 dark:border-gray-800">
-            <button
-              type="button"
-              onClick={handleViewAllNotifications}
-              className="w-full rounded-md px-3 py-2 text-center text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+  const dropdownElement =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20"
+              onClick={() => {
+                setSelectedNotif(null);
+                setOpen(false);
+              }}
+            />
+            <div
+              ref={dropdownRef}
+              className="absolute z-50 max-h-80 w-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg animate-fadeIn dark:border-gray-800 dark:bg-gray-900"
+              style={{
+                top: dropdownTop,
+                left: dropdownLeft,
+              }}
             >
-              View all notifications
-            </button>
-          </div>
-          {selectedNotif && createPortal(
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-md w-full p-6 relative">
+              <NotificationList
+                notifications={notifications}
+                hasMore={hasMore}
+                onLoadMore={handleShowMore}
+                onClickNotification={(noti) => {
+                  void handleClickNotification(noti);
+                }}
+              />
+              <div className="mt-3 border-t border-gray-200 pt-2 dark:border-gray-800">
                 <button
-                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
-                    onClick={() => setSelectedNotif(null)}
+                  type="button"
+                  onClick={handleViewAllNotifications}
+                  className="w-full rounded-md px-3 py-2 text-center text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
                 >
-                    ✕
+                  View all notifications
                 </button>
-                <h3 className="text-lg font-bold mb-2">{selectedNotif.title}</h3>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{selectedNotif.message}</p>
-                </div>
-            </div>,
-            document.body
-            )}
-        </div>
-      </>,
-      document.body
-    )
-  ) : null;
+              </div>
+              {selectedNotif &&
+                createPortal(
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-900">
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+                        onClick={() => setSelectedNotif(null)}
+                        aria-label="Close notification detail"
+                      >
+                        ✕
+                      </button>
+                      <h3 className="mb-2 text-lg font-bold">{selectedNotif.title}</h3>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {selectedNotif.message}
+                      </p>
+                    </div>
+                  </div>,
+                  document.body
+                )}
+            </div>
+          </>,
+          document.body
+        )
+      : null;
 
   const mergedButtonClass = buttonClassName
     ? buttonClassName
@@ -345,17 +444,9 @@ export default function NotificationBell({
 
   return (
     <>
-      <button
-        ref={bellRef}
-        onClick={toggleBell}
-        className={mergedButtonClass}
-      >
+      <button ref={bellRef} onClick={toggleBell} className={mergedButtonClass}>
         <Bell className={mergedIconClass} />
-        {unreadCount > 0 && (
-          <span className={mergedBadgeClass}>
-            {unreadCount}
-          </span>
-        )}
+        {unreadCount > 0 && <span className={mergedBadgeClass}>{unreadCount}</span>}
       </button>
 
       {dropdownElement}

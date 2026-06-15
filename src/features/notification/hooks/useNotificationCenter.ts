@@ -1,14 +1,18 @@
 "use client";
 
 import { ResponseCode } from "@/enum/response-code.enum";
+import { AuthIdentity, getCurrentAuthIdentity } from "@/features/auth/utils/auth-identity";
 import { notificationService } from "@/features/notification/services/notification.service";
 import { NotificationFilter } from "@/features/notification/types/notification-center.types";
 import { Notification } from "@/types/notification.dto";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
+  const [authIdentity, setAuthIdentity] = useState<AuthIdentity | null>(() =>
+    getCurrentAuthIdentity()
+  );
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [filter, setFilter] = useState<NotificationFilter>("all");
@@ -18,10 +22,67 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const authIdentityRef = useRef<AuthIdentity | null>(authIdentity);
+  const requestVersionRef = useRef(0);
+
+  useEffect(() => {
+    authIdentityRef.current = authIdentity;
+  }, [authIdentity]);
+
+  const resetState = useCallback(() => {
+    requestVersionRef.current += 1;
+    setNotifications([]);
+    setSelectedNotification(null);
+    setPage(1);
+    setHasMore(true);
+    setLoading(false);
+    setLoadingMore(false);
+    setRefreshing(false);
+    setUnreadCount(0);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleAuthLogout = () => {
+      resetState();
+      setAuthIdentity(null);
+    };
+
+    const handleUserLoggedIn = () => {
+      resetState();
+      setLoading(true);
+      setAuthIdentity(getCurrentAuthIdentity());
+    };
+
+    window.addEventListener("auth-logout", handleAuthLogout);
+    window.addEventListener("user-logged-in", handleUserLoggedIn);
+
+    return () => {
+      window.removeEventListener("auth-logout", handleAuthLogout);
+      window.removeEventListener("user-logged-in", handleUserLoggedIn);
+    };
+  }, [resetState]);
 
   const fetchPage = useCallback(
     async (pageToLoad: number, replace = false) => {
+      const identityKey = authIdentityRef.current?.key;
+      if (!identityKey) {
+        resetState();
+        return;
+      }
+
+      const requestVersion = ++requestVersionRef.current;
       const response = await notificationService.getNotifications(pageToLoad, pageSize);
+
+      if (
+        requestVersion !== requestVersionRef.current ||
+        authIdentityRef.current?.key !== identityKey
+      ) {
+        return;
+      }
 
       if (response?.code === ResponseCode.SUCCESS && response.data?.data) {
         const incoming = response.data.data;
@@ -30,25 +91,51 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
         setPage(pageToLoad);
       }
     },
-    [pageSize]
+    [pageSize, resetState]
   );
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const identityKey = authIdentityRef.current?.key;
+    if (!identityKey) {
+      resetState();
+      return;
+    }
+
+    const requestVersion = ++requestVersionRef.current;
     setRefreshing(true);
+    setLoading(true);
+
     try {
-      const [unreadRes] = await Promise.all([
-        notificationService.getUnreadCount(),
-        fetchPage(1, true),
+      const [unreadRes, notificationRes] = await Promise.all([
+        notificationService.getUnreadCount({ signal }),
+        notificationService.getNotifications(1, pageSize, { signal }),
       ]);
+
+      if (
+        signal?.aborted ||
+        requestVersion !== requestVersionRef.current ||
+        authIdentityRef.current?.key !== identityKey
+      ) {
+        return;
+      }
 
       if (unreadRes?.code === ResponseCode.SUCCESS && typeof unreadRes.data === "number") {
         setUnreadCount(unreadRes.data);
       }
+
+      if (notificationRes?.code === ResponseCode.SUCCESS && notificationRes.data?.data) {
+        const incoming = notificationRes.data.data;
+        setNotifications(incoming);
+        setHasMore(incoming.length === pageSize);
+        setPage(1);
+      }
     } finally {
-      setRefreshing(false);
-      setLoading(false);
+      if (!signal?.aborted && authIdentityRef.current?.key === identityKey) {
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
-  }, [fetchPage]);
+  }, [pageSize, resetState]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore) {
@@ -64,6 +151,11 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
   }, [fetchPage, hasMore, loadingMore, page]);
 
   const openNotification = useCallback(async (notification: Notification) => {
+    const identityKey = authIdentityRef.current?.key;
+    if (!identityKey) {
+      return;
+    }
+
     setSelectedNotification(notification);
 
     if (notification.isRead) {
@@ -71,6 +163,10 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
     }
 
     const res = await notificationService.markAsRead(notification._id);
+    if (authIdentityRef.current?.key !== identityKey) {
+      return;
+    }
+
     if (res?.code === ResponseCode.SUCCESS) {
       setNotifications((prev) =>
         prev.map((item) =>

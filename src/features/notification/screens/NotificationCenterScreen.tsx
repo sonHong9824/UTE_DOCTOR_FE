@@ -33,7 +33,12 @@ export default function NotificationCenterScreen() {
   } = useNotificationCenter();
 
   useEffect(() => {
-    void refresh();
+    const controller = new AbortController();
+    void refresh(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
   }, [refresh]);
 
   return (

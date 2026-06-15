@@ -5,12 +5,12 @@ import {
 } from "@/apis/notification/notification.api";
 
 export const notificationService = {
-  async getNotifications(page: number, limit: number) {
-    return getNotificationsByEmail({ page, limit });
+  async getNotifications(page: number, limit: number, options?: { signal?: AbortSignal }) {
+    return getNotificationsByEmail({ page, limit }, options);
   },
 
-  async getUnreadCount() {
-    return getUnreadNotificationCount();
+  async getUnreadCount(options?: { signal?: AbortSignal }) {
+    return getUnreadNotificationCount(options);
   },
 
   async markAsRead(notificationId: string) {
