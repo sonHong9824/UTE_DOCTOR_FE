@@ -32,6 +32,7 @@ import NotificationList from "./notification-list";
 interface Props {
   email?: string;
   pageSize?: number;
+  viewAllHref?: string;
   buttonClassName?: string;
   iconClassName?: string;
   badgeClassName?: string;
@@ -85,6 +86,7 @@ const isNotificationPayloadForIdentity = (
 
 export default function NotificationBell({
   pageSize = 10,
+  viewAllHref = "/user/my-profile?tab=notifications",
   buttonClassName,
   iconClassName,
   badgeClassName,
@@ -132,7 +134,7 @@ export default function NotificationBell({
   const handleViewAllNotifications = () => {
     setSelectedNotif(null);
     setOpen(false);
-    router.push("/user/my-profile?tab=notifications");
+    router.push(viewAllHref);
   };
 
   const handleClickNotification = async (notif: Notification) => {
