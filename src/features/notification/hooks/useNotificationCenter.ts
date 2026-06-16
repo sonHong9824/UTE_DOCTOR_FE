@@ -22,6 +22,7 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const authIdentityRef = useRef<AuthIdentity | null>(authIdentity);
   const requestVersionRef = useRef(0);
 
@@ -39,6 +40,7 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
     setLoadingMore(false);
     setRefreshing(false);
     setUnreadCount(0);
+    setError(null);
   }, []);
 
   useEffect(() => {
@@ -75,20 +77,28 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
       }
 
       const requestVersion = ++requestVersionRef.current;
-      const response = await notificationService.getNotifications(pageToLoad, pageSize);
+      setError(null);
 
-      if (
-        requestVersion !== requestVersionRef.current ||
-        authIdentityRef.current?.key !== identityKey
-      ) {
-        return;
-      }
+      try {
+        const response = await notificationService.getNotifications(pageToLoad, pageSize);
 
-      if (response?.code === ResponseCode.SUCCESS && response.data?.data) {
-        const incoming = response.data.data;
-        setNotifications((prev) => (replace ? incoming : [...prev, ...incoming]));
-        setHasMore(incoming.length === pageSize);
-        setPage(pageToLoad);
+        if (
+          requestVersion !== requestVersionRef.current ||
+          authIdentityRef.current?.key !== identityKey
+        ) {
+          return;
+        }
+
+        if (response?.code === ResponseCode.SUCCESS && response.data?.data) {
+          const incoming = response.data.data;
+          setNotifications((prev) => (replace ? incoming : [...prev, ...incoming]));
+          setHasMore(incoming.length === pageSize);
+          setPage(pageToLoad);
+        } else {
+          setError("Không tải được danh sách thông báo.");
+        }
+      } catch {
+        setError("Không tải được danh sách thông báo.");
       }
     },
     [pageSize, resetState]
@@ -104,6 +114,7 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
     const requestVersion = ++requestVersionRef.current;
     setRefreshing(true);
     setLoading(true);
+    setError(null);
 
     try {
       const [unreadRes, notificationRes] = await Promise.all([
@@ -121,6 +132,8 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
 
       if (unreadRes?.code === ResponseCode.SUCCESS && typeof unreadRes.data === "number") {
         setUnreadCount(unreadRes.data);
+      } else {
+        setError("Không tải được số thông báo chưa đọc.");
       }
 
       if (notificationRes?.code === ResponseCode.SUCCESS && notificationRes.data?.data) {
@@ -128,6 +141,12 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
         setNotifications(incoming);
         setHasMore(incoming.length === pageSize);
         setPage(1);
+      } else {
+        setError("Không tải được danh sách thông báo.");
+      }
+    } catch {
+      if (!signal?.aborted) {
+        setError("Không tải được thông báo. Vui lòng thử lại.");
       }
     } finally {
       if (!signal?.aborted && authIdentityRef.current?.key === identityKey) {
@@ -209,6 +228,8 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
     refreshing,
     unreadCount,
     unreadInLoadedList,
+    totalLoaded: notifications.length,
+    error,
     refresh,
     loadMore,
     openNotification,

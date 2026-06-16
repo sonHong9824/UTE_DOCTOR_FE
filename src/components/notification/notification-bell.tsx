@@ -17,18 +17,25 @@ import {
   ASSIGNMENT_TASKS_CHANGED_EVENT,
   emitAppRealtimeEvent,
 } from "@/lib/realtimeEvents";
+import { cn } from "@/lib/utils";
 import { createNotificationSocket } from "@/services/socket/socket-client";
 import {
   Notification,
   NotificationMap,
   NotificationPayload,
 } from "@/types/notification.dto";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import NotificationList from "./notification-list";
+import NotificationList, {
+  NotificationEmptyState,
+  NotificationErrorState,
+  NotificationListSkeleton,
+  formatNotificationCount,
+  formatNotificationTimestamp,
+} from "./notification-list";
 
 interface Props {
   email?: string;
@@ -105,6 +112,9 @@ export default function NotificationBell({
   const [hasMore, setHasMore] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const bellRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -123,6 +133,9 @@ export default function NotificationBell({
     setSelectedNotif(null);
     setPage(1);
     setHasMore(true);
+    setLoading(false);
+    setLoadingMore(false);
+    setError(null);
   }, []);
 
   const toggleBell = () => {
@@ -162,6 +175,9 @@ export default function NotificationBell({
         prev.map((n) => (n._id === notif._id ? { ...n, isRead: true } : n))
       );
       setUnreadCount((prev) => Math.max(prev - 1, 0));
+      setSelectedNotif((prev) =>
+        prev && prev._id === notif._id ? { ...prev, isRead: true } : prev
+      );
     }
   };
 
@@ -174,6 +190,8 @@ export default function NotificationBell({
       }
 
       const requestVersion = ++requestVersionRef.current;
+      setError(null);
+      setLoading(true);
 
       try {
         const [countRes, notifRes] = await Promise.all([
@@ -191,18 +209,27 @@ export default function NotificationBell({
 
         if (countRes?.code === ResponseCode.SUCCESS && typeof countRes.data === "number") {
           setUnreadCount(countRes.data);
+        } else {
+          setError("Không tải được số thông báo chưa đọc.");
         }
 
         if (notifRes?.code === ResponseCode.SUCCESS && notifRes.data?.data) {
           setNotifications(notifRes.data.data);
           setHasMore(notifRes.data.data.length === pageSize);
           setPage(1);
+        } else {
+          setError("Không tải được danh sách thông báo.");
         }
       } catch (err) {
         if (signal?.aborted) {
           return;
         }
+        setError("Không tải được thông báo.");
         console.error("[NotificationBell] Failed to refresh notifications", err);
+      } finally {
+        if (!signal?.aborted && authIdentityRef.current?.key === identityKey) {
+          setLoading(false);
+        }
       }
     },
     [pageSize, resetBellState]
@@ -324,6 +351,8 @@ export default function NotificationBell({
     }
 
     const requestVersion = ++requestVersionRef.current;
+    setLoadingMore(true);
+    setError(null);
 
     try {
       const res = await getNotificationsByEmail({ page: pageToLoad, limit: pageSize });
@@ -339,9 +368,14 @@ export default function NotificationBell({
         setNotifications((prev) => (replace ? newData : [...prev, ...newData]));
         setHasMore(newData.length === pageSize);
         setPage(pageToLoad);
+      } else {
+        setError("Không tải được thêm thông báo.");
       }
     } catch (e) {
+      setError("Không tải được thêm thông báo.");
       console.error("Failed to load notifications:", e);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -372,17 +406,22 @@ export default function NotificationBell({
   const rect = bellRef.current?.getBoundingClientRect();
   const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
   const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
-  const dropdownTop = (rect?.bottom ?? 0) + scrollY;
-  const dropdownWidth = 320;
-  const dropdownLeft = Math.max(8, (rect?.right ?? 0) + scrollX - dropdownWidth);
+  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 400;
+  const dropdownTop = (rect?.bottom ?? 0) + scrollY + 10;
+  const dropdownWidth = Math.min(400, Math.max(280, viewportWidth - 16));
+  const dropdownLeft = Math.min(
+    Math.max(8 + scrollX, (rect?.right ?? 0) + scrollX - dropdownWidth),
+    scrollX + viewportWidth - dropdownWidth - 8
+  );
   const renderedSelectedNotif = selectedNotif ? renderNotification(selectedNotif) : null;
+  const badgeText = formatNotificationCount(unreadCount);
 
   const dropdownElement =
     open && typeof document !== "undefined"
       ? createPortal(
           <>
             <div
-              className="fixed inset-0 z-40 bg-black/20"
+              className="fixed inset-0 z-40 bg-slate-950/20"
               onClick={() => {
                 setSelectedNotif(null);
                 setOpen(false);
@@ -390,45 +429,90 @@ export default function NotificationBell({
             />
             <div
               ref={dropdownRef}
-              className="absolute z-50 max-h-80 w-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 shadow-lg animate-fadeIn dark:border-gray-800 dark:bg-gray-900"
+              className="absolute z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 animate-fadeIn dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/30"
               style={{
                 top: dropdownTop,
                 left: dropdownLeft,
+                width: dropdownWidth,
               }}
             >
-              <NotificationList
-                notifications={notifications}
-                hasMore={hasMore}
-                onLoadMore={handleShowMore}
-                onClickNotification={(noti) => {
-                  void handleClickNotification(noti);
-                }}
-              />
-              <div className="mt-3 border-t border-gray-200 pt-2 dark:border-gray-800">
+              <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950 dark:text-slate-50">
+                      Thông báo
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {unreadCount > 0
+                        ? `${formatNotificationCount(unreadCount)} thông báo chưa đọc`
+                        : "Bạn đã đọc hết thông báo"}
+                    </p>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900">
+                      {formatNotificationCount(unreadCount)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-[calc(100vh-210px)] overflow-y-auto px-3 py-3 sm:max-h-[420px]">
+                {loading && notifications.length === 0 ? (
+                  <NotificationListSkeleton count={4} variant="dropdown" />
+                ) : error && notifications.length === 0 ? (
+                  <NotificationErrorState
+                    compact
+                    description={error}
+                    onRetry={() => void refreshBell()}
+                  />
+                ) : notifications.length === 0 ? (
+                  <NotificationEmptyState
+                    compact
+                    title="Chưa có thông báo"
+                    description="Các cập nhật lịch khám, thanh toán và phân công sẽ xuất hiện tại đây."
+                  />
+                ) : (
+                  <NotificationList
+                    notifications={notifications}
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    variant="dropdown"
+                    onLoadMore={handleShowMore}
+                    onClickNotification={(noti) => {
+                      void handleClickNotification(noti);
+                    }}
+                  />
+                )}
+              </div>
+
+              <div className="border-t border-slate-100 bg-slate-50/80 px-3 py-2 dark:border-slate-800 dark:bg-slate-900/60">
                 <button
                   type="button"
                   onClick={handleViewAllNotifications}
-                  className="w-full rounded-md px-3 py-2 text-center text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  className="w-full rounded-lg px-3 py-2 text-center text-sm font-semibold text-sky-700 transition hover:bg-white hover:text-sky-800 dark:text-sky-300 dark:hover:bg-slate-800"
                 >
-                  View all notifications
+                  Xem tất cả thông báo
                 </button>
               </div>
               {selectedNotif &&
                 createPortal(
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-gray-900">
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4">
+                    <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-950">
                       <button
                         type="button"
-                        className="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+                        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-900 dark:hover:text-slate-100"
                         onClick={() => setSelectedNotif(null)}
                         aria-label="Close notification detail"
                       >
-                        ✕
+                        <X className="h-4 w-4" />
                       </button>
-                      <h3 className="mb-2 text-lg font-bold">
+                      <p className="mb-2 text-xs font-medium text-sky-700 dark:text-sky-300">
+                        {formatNotificationTimestamp(selectedNotif.createdAt)}
+                      </p>
+                      <h3 className="pr-8 text-lg font-semibold text-slate-950 dark:text-slate-50">
                         {renderedSelectedNotif?.title}
                       </h3>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
                         {renderedSelectedNotif?.message}
                       </p>
                     </div>
@@ -443,19 +527,26 @@ export default function NotificationBell({
 
   const mergedButtonClass = buttonClassName
     ? buttonClassName
-    : "relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800";
-  const mergedIconClass = iconClassName
-    ? iconClassName
-    : "w-6 h-6 text-gray-700 dark:text-gray-300";
+    : "relative rounded-full p-2 text-slate-600 transition hover:bg-slate-100 hover:text-sky-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-sky-300";
+  const mergedIconClass = iconClassName ? iconClassName : "h-6 w-6";
   const mergedBadgeClass = badgeClassName
     ? badgeClassName
-    : "absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center";
+    : "absolute -right-1 -top-1 bg-rose-500 text-white";
 
   return (
     <>
-      <button ref={bellRef} onClick={toggleBell} className={mergedButtonClass}>
+      <button ref={bellRef} type="button" onClick={toggleBell} className={mergedButtonClass}>
         <Bell className={mergedIconClass} />
-        {unreadCount > 0 && <span className={mergedBadgeClass}>{unreadCount}</span>}
+        {unreadCount > 0 && (
+          <span
+            className={cn(
+              mergedBadgeClass,
+              "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none text-white ring-2 ring-white dark:ring-slate-950"
+            )}
+          >
+            {badgeText}
+          </span>
+        )}
       </button>
 
       {dropdownElement}
