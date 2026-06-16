@@ -2,6 +2,7 @@ import { Notification, NotificationType } from "@/types/notification.dto";
 import { formatApiDateToLocalTime } from "@/utils/time.util";
 import { AlertTriangle, Bell, Calendar, CircleDollarSign } from "lucide-react";
 import { ComponentType, ReactNode } from "react";
+import { renderNotification } from "@/lib/notification/renderNotification";
 
 interface Props {
   notifications: Notification[];
@@ -26,6 +27,8 @@ const NotificationItemShell = ({
   badgeClassName: string;
   onClickNotification?: (notif: Notification) => void;
 }) => {
+  const renderedNotification = renderNotification(item);
+
   return (
     <div
       key={item._id}
@@ -43,14 +46,14 @@ const NotificationItemShell = ({
       <div className="flex-1">
         <div className="flex w-full items-center justify-between">
           <p className="line-clamp-1 text-sm font-semibold text-gray-900 dark:text-white">
-            {item.title}
+            {renderedNotification.title}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {formatApiDateToLocalTime(item.createdAt)}
           </p>
         </div>
         <p className="mt-1 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
-          {item.message}
+          {renderedNotification.message}
         </p>
       </div>
     </div>
@@ -96,11 +99,16 @@ const PaymentNotification = ({ item, onClickNotification }: NotificationItemProp
   />
 );
 
-const notificationComponentMap: Record<NotificationType, ComponentType<NotificationItemProps>> = {
+const notificationComponentMap: Partial<Record<NotificationType, ComponentType<NotificationItemProps>>> = {
   COIN_EXPIRY_REMINDER: CoinExpiryNotification,
   APPOINTMENT_SUCCESS: AppointmentNotification,
   APPOINTMENT_CANCELLED: AppointmentCancelledNotification,
+  APPOINTMENT_RESCHEDULED: AppointmentNotification,
   PAYMENT_SUCCESS: PaymentNotification,
+  ASSIGNMENT_TASK_CREATED: AppointmentNotification,
+  ASSIGNMENT_TASK_REMINDER: AppointmentCancelledNotification,
+  ASSIGNMENT_TASK_EXPIRED: AppointmentCancelledNotification,
+  APPOINTMENT_DOCTOR_ASSIGNED: AppointmentNotification,
 };
 
 const FallbackNotification = ({
@@ -137,7 +145,7 @@ export default function NotificationList({
           );
         }
 
-        const Component = notificationComponentMap[item.type];
+        const Component = notificationComponentMap[item.type as NotificationType] ?? FallbackNotification;
 
         return (
           <Component

@@ -11,6 +11,7 @@ import {
   AuthIdentity,
   getCurrentAuthIdentity,
 } from "@/features/auth/utils/auth-identity";
+import { renderNotification } from "@/lib/notification/renderNotification";
 import {
   APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
   ASSIGNMENT_TASKS_CHANGED_EVENT,
@@ -39,7 +40,10 @@ interface Props {
 }
 
 type NotificationHandlerMap = {
-  [K in keyof NotificationMap]: (data: NotificationMap[K]) => void;
+  [K in keyof NotificationMap]: (
+    data: NotificationMap[K],
+    payload: Extract<NotificationPayload, { type: K }>
+  ) => void;
 };
 
 const handlers: NotificationHandlerMap = {
@@ -67,9 +71,9 @@ const handlers: NotificationHandlerMap = {
   ASSIGNMENT_TASK_EXPIRED: (data) => {
     emitAppRealtimeEvent(ASSIGNMENT_TASKS_CHANGED_EVENT, data);
   },
-  APPOINTMENT_DOCTOR_ASSIGNED: (data) => {
+  APPOINTMENT_DOCTOR_ASSIGNED: (data, payload) => {
     emitAppRealtimeEvent(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, data);
-    toast.success("Bác sĩ đã được phân công cho lịch hẹn của bạn.");
+    toast.success(renderNotification(payload).message);
   },
 };
 
@@ -206,11 +210,11 @@ export default function NotificationBell({
 
   const dispatchNotification = useCallback((payload: NotificationPayload) => {
     const handler = handlers[payload.type] as
-      | ((data: NotificationPayload["data"]) => void)
+      | ((data: NotificationPayload["data"], payload: NotificationPayload) => void)
       | undefined;
 
     if (typeof handler === "function") {
-      handler(payload.data);
+      handler(payload.data, payload);
       return;
     }
 
@@ -371,6 +375,7 @@ export default function NotificationBell({
   const dropdownTop = (rect?.bottom ?? 0) + scrollY;
   const dropdownWidth = 320;
   const dropdownLeft = Math.max(8, (rect?.right ?? 0) + scrollX - dropdownWidth);
+  const renderedSelectedNotif = selectedNotif ? renderNotification(selectedNotif) : null;
 
   const dropdownElement =
     open && typeof document !== "undefined"
@@ -420,9 +425,11 @@ export default function NotificationBell({
                       >
                         ✕
                       </button>
-                      <h3 className="mb-2 text-lg font-bold">{selectedNotif.title}</h3>
+                      <h3 className="mb-2 text-lg font-bold">
+                        {renderedSelectedNotif?.title}
+                      </h3>
                       <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {selectedNotif.message}
+                        {renderedSelectedNotif?.message}
                       </p>
                     </div>
                   </div>,

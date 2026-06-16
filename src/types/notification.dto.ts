@@ -11,29 +11,44 @@ export type AppointmentSuccessDto = {
   appointmentId?: string;
   patientEmail?: string;
   doctorEmail?: string;
-  date?: string;
+  appointmentDate?: string | number | null;
+  scheduledAt?: string | number | null;
+  date?: string | number | null;
+  timeRange?: string | null;
   timeSlot?: string;
   timeSlotLabel?: string;
-  hospitalName?: string;
+  hospitalName?: string | null;
+  doctorName?: string | null;
+  patientName?: string | null;
   [key: string]: unknown;
 };
 
 export type AppointmentCancelledDto = {
-  appointmentId: string;
-  patientEmail: string;
+  appointmentId?: string;
+  patientEmail?: string;
   doctorEmail?: string;
-  date: string;
-  timeSlot: string;
+  appointmentDate?: string | number | null;
+  scheduledAt?: string | number | null;
+  date?: string | number | null;
+  timeRange?: string | null;
+  timeSlot?: string;
   timeSlotLabel?: string;
-  hospitalName?: string;
+  hospitalName?: string | null;
+  doctorName?: string | null;
+  patientName?: string | null;
   reason?: string;
   refundAmount?: number;
   shouldRefund?: boolean;
+  [key: string]: unknown;
 };
 
 export type PaymentSuccessDto = {
-  orderId: string;
-  status: "COMPLETED";
+  orderId?: string;
+  appointmentId?: string;
+  amount?: number;
+  paidAt?: string | number | null;
+  status?: "COMPLETED" | string;
+  [key: string]: unknown;
 };
 
 // Reuses the existing BE reschedule DTO shape; fields kept optional defensively because the
@@ -42,10 +57,17 @@ export type AppointmentRescheduledDto = {
   appointmentId?: string;
   patientEmail?: string;
   doctorEmail?: string;
-  date?: string;
+  appointmentDate?: string | number | null;
+  scheduledAt?: string | number | null;
+  oldScheduledAt?: string | number | null;
+  newScheduledAt?: string | number | null;
+  date?: string | number | null;
+  timeRange?: string | null;
   timeSlot?: string;
   timeSlotLabel?: string;
-  hospitalName?: string;
+  hospitalName?: string | null;
+  doctorName?: string | null;
+  patientName?: string | null;
   [key: string]: unknown;
 };
 
@@ -79,9 +101,16 @@ export type AssignmentTaskExpiredDto = {
 
 export type AppointmentDoctorAssignedDto = {
   appointmentId: string;
-  doctorId: string;
-  timeSlotId: string;
-  scheduledAt: number; // epoch ms
+  doctorId?: string;
+  doctorName?: string | null;
+  patientName?: string | null;
+  timeSlotId?: string;
+  scheduledAt?: number; // epoch ms
+  appointmentDate?: number;
+  timeRange?: string | null;
+  timeSlotLabel?: string | null;
+  hospitalName?: string | null;
+  [key: string]: unknown;
 };
 
 export type NotificationMap = {
@@ -98,11 +127,23 @@ export type NotificationMap = {
 };
 
 export type NotificationType = keyof NotificationMap;
+export type NotificationRecipientRole =
+  | "PATIENT"
+  | "DOCTOR"
+  | "RECEPTIONIST"
+  | "ADMIN"
+  | (string & {});
 
 export type NotificationPayload = {
   [K in keyof NotificationMap]: {
     type: K;
+    recipientRole?: NotificationRecipientRole;
+    titleKey?: string;
+    messageKey?: string;
+    title?: string;
+    message?: string;
     data: NotificationMap[K];
+    details?: NotificationMap[K];
     createdAt: number;
     recipientEmail: string;
     idempotencyKey: string;
@@ -113,10 +154,16 @@ export type Notification = {
   _id: string;
   title: string;
   message: string;
-  type?: NotificationType;
+  type?: NotificationType | string;
+  recipientRole?: NotificationRecipientRole;
+  titleKey?: string;
+  messageKey?: string;
+  templateKey?: string;
   data?: NotificationMap[NotificationType];
+  details?: NotificationMap[NotificationType] | Record<string, unknown>;
   isRead: boolean;
   receiverEmail?: string[];
   isBroadcast: boolean;
-  createdAt: string;
+  createdAt: string | number;
+  updatedAt?: string | number;
 };

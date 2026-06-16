@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNotificationCenter } from "@/features/notification/hooks/useNotificationCenter";
 import { NotificationFilter } from "@/features/notification/types/notification-center.types";
+import { renderNotification } from "@/lib/notification/renderNotification";
 import { BellRing, RefreshCcw } from "lucide-react";
 import { useEffect } from "react";
 
@@ -31,6 +32,9 @@ export default function NotificationCenterScreen() {
     loadMore,
     openNotification,
   } = useNotificationCenter();
+  const renderedSelectedNotification = selectedNotification
+    ? renderNotification(selectedNotification)
+    : null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,10 +121,10 @@ export default function NotificationCenterScreen() {
           </CardHeader>
           <CardContent className="space-y-2">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {selectedNotification.title}
+              {renderedSelectedNotification?.title}
             </h3>
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              {selectedNotification.message}
+              {renderedSelectedNotification?.message}
             </p>
             <Button
               type="button"
