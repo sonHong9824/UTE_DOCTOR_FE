@@ -37,6 +37,8 @@ import NotificationList, {
   formatNotificationTimestamp,
 } from "./notification-list";
 
+const DROPDOWN_ANIMATION_MS = 180;
+
 interface Props {
   email?: string;
   pageSize?: number;
@@ -107,6 +109,7 @@ export default function NotificationBell({
     getCurrentAuthIdentity()
   );
   const [open, setOpen] = useState(false);
+  const [dropdownMounted, setDropdownMounted] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -120,6 +123,8 @@ export default function NotificationBell({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const authIdentityRef = useRef<AuthIdentity | null>(authIdentity);
   const requestVersionRef = useRef(0);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     authIdentityRef.current = authIdentity;
@@ -127,7 +132,12 @@ export default function NotificationBell({
 
   const resetBellState = useCallback(() => {
     requestVersionRef.current += 1;
+    if (openFrameRef.current !== null) {
+      cancelAnimationFrame(openFrameRef.current);
+      openFrameRef.current = null;
+    }
     setOpen(false);
+    setDropdownMounted(false);
     setNotifications([]);
     setUnreadCount(0);
     setSelectedNotif(null);
@@ -138,19 +148,51 @@ export default function NotificationBell({
     setError(null);
   }, []);
 
-  const toggleBell = () => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next) {
-        setSelectedNotif(null);
-      }
-      return next;
+  const closeDropdown = useCallback(() => {
+    if (openFrameRef.current !== null) {
+      cancelAnimationFrame(openFrameRef.current);
+      openFrameRef.current = null;
+    }
+
+    setSelectedNotif(null);
+    setOpen(false);
+
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+
+    closeTimerRef.current = setTimeout(() => {
+      setDropdownMounted(false);
+      closeTimerRef.current = null;
+    }, DROPDOWN_ANIMATION_MS);
+  }, []);
+
+  const openDropdown = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    setSelectedNotif(null);
+    setDropdownMounted(true);
+    openFrameRef.current = requestAnimationFrame(() => {
+      setOpen(true);
+      openFrameRef.current = null;
     });
+  }, []);
+
+  const toggleBell = () => {
+    if (open) {
+      closeDropdown();
+      return;
+    }
+
+    openDropdown();
   };
 
   const handleViewAllNotifications = () => {
     setSelectedNotif(null);
-    setOpen(false);
+    closeDropdown();
     router.push(viewAllHref);
   };
 
@@ -298,6 +340,18 @@ export default function NotificationBell({
   }, [resetBellState]);
 
   useEffect(() => {
+    return () => {
+      if (openFrameRef.current !== null) {
+        cancelAnimationFrame(openFrameRef.current);
+      }
+
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!authIdentity?.key) {
       return;
     }
@@ -391,17 +445,33 @@ export default function NotificationBell({
         !bellRef.current.contains(event.target as Node) &&
         !dropdownRef.current.contains(event.target as Node)
       ) {
-        setSelectedNotif(null);
-        setOpen(false);
+        closeDropdown();
       }
     };
 
-    if (open) {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      if (selectedNotif) {
+        setSelectedNotif(null);
+        return;
+      }
+
+      closeDropdown();
+    };
+
+    if (dropdownMounted) {
       document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
     }
 
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeDropdown, dropdownMounted, selectedNotif]);
 
   const rect = bellRef.current?.getBoundingClientRect();
   const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
@@ -417,23 +487,32 @@ export default function NotificationBell({
   const badgeText = formatNotificationCount(unreadCount);
 
   const dropdownElement =
-    open && typeof document !== "undefined"
+    dropdownMounted && typeof document !== "undefined"
       ? createPortal(
           <>
             <div
-              className="fixed inset-0 z-40 bg-slate-950/20"
+              className={cn(
+                "fixed inset-0 z-40 bg-slate-950/20 transition-opacity",
+                open ? "opacity-100 duration-200 ease-out" : "opacity-0 duration-150 ease-in"
+              )}
               onClick={() => {
-                setSelectedNotif(null);
-                setOpen(false);
+                closeDropdown();
               }}
             />
             <div
               ref={dropdownRef}
-              className="absolute z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 animate-fadeIn dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/30"
+              className={cn(
+                "absolute z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10 dark:border-slate-800 dark:bg-slate-950 dark:shadow-black/30",
+                "transition-[opacity,transform] will-change-[opacity,transform]",
+                open
+                  ? "translate-y-0 scale-100 opacity-100 duration-200 ease-out"
+                  : "pointer-events-none -translate-y-2 scale-[0.96] opacity-0 duration-150 ease-in"
+              )}
               style={{
                 top: dropdownTop,
                 left: dropdownLeft,
                 width: dropdownWidth,
+                transformOrigin: "top right",
               }}
             >
               <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">

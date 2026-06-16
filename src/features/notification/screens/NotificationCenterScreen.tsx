@@ -5,15 +5,14 @@ import NotificationList, {
   NotificationErrorState,
   NotificationListSkeleton,
   formatNotificationCount,
-  formatNotificationTimestamp,
 } from "@/components/notification/notification-list";
+import NotificationDetailModal from "@/components/notification/notification-detail-modal";
 import { Button } from "@/components/ui/button";
 import { useNotificationCenter } from "@/features/notification/hooks/useNotificationCenter";
 import { NotificationFilter } from "@/features/notification/types/notification-center.types";
-import { renderNotification } from "@/lib/notification/renderNotification";
 import { cn } from "@/lib/utils";
-import { BellRing, Inbox, RefreshCcw, X } from "lucide-react";
-import { useEffect } from "react";
+import { BellRing, RefreshCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
   { value: "all", label: "Tất cả" },
@@ -43,6 +42,8 @@ const getFilterEmptyCopy = (filter: NotificationFilter) => {
 };
 
 export default function NotificationCenterScreen() {
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     notifications,
     selectedNotification,
@@ -61,9 +62,6 @@ export default function NotificationCenterScreen() {
     loadMore,
     openNotification,
   } = useNotificationCenter();
-  const renderedSelectedNotification = selectedNotification
-    ? renderNotification(selectedNotification)
-    : null;
   const filterEmptyCopy = getFilterEmptyCopy(filter);
 
   useEffect(() => {
@@ -74,6 +72,40 @@ export default function NotificationCenterScreen() {
       controller.abort();
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!selectedNotification) {
+      return;
+    }
+
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    setDetailModalOpen(true);
+  }, [selectedNotification]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDetailModalOpenChange = (nextOpen: boolean) => {
+    setDetailModalOpen(nextOpen);
+
+    if (nextOpen) {
+      return;
+    }
+
+    closeTimerRef.current = setTimeout(() => {
+      setSelectedNotification(null);
+      closeTimerRef.current = null;
+    }, 200);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
@@ -178,37 +210,11 @@ export default function NotificationCenterScreen() {
         </div>
       </section>
 
-      {selectedNotification && renderedSelectedNotification && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 ring-1 ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900">
-                  <Inbox className="h-3.5 w-3.5" />
-                  Chi tiết
-                </span>
-                <span className="text-slate-500 dark:text-slate-400">
-                  {formatNotificationTimestamp(selectedNotification.createdAt)}
-                </span>
-              </div>
-              <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50">
-                {renderedSelectedNotification.title}
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedNotification(null)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-900 dark:hover:text-slate-100"
-              aria-label="Đóng chi tiết thông báo"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="mt-4 text-sm leading-7 text-slate-700 dark:text-slate-300">
-            {renderedSelectedNotification.message}
-          </p>
-        </section>
-      )}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        open={detailModalOpen}
+        onOpenChange={handleDetailModalOpenChange}
+      />
     </div>
   );
 }
