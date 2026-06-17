@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { adminAppointmentLifecycleService } from "@/features/admin-appointment-lifecycle/services/adminAppointmentLifecycleService";
 import { LifecycleNodeDetail } from "@/features/admin-appointment-lifecycle/types/admin-appointment-lifecycle.types";
@@ -22,26 +22,35 @@ export const useLifecycleNodeDetail = (appointmentId: string, nodeId: string | n
   const [detail, setDetail] = useState<LifecycleNodeDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async () => {
     if (!appointmentId || !nodeId) {
+      requestIdRef.current += 1;
       setDetail(null);
       setError(null);
       setLoading(false);
       return;
     }
 
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(null);
+    setDetail(null);
 
     try {
       const result = await adminAppointmentLifecycleService.getNodeDetail(appointmentId, nodeId);
+      if (requestId !== requestIdRef.current) return;
       setDetail(result);
     } catch (loadError: unknown) {
+      if (requestId !== requestIdRef.current) return;
       setDetail(null);
       setError(getErrorMessage(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [appointmentId, nodeId]);
 
