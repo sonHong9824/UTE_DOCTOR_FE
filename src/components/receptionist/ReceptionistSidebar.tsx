@@ -1,17 +1,26 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { clearAuthSession } from "@/features/auth/utils/auth-storage";
 import { cn } from "@/lib/utils";
-import { CalendarDays, ChevronRight, ClipboardList, CreditCard, LogOut, ReceiptText } from "lucide-react";
+import {
+  BellRing,
+  CalendarDays,
+  ChevronRight,
+  ClipboardList,
+  CreditCard,
+  LogOut,
+  ReceiptText,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearAuthSession } from "@/features/auth/utils/auth-storage";
 
 const menuItems = [
   { name: "Today's Visits", icon: CalendarDays, path: "/receptionist/visits" },
-  { name: "Phân công bác sĩ", icon: ClipboardList, path: "/receptionist/assignments" },
+  { name: "Doctor Assignment", icon: ClipboardList, path: "/receptionist/assignments" },
   { name: "Billing", icon: ReceiptText, path: "/receptionist/billing" },
   { name: "Payments", icon: CreditCard, path: "/receptionist/payments" },
+  { name: "Notifications", icon: BellRing, path: "/receptionist/notifications" },
 ];
 
 interface ReceptionistSidebarProps {
@@ -25,7 +34,6 @@ export default function ReceptionistSidebar({ collapsed, onToggle }: Receptionis
 
   const handleLogout = () => {
     if (typeof window === "undefined") return;
-    // Clears the session AND emits `auth-logout` so the shared sockets disconnect.
     clearAuthSession();
     router.push("/");
   };
@@ -50,10 +58,14 @@ export default function ReceptionistSidebar({ collapsed, onToggle }: Receptionis
           )}
         </div>
         <button
+          type="button"
           onClick={onToggle}
-          className="rounded-full p-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          className="rounded-full p-1 text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          aria-label={collapsed ? "Expand receptionist sidebar" : "Collapse receptionist sidebar"}
         >
-          <ChevronRight className={cn("h-5 w-5 transition-transform", collapsed ? "rotate-180" : "")} />
+          <ChevronRight
+            className={cn("h-5 w-5 transition-transform", collapsed ? "rotate-180" : "")}
+          />
         </button>
       </div>
 
@@ -100,7 +112,7 @@ export default function ReceptionistSidebar({ collapsed, onToggle }: Receptionis
           )}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && <span>Đăng xuất</span>}
+          {!collapsed && <span>Logout</span>}
         </Button>
       </div>
     </aside>

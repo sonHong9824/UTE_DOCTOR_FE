@@ -23,8 +23,8 @@ export const bookAppointment = async (form: AppointmentBookingPayload) => {
 };
 
 // Broad booking: patient books without choosing a doctor/slot. The backend creates a
-// PENDING appointment (assignmentStatus = AWAITING_ASSIGNMENT) and a receptionist
-// assignment task. No appointmentDate/doctor/timeSlot are sent.
+// PENDING appointment (assignmentStatus = AWAITING_ASSIGNMENT). BHYT/NOT_REQUIRED creates
+// assignment work immediately; DICH_VU creates it only after deposit success.
 export interface BroadBookingPayload {
   broadBooking: true;
   specialty?: string;

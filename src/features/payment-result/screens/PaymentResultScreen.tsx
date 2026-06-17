@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { getAppointmentById } from "@/apis/appointment/appointment.api";
+import {
+  getCombinedAppointmentStatusLabel,
+  isPaidAwaitingAssignment,
+} from "@/features/appointment/utils/appointment-status";
 import { usePaymentStatus } from "@/features/payment-result/hooks/usePaymentStatus";
 import { PaymentViewStatus } from "@/features/payment-result/types/payment-result.types";
 import { TimeHelper } from "@/lib/time";
@@ -20,7 +24,16 @@ interface PaymentResultScreenProps {
 
 type DepositAppointmentSnapshot = {
   appointmentStatus?: string;
+  assignmentStatus?: string;
+  paymentCategory?: string;
   depositStatus?: string;
+  doctorId?: unknown;
+  doctor?: unknown;
+  timeSlot?: unknown;
+  timeSlotId?: string | null;
+  slot?: unknown;
+  reasonCode?: string;
+  cancellationReasonCode?: string;
 };
 
 const formatCurrencyVnd = (amount: number) =>
@@ -186,11 +199,19 @@ export default function PaymentResultScreen({ orderId, appointmentId, statusPara
   const Icon = config?.icon ?? TriangleAlert;
   const formattedAmount = payment ? formatCurrencyVnd(payment.amount) : "-";
   const formattedPaidAt = payment?.paidAt ? formatVietnameseDateTime(payment.paidAt) : "Chưa xác định";
+  const appointmentDisplayLabel = appointmentSnapshot
+    ? getCombinedAppointmentStatusLabel(appointmentSnapshot)
+    : null;
+  const isBroadDepositAwaitingAssignment = isPaidAwaitingAssignment(appointmentSnapshot);
   const title = isDepositPayment && displayStatus === "COMPLETED"
     ? "Thanh toán phí giữ chỗ thành công"
     : config?.title ?? "Thanh toán";
   const description = isDepositPayment && displayStatus === "COMPLETED"
-    ? "Phí giữ chỗ đã được xác nhận và lịch hẹn của bạn đã được xác nhận."
+    ? isBroadDepositAwaitingAssignment
+      ? "Đã thanh toán phí giữ chỗ. Lịch hẹn đang chờ lễ tân phân bác sĩ."
+      : appointmentSnapshot?.appointmentStatus === "CONFIRMED"
+        ? "Phí giữ chỗ đã được xác nhận và lịch hẹn của bạn đã được xác nhận."
+        : "Phí giữ chỗ đã được xác nhận. Trạng thái lịch hẹn sẽ được cập nhật trong hồ sơ của bạn."
     : isDepositPayment && displayStatus === "FAILED"
       ? "Thanh toán phí giữ chỗ không hoàn tất. Lịch hẹn chưa được xác nhận."
       : config?.description ?? "Đang tải dữ liệu thanh toán.";
@@ -231,7 +252,8 @@ export default function PaymentResultScreen({ orderId, appointmentId, statusPara
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lịch hẹn</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {appointmentSnapshot.appointmentStatus ?? "-"} / {appointmentSnapshot.depositStatus ?? "-"}
+                    {appointmentDisplayLabel ??
+                      `${appointmentSnapshot.appointmentStatus ?? "-"} / ${appointmentSnapshot.depositStatus ?? "-"}`}
                   </p>
                 </div>
               )}

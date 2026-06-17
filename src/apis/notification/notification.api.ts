@@ -3,7 +3,6 @@ import { DataResponse } from "@/types/apiDTO";
 import { Notification, NotificationMap, NotificationType } from "@/types/notification.dto";
 import { PaginationQueryDto } from "@/types/pagination/pagination-query.dto";
 import { PaginationResult } from "@/types/pagination/pagination-result.dto";
-import { normalizeApiDateToLocalISO, normalizeEpochDateInText } from "@/utils/time.util";
 
 const notificationTypeAliasMap: Record<string, NotificationType> = {
   coin_expiry_reminder: "COIN_EXPIRY_REMINDER",
@@ -21,8 +20,39 @@ const notificationTypeAliasMap: Record<string, NotificationType> = {
   appointment_doctor_assigned: "APPOINTMENT_DOCTOR_ASSIGNED",
 };
 
+const knownNotificationTypes = new Set<NotificationType>([
+  "COIN_EXPIRY_REMINDER",
+  "APPOINTMENT_SUCCESS",
+  "APPOINTMENT_CANCELLED",
+  "APPOINTMENT_RESCHEDULED",
+  "PAYMENT_SUCCESS",
+  "ASSIGNMENT_TASK_CREATED",
+  "ASSIGNMENT_TASK_REMINDER",
+  "ASSIGNMENT_TASK_EXPIRED",
+  "APPOINTMENT_DOCTOR_ASSIGNED",
+]);
+
+const isKnownNotificationType = (value: unknown): value is NotificationType => {
+  return typeof value === "string" && knownNotificationTypes.has(value as NotificationType);
+};
+
 const normalizeNotificationType = (notification: Notification): NotificationType | undefined => {
-  const normalizedKey = String(notification.type ?? "")
+  const dataType =
+    notification.data && typeof notification.data === "object"
+      ? (notification.data as { type?: unknown }).type
+      : undefined;
+  const detailsType =
+    notification.details && typeof notification.details === "object"
+      ? (notification.details as { type?: unknown }).type
+      : undefined;
+  const templateType = notification.messageKey ?? notification.titleKey ?? notification.templateKey;
+
+  const rawType = notification.type ?? dataType ?? detailsType ?? templateType;
+  if (isKnownNotificationType(rawType)) {
+    return rawType;
+  }
+
+  const normalizedKey = String(rawType ?? "")
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
@@ -37,23 +67,13 @@ type NotificationDataNormalizerMap = {
 const normalizeDataDateValue = <T extends string | number | Date | null | undefined>(
   value: T
 ): T => {
-  if (value === null || typeof value === "undefined") {
-    return value;
-  }
-
-  const normalized = normalizeApiDateToLocalISO(value);
-  if (!normalized) {
-    return value;
-  }
-
-  return normalized as T;
+  return value;
 };
 
 const notificationDataNormalizers: NotificationDataNormalizerMap = {
   COIN_EXPIRY_REMINDER: (data) => ({
     ...data,
     expiresAt: normalizeDataDateValue(data.expiresAt),
-    message: normalizeEpochDateInText(data.message ?? ""),
   }),
   APPOINTMENT_SUCCESS: (data) => ({
     ...data,
@@ -94,16 +114,13 @@ const normalizeNotificationData = (
 };
 
 const normalizeNotificationDate = (notification: Notification): Notification => {
-  const normalizedCreatedAt = normalizeApiDateToLocalISO(notification.createdAt);
   const normalizedType = normalizeNotificationType(notification);
+  const structuredData = notification.data ?? notification.details;
 
   return {
     ...notification,
     type: normalizedType ?? notification.type,
-    title: normalizeEpochDateInText(notification.title || ""),
-    createdAt: normalizedCreatedAt || notification.createdAt,
-    message: normalizeEpochDateInText(notification.message || ""),
-    data: normalizeNotificationData(normalizedType ?? notification.type, notification.data),
+    data: normalizeNotificationData(normalizedType, structuredData as Notification["data"]),
   };
 };
 

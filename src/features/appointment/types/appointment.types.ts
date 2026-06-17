@@ -96,10 +96,13 @@ export type AppointmentDetail = {
   assignmentStatus?: AssignmentStatus;
   date?: string;
   patientEmail?: string;
+  paymentCategory?: "BHYT" | "DICH_VU";
   depositStatus?: AppointmentDepositStatus;
   depositAmount?: number;
   depositPaidAmount?: number;
   depositPaidAt?: string | null;
+  reasonCode?: string;
+  cancellationReasonCode?: string;
 };
 
 export type AppointmentDepositStatus = "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
@@ -138,10 +141,17 @@ export type AppointmentListModel = {
       name?: string;
     };
   };
+  doctor?: unknown;
+  timeSlot?: unknown;
+  timeSlotId?: string | null;
+  slot?: unknown;
   serviceType?: string;
   appointmentStatus?: string;
+  paymentCategory?: "BHYT" | "DICH_VU";
   visitStatus?: string;
   reasonForAppointment?: string;
+  reasonCode?: string;
+  cancellationReasonCode?: string;
   consultationFee?: number;
   depositStatus?: AppointmentDepositStatus;
   depositAmount?: number;

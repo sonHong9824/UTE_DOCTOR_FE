@@ -1,12 +1,18 @@
 "use client";
 
-import NotificationList from "@/components/notification/notification-list";
+import NotificationList, {
+  NotificationEmptyState,
+  NotificationErrorState,
+  NotificationListSkeleton,
+  formatNotificationCount,
+} from "@/components/notification/notification-list";
+import NotificationDetailModal from "@/components/notification/notification-detail-modal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNotificationCenter } from "@/features/notification/hooks/useNotificationCenter";
 import { NotificationFilter } from "@/features/notification/types/notification-center.types";
+import { cn } from "@/lib/utils";
 import { BellRing, RefreshCcw } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
   { value: "all", label: "Tất cả" },
@@ -14,7 +20,30 @@ const filterOptions: Array<{ value: NotificationFilter; label: string }> = [
   { value: "read", label: "Đã đọc" },
 ];
 
+const getFilterEmptyCopy = (filter: NotificationFilter) => {
+  if (filter === "unread") {
+    return {
+      title: "Không có thông báo chưa đọc",
+      description: "Các thông báo mới cần chú ý sẽ xuất hiện tại đây.",
+    };
+  }
+
+  if (filter === "read") {
+    return {
+      title: "Chưa có thông báo đã đọc",
+      description: "Sau khi bạn mở một thông báo, nó sẽ được chuyển vào nhóm này.",
+    };
+  }
+
+  return {
+    title: "Chưa có thông báo",
+    description: "Các cập nhật về lịch khám, thanh toán và phân công sẽ xuất hiện tại đây.",
+  };
+};
+
 export default function NotificationCenterScreen() {
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     notifications,
     selectedNotification,
@@ -27,10 +56,13 @@ export default function NotificationCenterScreen() {
     refreshing,
     unreadCount,
     unreadInLoadedList,
+    totalLoaded,
+    error,
     refresh,
     loadMore,
     openNotification,
   } = useNotificationCenter();
+  const filterEmptyCopy = getFilterEmptyCopy(filter);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -41,18 +73,64 @@ export default function NotificationCenterScreen() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (!selectedNotification) {
+      return;
+    }
+
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    setDetailModalOpen(true);
+  }, [selectedNotification]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDetailModalOpenChange = (nextOpen: boolean) => {
+    setDetailModalOpen(nextOpen);
+
+    if (nextOpen) {
+      return;
+    }
+
+    closeTimerRef.current = setTimeout(() => {
+      setSelectedNotification(null);
+      closeTimerRef.current = null;
+    }, 200);
+  };
+
   return (
-    <div className="flex w-full flex-col gap-4">
-      <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <BellRing className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              Trung tâm thông báo
-            </CardTitle>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Chưa đọc: {unreadCount} • Trong danh sách hiện tại: {unreadInLoadedList}
-            </p>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+      <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900">
+              <BellRing className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold text-slate-950 dark:text-slate-50">
+                Trung tâm thông báo
+              </h1>
+              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                Theo dõi cập nhật mới nhất từ hệ thống UTE Doctor.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 ring-1 ring-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900">
+                  {formatNotificationCount(unreadCount)} chưa đọc
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {unreadInLoadedList} chưa đọc trong danh sách
+                </span>
+              </div>
+            </div>
           </div>
 
           <Button
@@ -60,79 +138,83 @@ export default function NotificationCenterScreen() {
             variant="outline"
             onClick={() => void refresh()}
             disabled={refreshing}
-            className="gap-2"
+            className="w-full justify-center gap-2 border-slate-200 bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-sky-950/30 dark:hover:text-sky-300 sm:w-auto"
           >
-            <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
             Làm mới
           </Button>
-        </CardHeader>
+        </div>
+      </section>
 
-        <CardContent className="pt-0">
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 className="text-base font-semibold text-slate-950 dark:text-slate-50">
+              Danh sách thông báo
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {totalLoaded > 0
+                ? `${totalLoaded} thông báo đã tải`
+                : "Chưa có thông báo nào được tải"}
+            </p>
+          </div>
+
+          <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
             {filterOptions.map((option) => {
               const isActive = filter === option.value;
               return (
-                <Button
+                <button
                   key={option.value}
                   type="button"
-                  size="sm"
-                  variant={isActive ? "default" : "outline"}
                   onClick={() => setFilter(option.value)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                    isActive
+                      ? "bg-sky-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  )}
                 >
                   {option.label}
-                </Button>
+                </button>
               );
             })}
           </div>
+        </div>
 
-          {loading ? (
-            <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              Đang tải thông báo...
-            </p>
+        <div className="px-4 py-4 sm:px-6">
+          {loading && totalLoaded === 0 ? (
+            <NotificationListSkeleton count={5} />
+          ) : error && totalLoaded === 0 ? (
+            <NotificationErrorState description={error} onRetry={() => void refresh()} />
           ) : notifications.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              Không có thông báo phù hợp với bộ lọc hiện tại.
-            </p>
+            <NotificationEmptyState
+              title={filterEmptyCopy.title}
+              description={filterEmptyCopy.description}
+            />
           ) : (
             <NotificationList
               notifications={notifications}
               hasMore={hasMore}
+              loadingMore={loadingMore}
+              selectedNotificationId={selectedNotification?._id}
               onLoadMore={() => void loadMore()}
               onClickNotification={(item) => void openNotification(item)}
             />
           )}
 
-          {loadingMore && (
-            <p className="pt-3 text-center text-xs text-gray-500 dark:text-gray-400">
-              Đang tải thêm...
-            </p>
+          {error && totalLoaded > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/20 dark:text-amber-200">
+              {error}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {selectedNotification && (
-        <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Chi tiết thông báo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {selectedNotification.title}
-            </h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              {selectedNotification.message}
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              className="px-0"
-              onClick={() => setSelectedNotification(null)}
-            >
-              Đóng chi tiết
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        open={detailModalOpen}
+        onOpenChange={handleDetailModalOpenChange}
+      />
     </div>
   );
 }

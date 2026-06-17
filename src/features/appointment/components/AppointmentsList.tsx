@@ -6,7 +6,11 @@ import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { useReschedulePopup } from "@/features/appointment/hooks/useReschedulePopup";
 import { AppointmentListModel } from "@/features/appointment/types/appointment.types";
-import { AWAITING_ASSIGNMENT_LABEL, isAwaitingAssignment } from "@/features/appointment/utils/appointment-status";
+import {
+  getCombinedAppointmentStatusClass,
+  getCombinedAppointmentStatusLabel,
+  isAwaitingAssignment,
+} from "@/features/appointment/utils/appointment-status";
 import { TimeHelper } from "@/lib/time";
 import { toast } from "sonner";
 
@@ -83,14 +87,15 @@ export default function AppointmentsList({
       <div className="h-full max-h-[70vh] overflow-auto pr-2 space-y-3 p-8">
         {appointments.map((appt) => {
           const awaiting = isAwaitingAssignment(appt.assignmentStatus);
+          const combinedStatusLabel = getCombinedAppointmentStatusLabel(appt);
           const formattedDate = appt.date ? TimeHelper.formatLocalDateTime(appt.date, "vi-VN") : "";
           return (
           <Card key={appt._id || appt.id} className="p-4">
             <CardContent>
               <div className="flex flex-col gap-2">
-                {awaiting && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-                    {AWAITING_ASSIGNMENT_LABEL}
+                {combinedStatusLabel && (
+                  <div className={`rounded-lg border px-3 py-2 text-sm font-medium ${getCombinedAppointmentStatusClass(appt)}`}>
+                    {combinedStatusLabel}
                   </div>
                 )}
 
@@ -113,7 +118,7 @@ export default function AppointmentsList({
 
                 <div className="flex justify-between">
                   <span className="font-medium">Trạng thái:</span>
-                  <span>{appt.appointmentStatus ?? "-"}</span>
+                  <span>{combinedStatusLabel ?? appt.appointmentStatus ?? "-"}</span>
                 </div>
 
                 <div className="flex justify-between">
