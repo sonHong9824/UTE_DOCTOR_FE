@@ -52,6 +52,11 @@ const cleanDisplayText = (text: string): string => {
     .trim();
 };
 
+const isKeyLikeText = (text?: string): boolean => {
+  const trimmed = String(text ?? "").trim();
+  return Boolean(trimmed) && /^[a-z0-9_.:-]+$/i.test(trimmed) && trimmed.includes(".");
+};
+
 const asData = (value: unknown): NotificationData | null => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -316,6 +321,29 @@ const renderStructuredNotification = (
   }
 
   if (type === "APPOINTMENT_CANCELLED") {
+    const reasonCode = readString(data, ["reasonCode", "cancellationReasonCode"]);
+    if (reasonCode === "ASSIGNMENT_TIMEOUT") {
+      const refundAmount = readString(data, ["refundAmount"]);
+      const shouldRefund = data.shouldRefund === true;
+      const refundSegment = shouldRefund && refundAmount
+        ? ` Phí giữ chỗ đã được hoàn vào ví credit: ${refundAmount}.`
+        : "";
+
+      if (role === "DOCTOR") {
+        return {
+          title: "Lịch khám tự động hủy do quá hạn phân công",
+          message: "Hệ thống không thể phân công bác sĩ trong thời gian quy định nên lịch khám đã được tự động hủy.",
+        };
+      }
+
+      if (!role || role === "PATIENT") {
+        return {
+          title: "Không thể phân công bác sĩ đúng hạn",
+          message: `Hệ thống không thể phân công bác sĩ trong thời gian quy định nên lịch khám của bạn đã được tự động hủy.${refundSegment}`,
+        };
+      }
+    }
+
     const reason = readString(data, ["reason"]);
     const reasonSegment = reason ? ` Lý do: ${reason}.` : "";
 
@@ -368,6 +396,14 @@ const renderStructuredNotification = (
   }
 
   if (type === "ASSIGNMENT_TASK_EXPIRED" && (!role || role === "RECEPTIONIST")) {
+    const reasonCode = readString(data, ["reasonCode"]);
+    if (reasonCode === "ASSIGNMENT_TIMEOUT") {
+      return {
+        title: "Yêu cầu phân công đã quá hạn",
+        message: `Yêu cầu phân công đã quá hạn; lịch khám đã được tự động hủy.${buildDeadline(data)}`,
+      };
+    }
+
     return {
       title: "Yêu cầu phân công đã quá hạn",
       message: `Yêu cầu phân công đã quá hạn và cần xử lý thủ công.${buildDeadline(data)}`,
@@ -417,18 +453,29 @@ export const renderNotification = (
   const type = normalizeNotificationType(notification);
   const role = normalizeRole(notification.recipientRole);
   const data = asData(notification.data) ?? asData(notification.details);
+  const backendTitle =
+    typeof notification.title === "string" && !isKeyLikeText(notification.title)
+      ? cleanDisplayText(normalizeLegacyNotificationMessage(notification.title))
+      : "";
+  const backendMessage =
+    typeof notification.message === "string" && !isKeyLikeText(notification.message)
+      ? cleanDisplayText(normalizeLegacyNotificationMessage(notification.message))
+      : "";
 
   const structured = data ? renderStructuredNotification(type, role, data) : null;
   if (structured) {
     return {
-      title: cleanDisplayText(structured.title),
-      message: cleanDisplayText(normalizeLegacyNotificationMessage(structured.message)),
+      title: backendTitle || cleanDisplayText(structured.title),
+      message: backendMessage || cleanDisplayText(normalizeLegacyNotificationMessage(structured.message)),
     };
   }
 
   const fallbackTitle =
-    notification.title || notification.titleKey || notification.templateKey || "Thông báo";
-  const fallbackMessage = notification.message || "";
+    backendTitle ||
+    (!isKeyLikeText(notification.titleKey) ? notification.titleKey : "") ||
+    (!isKeyLikeText(notification.templateKey) ? notification.templateKey : "") ||
+    "Thông báo";
+  const fallbackMessage = backendMessage || "";
 
   return {
     title: cleanDisplayText(normalizeLegacyNotificationMessage(fallbackTitle)),

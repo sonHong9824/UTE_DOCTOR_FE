@@ -39,6 +39,10 @@ export type AppointmentCancelledDto = {
   reason?: string;
   refundAmount?: number;
   shouldRefund?: boolean;
+  actor?: string;
+  reasonCode?: string;
+  assignmentTaskId?: string;
+  deadlineAt?: string | number | null;
   [key: string]: unknown;
 };
 
@@ -96,6 +100,8 @@ export type AssignmentTaskExpiredDto = {
   taskId: string;
   appointmentId?: string;
   deadlineAt: number; // epoch ms
+  actor?: string;
+  reasonCode?: string;
   online?: boolean;
 };
 

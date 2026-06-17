@@ -29,7 +29,7 @@ export const appointmentService = {
   },
 
   // Broad booking: no doctor/slot. Backend creates a PENDING appointment
-  // (assignmentStatus = AWAITING_ASSIGNMENT) plus a receptionist assignment task.
+  // (assignmentStatus = AWAITING_ASSIGNMENT). DICH_VU assignment work opens after deposit success.
   async bookBroad(payload: BroadBookingPayload): Promise<AppointmentBookingResult> {
     return bookBroadAppointment(payload);
   },

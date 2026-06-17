@@ -3,6 +3,10 @@
 import { DatePicker } from "@/components/ui/date-picker";
 import { useAppointmentBooking } from "@/features/appointment/hooks/useAppointmentBooking";
 import { BookingStrategy } from "@/features/appointment/types/appointment.types";
+import {
+  AWAITING_ASSIGNMENT_LABEL,
+  PAID_AWAITING_ASSIGNMENT_LABEL,
+} from "@/features/appointment/utils/appointment-status";
 import { TimeHelper } from "@/lib/time";
 
 interface AppointmentBookingScreenProps {
@@ -59,6 +63,10 @@ export default function AppointmentBookingScreen({ initialStrategy = "NORMAL" }:
   const isPaymentFlowActive = isWaitingForPayment || bookingLifecycleState === "PAYMENT_RETRY";
   const isFormDisabled = loading || isPaymentFlowActive;
   const isAwaitingAssignment = bookingLifecycleState === "AWAITING_ASSIGNMENT";
+  const awaitingAssignmentLabel =
+    isAwaitingAssignment && formData.paymentCategory === "DICH_VU"
+      ? PAID_AWAITING_ASSIGNMENT_LABEL
+      : AWAITING_ASSIGNMENT_LABEL;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
@@ -316,7 +324,7 @@ export default function AppointmentBookingScreen({ initialStrategy = "NORMAL" }:
             {/* Broad booking submitted / deposit paid → waiting for receptionist assignment. */}
             {isAwaitingAssignment && (
               <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-5 text-emerald-900">
-                <h3 className="text-lg font-semibold">Đang chờ lễ tân phân công bác sĩ</h3>
+                <h3 className="text-lg font-semibold">{awaitingAssignmentLabel}</h3>
                 <p className="mt-1 text-sm text-emerald-800">
                   Yêu cầu của bạn đã được tạo. Lễ tân sẽ phân công bác sĩ và khung giờ khám; bạn sẽ nhận được thông báo khi hoàn tất.
                 </p>

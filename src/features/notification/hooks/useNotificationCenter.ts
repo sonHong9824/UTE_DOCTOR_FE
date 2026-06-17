@@ -4,6 +4,7 @@ import { ResponseCode } from "@/enum/response-code.enum";
 import { AuthIdentity, getCurrentAuthIdentity } from "@/features/auth/utils/auth-identity";
 import { notificationService } from "@/features/notification/services/notification.service";
 import { NotificationFilter } from "@/features/notification/types/notification-center.types";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/realtimeEvents";
 import { Notification } from "@/types/notification.dto";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -155,6 +156,21 @@ export const useNotificationCenter = (pageSize = DEFAULT_PAGE_SIZE) => {
       }
     }
   }, [pageSize, resetState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleNotificationsChanged = () => {
+      void refresh();
+    };
+
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, handleNotificationsChanged);
+    };
+  }, [refresh]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore) {

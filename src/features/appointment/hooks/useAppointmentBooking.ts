@@ -521,7 +521,7 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
     pendingIsBroadRef.current = bookingStrategy === "BROAD";
 
     // ── Broad booking: no doctor/slot/date. Backend creates a PENDING appointment with
-    // assignmentStatus=AWAITING_ASSIGNMENT and a receptionist assignment task. ──
+    // assignmentStatus=AWAITING_ASSIGNMENT; DICH_VU assignment work opens after deposit success. ──
     if (bookingStrategy === "BROAD") {
       const normalizedPaymentCategory: AppointmentBookingFormValues["paymentCategory"] =
         formData.paymentCategory === "BHYT" ? "BHYT" : "DICH_VU";

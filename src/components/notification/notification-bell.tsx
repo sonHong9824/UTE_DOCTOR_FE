@@ -13,9 +13,11 @@ import {
 } from "@/features/auth/utils/auth-identity";
 import { renderNotification } from "@/lib/notification/renderNotification";
 import {
+  APPOINTMENT_CANCELLED_EVENT,
   APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
   ASSIGNMENT_TASKS_CHANGED_EVENT,
   emitAppRealtimeEvent,
+  NOTIFICATIONS_CHANGED_EVENT,
 } from "@/lib/realtimeEvents";
 import { cn } from "@/lib/utils";
 import { createNotificationSocket } from "@/services/socket/socket-client";
@@ -63,7 +65,7 @@ const handlers: NotificationHandlerMap = {
     console.log("Appointment success", data);
   },
   APPOINTMENT_CANCELLED: (data) => {
-    console.log("Appointment cancelled", data);
+    emitAppRealtimeEvent(APPOINTMENT_CANCELLED_EVENT, data);
   },
   APPOINTMENT_RESCHEDULED: (data) => {
     console.log("Appointment rescheduled", data);
@@ -378,6 +380,7 @@ export default function NotificationBell({
         return;
       }
 
+      emitAppRealtimeEvent(NOTIFICATIONS_CHANGED_EVENT, typedPayload);
       handleNotification(typedPayload);
       await refreshBell();
     };

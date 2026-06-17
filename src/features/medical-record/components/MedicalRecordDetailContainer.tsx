@@ -11,8 +11,15 @@ import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AppointmentStatus from "@/enum/appointment-status.enum";
 import AppointmentsList from "@/features/appointment/components/AppointmentsList";
+import {
+  getCombinedAppointmentStatusClass,
+  getCombinedAppointmentStatusLabel,
+} from "@/features/appointment/utils/appointment-status";
 import { useMedicalRecordDetailPdf } from "@/features/medical-record/hooks/useMedicalRecordDetailPdf";
-import { APPOINTMENT_DOCTOR_ASSIGNED_EVENT } from "@/lib/realtimeEvents";
+import {
+  APPOINTMENT_CANCELLED_EVENT,
+  APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+} from "@/lib/realtimeEvents";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useRouter } from "next/navigation";
@@ -550,19 +557,22 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
     }
   };
 
-  // Patient broad booking: a receptionist may assign a doctor/slot after the booking was created.
-  // The patient is notified via APPOINTMENT_DOCTOR_ASSIGNED — refresh the list so the assigned
-  // doctor/time shows up. Realtime is best-effort; a manual refresh / re-open also re-fetches.
+  // Patient broad booking realtime: assignment completion and assignment-timeout cancellation
+  // arrive through the shared notification bell, then this screen refreshes its source-of-truth list.
   const loadAppointmentsRef = useRef(loadAppointments);
   loadAppointmentsRef.current = loadAppointments;
   const currentPageRef = useRef(currentPage);
   currentPageRef.current = currentPage;
   useEffect(() => {
-    const handleDoctorAssigned = () => {
+    const handleAppointmentStateChanged = () => {
       void loadAppointmentsRef.current(currentPageRef.current);
     };
-    window.addEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleDoctorAssigned);
-    return () => window.removeEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleDoctorAssigned);
+    window.addEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
+    window.addEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+    return () => {
+      window.removeEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
+      window.removeEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+    };
   }, []);
 
 
@@ -985,7 +995,9 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
             </div>
 
             <div className="flex items-center gap-3">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>{apptData?.appointmentStatus ?? 'UNKNOWN'}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>
+                {getCombinedAppointmentStatusLabel(apptData) ?? apptData?.appointmentStatus ?? 'UNKNOWN'}
+              </span>
               <div className="flex items-center gap-2">
                 {/* Hide rating button if an existing review is present */}
                   {/* {apptData?.appointmentStatus !== AppointmentStatus.COMPLETED &&
@@ -1011,9 +1023,9 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
             <div className="py-8 text-center">Đang tải...</div>
           ) : apptData ? (
             <>
-            {apptData.assignmentStatus === 'AWAITING_ASSIGNMENT' && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                Đang chờ lễ tân phân công bác sĩ
+            {getCombinedAppointmentStatusLabel(apptData) && (
+              <div className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${getCombinedAppointmentStatusClass(apptData)}`}>
+                {getCombinedAppointmentStatusLabel(apptData)}
               </div>
             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
