@@ -2,14 +2,19 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WalletCoinBreakdownItem } from "@/features/wallet/types/wallet.types";
 import { formatCoin } from "@/utils/money.util";
+import { formatApiDateToLocalDateTime } from "@/utils/time.util";
 import { AlertTriangle, Clock3, ListOrdered } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface CoinBreakdownCardProps {
   breakdown: WalletCoinBreakdownItem[];
 }
 
 const ITEMS_PER_PAGE = 3;
+
+type ExpireFilter = "all" | "expired" | "not_expired";
+type SortField = "default" | "expiresAt" | "createdAt";
+type SortOrder = "asc" | "desc";
 
 const categoryLabel: Record<WalletCoinBreakdownItem["category"], string> = {
   active: "Active",
@@ -23,27 +28,71 @@ const categoryClassName: Record<WalletCoinBreakdownItem["category"], string> = {
   non_expiring: "bg-slate-100 text-slate-700",
 };
 
-const formatExpireDate = (value?: string): string => {
+const formatWalletDateTime = (value: number | null | undefined): string => {
   if (!value) return "Khong gioi han";
 
-  return new Date(value).toLocaleDateString("vi-VN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  const formatted = formatApiDateToLocalDateTime(value, "vi-VN", true);
+  return formatted.includes("--/--/----") ? "Khong gioi han" : formatted;
 };
 
 export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
-  const sortedBreakdown = breakdown;
+  const [expireFilter, setExpireFilter] = useState<ExpireFilter>("all");
+  const [sortField, setSortField] = useState<SortField>("default");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil(sortedBreakdown.length / ITEMS_PER_PAGE));
+  const filteredAndSortedBreakdown = useMemo(() => {
+    const filtered = breakdown.filter((item) => {
+      if (expireFilter === "expired") {
+        return item.category === "expired";
+      }
+
+      if (expireFilter === "not_expired") {
+        return item.category !== "expired";
+      }
+
+      return true;
+    });
+
+    if (sortField === "default") {
+      return filtered;
+    }
+
+    return [...filtered].sort((left, right) => {
+      const leftValue = left[sortField];
+      const rightValue = right[sortField];
+
+      if (leftValue == null && rightValue == null) return 0;
+      if (leftValue == null) return 1;
+      if (rightValue == null) return -1;
+
+      const diff = leftValue - rightValue;
+      if (diff === 0) {
+        return left.transactionId.localeCompare(right.transactionId);
+      }
+
+      return sortOrder === "asc" ? diff : -diff;
+    });
+  }, [breakdown, expireFilter, sortField, sortOrder]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [expireFilter, sortField, sortOrder]);
+
+  const handleResetDefault = () => {
+    setExpireFilter("all");
+    setSortField("default");
+    setSortOrder("asc");
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedBreakdown.length / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const pagedBreakdown = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * ITEMS_PER_PAGE;
-    return sortedBreakdown.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [safeCurrentPage, sortedBreakdown]);
+    return filteredAndSortedBreakdown.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [safeCurrentPage, filteredAndSortedBreakdown]);
 
   return (
     <Card className="border-slate-200">
@@ -54,9 +103,49 @@ export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {sortedBreakdown.length === 0 ? (
+        <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <select
+            value={expireFilter}
+            onChange={(event) => setExpireFilter(event.target.value as ExpireFilter)}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+          >
+            <option value="all">Tất cả lô coin</option>
+            <option value="expired">Đã hết hạn</option>
+            <option value="not_expired">Chưa hết hạn</option>
+          </select>
+
+          <select
+            value={sortField}
+            onChange={(event) => setSortField(event.target.value as SortField)}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+          >
+            <option value="default">Thứ tự mặc định (FEFO)</option>
+            <option value="expiresAt">Sort theo Expires At</option>
+            <option value="createdAt">Sort theo Created At</option>
+          </select>
+
+          <select
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value as SortOrder)}
+            disabled={sortField === "default"}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+          >
+            <option value="asc">Tăng dần</option>
+            <option value="desc">Giảm dần</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={handleResetDefault}
+            className="h-9 rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          >
+            Mặc định
+          </button>
+        </div>
+
+        {filteredAndSortedBreakdown.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            Chua co du lieu lo coin.
+            Khong co du lieu phu hop bo loc.
           </div>
         ) : (
           <div className="space-y-3">
@@ -76,7 +165,7 @@ export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
                   <div className="text-sm font-semibold text-slate-900">Remain: {formatCoin(item.remaining)}</div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-4">
+                <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600 sm:grid-cols-5">
                   <div>
                     <p className="text-slate-500">Amount</p>
                     <p className="font-semibold text-slate-900">{formatCoin(item.amount)}</p>
@@ -89,8 +178,12 @@ export const CoinBreakdownCard = ({ breakdown }: CoinBreakdownCardProps) => {
                     <p className="text-slate-500">Expires At</p>
                     <p className="font-semibold text-slate-900 flex items-center gap-1">
                       <Clock3 className="h-3.5 w-3.5 text-slate-500" />
-                      {formatExpireDate(item.expiresAt)}
+                      {formatWalletDateTime(item.expiresAt)}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500">Created At</p>
+                    <p className="font-semibold text-slate-900">{formatWalletDateTime(item.createdAt)}</p>
                   </div>
                   <div>
                     <p className="text-slate-500">Transaction</p>

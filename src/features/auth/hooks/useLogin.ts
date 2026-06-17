@@ -33,6 +33,8 @@ export const useLogin = () => {
         return;
       }
 
+      // setAuthSession persists the session AND emits `token-refreshed` + `user-logged-in`, so the
+      // shared sockets reconnect as the new user and the notification bell refetches for them.
       setAuthSession({
         email: form.email,
         accessToken: res.data.accessToken,
@@ -44,10 +46,6 @@ export const useLogin = () => {
         profileId: res.data.profileId || "",
       });
 
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("user-logged-in"));
-      }
-
       toast.success("Đăng nhập thành công!");
 
       if (res.data.role === "DOCTOR") {
@@ -56,6 +54,10 @@ export const useLogin = () => {
       }
       if (res.data.role === "ADMIN") {
         router.push("/admin/patients");
+        return;
+      }
+      if (res.data.role === "RECEPTIONIST") {
+        router.push("/receptionist/visits");
         return;
       }
       router.push("/");

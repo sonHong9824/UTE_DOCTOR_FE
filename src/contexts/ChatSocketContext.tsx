@@ -7,7 +7,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 // Bounded queue item with timestamp for expiry
 interface QueueItem {
   event: SocketEventsEnum;
-  data: any;
+  data: unknown;
   timestamp: number;
 }
 
@@ -15,12 +15,20 @@ interface ChatSocketContextValue {
   connected: boolean;
   connecting: boolean;
   queueSize: number;
-  emit: (event: SocketEventsEnum, data: any) => void;
-  emitSafe: (event: SocketEventsEnum, data: any) => Promise<void>;
+  emit: (event: SocketEventsEnum, data: unknown) => void;
+  emitSafe: (event: SocketEventsEnum, data: unknown) => Promise<boolean>;
   on: <T = any>(event: SocketEventsEnum, cb: (payload: T) => void) => void;
-  off: (event: SocketEventsEnum, cb?: (...args: any[]) => void) => void;
+  off: (event: SocketEventsEnum, cb?: (...args: unknown[]) => void) => void;
+  onConnect: (cb: () => void) => void;
+  offConnect: (cb: () => void) => void;
+  isConnected: () => boolean;
+  connect: () => boolean;
   reconnect: () => void;
   disconnect: () => void;
+  joinUser: () => Promise<boolean>;
+  leaveUser: () => Promise<boolean>;
+  joinConversation: (conversationId: string) => Promise<boolean>;
+  leaveConversation: (conversationId: string) => Promise<boolean>;
 }
 
 const ChatSocketContext = createContext<ChatSocketContextValue | null>(null);
@@ -68,35 +76,14 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
       flushQueue();
     };
 
-    const onDisconnect = (reason: any) => {
+    const onDisconnect = (reason: unknown) => {
       console.log('[ChatSocketProvider] Socket disconnected, reason:', reason);
       setConnected(false);
+      setConnecting(false);
     };
 
     s.onConnect(onConnect);
     s.onDisconnect(onDisconnect);
-
-    // React to HTTP token refresh
-    if (typeof window !== 'undefined') {
-      const onTokenRefreshed = () => {
-        console.log('[ChatSocketProvider] token-refreshed → reconnect');
-        s.reconnect();
-      };
-      window.addEventListener('token-refreshed', onTokenRefreshed);
-
-      const onLogout = () => {
-        console.log('[ChatSocketProvider] auth-logout → disconnect & clear queue');
-        queueRef.current = [];
-        s.disconnect();
-      };
-      window.addEventListener('auth-logout', onLogout);
-
-      // Cleanup window listeners on unmount
-      (socketRef as any).currentCleanup = () => {
-        window.removeEventListener('token-refreshed', onTokenRefreshed);
-        window.removeEventListener('auth-logout', onLogout);
-      };
-    }
 
     return s;
   }, [flushQueue]);
@@ -110,13 +97,13 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
     
     if (token) {
       console.log('[ChatSocketProvider] Auto-connecting on mount...');
-      ensureSocket();
+      ensureSocket().connect();
     }
 
     // Listen for login event to connect socket immediately after login
     const onLogin = () => {
       console.log('[ChatSocketProvider] user-logged-in → connect socket');
-      ensureSocket();
+      ensureSocket().connect();
     };
     
     if (typeof window !== 'undefined') {
@@ -132,8 +119,6 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
       
       const s = socketRef.current;
       if (!s) return;
-      const cleanup = (socketRef as any).currentCleanup;
-      if (cleanup) cleanup();
       s.disconnect();
       socketRef.current = null;
       queueRef.current = [];
@@ -142,7 +127,7 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
     };
   }, []); // Empty deps - only run once on mount
 
-  const emit = useCallback((event: SocketEventsEnum, data: any) => {
+  const emit = useCallback((event: SocketEventsEnum, data: unknown) => {
     const s = ensureSocket();
     if (s.isConnected()) {
       s.emit(event, data);
@@ -158,34 +143,34 @@ export function ChatSocketProvider({ children }: { children: React.ReactNode }) 
     console.log('[ChatSocketProvider] Enqueued emit (offline)', event, `queue: ${queueRef.current.length}/${MAX_QUEUE}`);
   }, [ensureSocket]);
 
-  const emitSafe = useCallback(async (event: SocketEventsEnum, data: any) => {
+  const emitSafe = useCallback(async (event: SocketEventsEnum, data: unknown) => {
     const s = ensureSocket();
-    if (s.isConnected()) {
-      s.emit(event, data);
-      return;
-    }
-    // wait until connect then emit
-    await new Promise<void>((resolve) => {
-      s.onConnect(() => resolve());
-    });
-    s.emit(event, data);
+    return await s.emitSafe(event, data);
   }, [ensureSocket]);
 
   const value: ChatSocketContextValue = useMemo(() => ({
     connected,
     connecting,
-    queueSize: queueRef.current.length,
-    emit,
-    emitSafe,
-    on: (event, cb) => ensureSocket().on(event, cb),
-    off: (event, cb) => ensureSocket().off(event, cb),
-    reconnect: () => ensureSocket().reconnect(),
+      queueSize: queueRef.current.length,
+      emit,
+      emitSafe,
+      on: (event, cb) => ensureSocket().on(event, cb),
+      off: (event, cb) => ensureSocket().off(event, cb),
+      onConnect: (cb) => ensureSocket().onConnect(cb),
+      offConnect: (cb) => ensureSocket().offConnect(cb),
+      isConnected: () => ensureSocket().isConnected(),
+      connect: () => ensureSocket().connect(),
+      reconnect: () => ensureSocket().reconnect(),
     disconnect: () => {
       const s = socketRef.current;
       if (!s) return;
       s.disconnect();
       setConnected(false);
     },
+      joinUser: () => ensureSocket().joinUser(),
+      leaveUser: () => ensureSocket().leaveUser(),
+      joinConversation: (conversationId) => ensureSocket().joinConversation(conversationId),
+      leaveConversation: (conversationId) => ensureSocket().leaveConversation(conversationId),
   }), [connected, connecting, emit, emitSafe, ensureSocket]);
 
   return (

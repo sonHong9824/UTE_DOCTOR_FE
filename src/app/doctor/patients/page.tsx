@@ -1,5 +1,5 @@
 "use client";
-import { completeAppointment, getTodayAppointments } from "@/apis/appointment/appointment.api";
+import { completeVisit, getTodayVisits, startVisit } from "@/apis/doctor/visits.api";
 import { getMedicines, Medicine } from "@/apis/medicine/medicine.api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
-import { cn } from "@/lib/utils";
+import { VisitDto } from "@/types/visit.dto";
 import { formatApiDateToLocalTime, parseApiDateTimeToLocal } from "@/utils/time.util";
-import { Calendar, CheckCircle2, FileText, Plus, UserRound, Users } from "lucide-react";
+import { Calendar, CheckCircle2, Plus, UserRound, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -29,15 +29,14 @@ type Patient = {
 
 type PendingRow = {
   rowId: string;
-  time?: string;
-  patientId: string;
+  visitId: string;
   patientName: string;
   patientPhone?: string;
   service?: string;
   reason?: string;
-  appt?: any | null;
-  source: "appointment" | "patient";
-  patientObj?: Patient;
+  visit: VisitDto;
+  status: 'CHECKED_IN' | 'IN_PROGRESS';
+  scheduledAt: number;
 };
 
 // Helper to format a Date to local YYYY-MM-DD (avoid UTC timezone offset)
@@ -95,7 +94,6 @@ export default function PatientsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [activeTab, setActiveTab] = useState<"pending" | "done">("pending");
   const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [diagnosis, setDiagnosis] = useState("");
   const [treatment, setTreatment] = useState("");
   const [notes, setNotes] = useState("");
@@ -108,138 +106,59 @@ export default function PatientsPage() {
   const [drugNoteInput, setDrugNoteInput] = useState<string>("");
   const [medList, setMedList] = useState<Array<{ medicineId?: string; name: string; qty: number; note?: string }>>([]);
   const [medCatalog, setMedCatalog] = useState<Medicine[]>([]);
-  const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
+  const [startingVisitId, setStartingVisitId] = useState<string | null>(null);
+  const [completingVisitId, setCompletingVisitId] = useState<string | null>(null);
+  const [visits, setVisits] = useState<VisitDto[]>([]);
   const [apptLoading, setApptLoading] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedAppt, setSelectedAppt] = useState<any | null>(null);
+  const [selectedVisit, setSelectedVisit] = useState<VisitDto | null>(null);
   const [medicalOpen, setMedicalOpen] = useState(false);
   const [selectedMedicalRecord, setSelectedMedicalRecord] = useState<any | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
 
   const filtered = useMemo(() => {
-    // If viewing pending patients, derive them from today's appointments
-    if (activeTab === "pending") {
-      const pendingAppts = (todayAppointments || []).filter((a) => a.appointmentStatus !== "COMPLETED");
+    // Done tab: filter patients with done status
+    if (activeTab === "done") {
+      const base = patients
+        .filter((p) => p.status === "done")
+        .filter((p) => [p.id, p.name, p.condition].some((v) => v.toLowerCase().includes(query.toLowerCase())));
 
-      // map appointment -> minimal Patient
-      const mapped: Patient[] = pendingAppts
-        .filter((a) => a.patient)
-        .map((a) => {
-          const p = a.patient;
-          return {
-            id: p._id || p.id || p.profileId || String(a._id || Math.random()),
-            name: p.name || "Bệnh nhân",
-            age: p.age || 0,
-            gender: p.gender || "Nam",
-            lastVisit: formatLastVisitDate(a?.date),
-            condition: a?.reasonForAppointment || a?.serviceType || "",
-            status: "pending",
-            avatar: p.profileId?.avatarUrl || undefined,
-          } as Patient;
-        });
-
-      // deduplicate by id
-      const map = new Map<string, Patient>();
-      for (const p of mapped) map.set(p.id, p);
-
-      // apply search filter
-      const filteredMapped = Array.from(map.values()).filter((p) =>
-        [p.id, p.name, p.condition].some((v) => v.toLowerCase().includes(query.toLowerCase()))
-      );
-
-      // sort
-      const sorted = filteredMapped.sort((a, b) => {
+      return [...base].sort((a, b) => {
         const va = a[sortBy];
         const vb = b[sortBy];
         if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
         return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
       });
-
-      return sorted;
     }
 
-    // otherwise (done tab) use patients state
-    const base = patients
-      .filter((p) => p.status === activeTab)
-      .filter((p) => [p.id, p.name, p.condition].some((v) => v.toLowerCase().includes(query.toLowerCase())));
+    // Pending tab: render comes from pendingRows, not filtered
+    return [];
+  }, [patients, activeTab, query, sortBy, sortDir]);
 
-    // Sort by selected field
-    return [...base].sort((a, b) => {
-      const va = a[sortBy];
-      const vb = b[sortBy];
-      if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
-      return sortDir === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
-    });
-  }, [patients, activeTab, query, sortBy, sortDir, todayAppointments]);
+  // count of pending visits (used in tab label)
+  const pendingCount = visits.length;
 
-  // count of pending appointments (used in tab label)
-  const pendingCount = (todayAppointments || []).filter((a) => a.appointmentStatus !== "COMPLETED").length;
-
-  // build combined pending rows: appointment rows first, then patient-only pending entries
+  // build pending rows directly from visits
   const pendingRows = useMemo<PendingRow[]>(() => {
-    const apptRows: PendingRow[] = (todayAppointments || [])
-      .filter((a) => a.appointmentStatus !== "COMPLETED")
-      .filter((a) => a.patient)
-      .map((a) => {
-        const prof = a.patient?.profileId;
-        const med = a.patient?.medicalRecord || prof?.medicalRecord || undefined;
-        return ({
-          rowId: a._id,
-          time: formatTimeRange(a.startTime, a.endTime),
-          patientId: a.patient?._id || a.patient?.id || (prof && prof._id) || `APPT_${a._id}`,
-          patientName: prof?.name || a.patient?.name || "Bệnh nhân",
-          patientPhone: prof?.phone || a.patient?.phone,
-          service: a.serviceType,
-          reason: a.reasonForAppointment,
-          appt: a,
-          source: "appointment",
-          patientObj: {
-            id: a.patient?._id || a.patient?.id || (prof && prof._id) || `APPT_${a._id}`,
-            name: prof?.name || a.patient?.name || "Bệnh nhân",
-            age: a.patient?.age || 0,
-            gender: a.patient?.gender || "Nam",
-            lastVisit: formatLastVisitDate(a?.date),
-            condition: a?.reasonForAppointment || a?.serviceType || "",
-            status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-            avatar: a.patient?.profileId?.avatarUrl || undefined,
-          },
-        } as PendingRow);
-      });
+    const rows: PendingRow[] = (visits || []).map((v) => ({
+      rowId: v.visitId,
+      visitId: v.visitId,
+      patientName: v.patientName || "Bệnh nhân",
+      patientPhone: undefined, // visits API does not provide phone
+      service: undefined, // visits API does not provide service type
+      reason: undefined, // visits API does not provide reason
+      visit: v,
+      status: v.status as 'CHECKED_IN' | 'IN_PROGRESS',
+      scheduledAt: v.scheduledAt,
+    }));
 
-    const apptIds = new Set(apptRows.map((r) => r.patientId));
-
-    const patientOnly: PendingRow[] = (patients || [])
-      .filter((p) => p.status === "pending" && !apptIds.has(p.id))
-      .map((p) => ({
-        rowId: p.id,
-        patientId: p.id,
-        patientName: p.name,
-        patientPhone: undefined,
-        service: undefined,
-        reason: undefined,
-        appt: null,
-        source: "patient",
-        patientObj: p,
-      }));
-
-    // combine and then apply search & sort similar to previous behavior
-    const combined = [...apptRows, ...patientOnly];
-
-    const searched = combined.filter((r) =>
-      [r.patientId, r.patientName, r.reason, r.service]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(query.toLowerCase()))
+    // apply search filter
+    const searched = rows.filter((r) =>
+      [r.visitId, r.patientName].some((v) => String(v).toLowerCase().includes(query.toLowerCase()))
     );
 
-    const sorted = searched.sort((a, b) => {
-      const va = (a as any)[sortBy];
-      const vb = (b as any)[sortBy];
-      if (typeof va === "number" && typeof vb === "number") return sortDir === "asc" ? va - vb : vb - va;
-      return sortDir === "asc" ? String(va || "").localeCompare(String(vb || "")) : String(vb || "").localeCompare(String(va || ""));
-    });
-
-    return sorted;
-  }, [todayAppointments, patients, query, sortBy, sortDir]);
+    return searched;
+  }, [visits, query]);
 
   const toggleSort = (key: keyof Patient) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -249,22 +168,39 @@ export default function PatientsPage() {
     }
   };
 
-  const openCompleteForm = (id: string) => {
-    setSelectedId(id);
+  const openCompleteForm = () => {
     setDiagnosis("");
     setTreatment("");
     setNotes("");
     setMedications("");
+    setMedList([]);
     setOpen(true);
   };
 
-  const openApptDetail = (appt: any) => {
-    setSelectedAppt(appt);
+  const openVisitDetail = (visit: VisitDto) => {
+    setSelectedVisit(visit);
     setDetailOpen(true);
   };
 
-  const markAppointmentComplete = (apptId: string) => {
-    setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
+  const markVisitComplete = (visitId: string) => {
+    setVisits((prev) => prev.filter((v) => v.visitId !== visitId));
+  };
+
+  const handleStartVisit = async (visitId: string) => {
+    if (!visitId) return;
+    try {
+      setStartingVisitId(visitId);
+      await startVisit(visitId);
+      // Update visit status to IN_PROGRESS
+      setVisits((prev) => prev.map((v) => (v.visitId === visitId ? { ...v, status: "IN_PROGRESS" as const } : v)));
+      toast.success('Bắt đầu khám');
+    } catch (e) {
+      console.error('Failed to start visit', e);
+      const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi bắt đầu khám';
+      toast.error(msg);
+    } finally {
+      setStartingVisitId(null);
+    }
   };
 
   useEffect(() => {
@@ -288,42 +224,19 @@ export default function PatientsPage() {
     const fetch = async () => {
       try {
         setApptLoading(true);
-        const res = await getTodayAppointments();
+        const res = await getTodayVisits();
         const items = res?.data || [];
-        if (String(res?.code) === "SUCCESS") setTodayAppointments(items);
-        else setTodayAppointments([]);
 
-        // derive minimal patient list from appointments (remove duplicates)
-        try {
-          const extracted = (items || [])
-            .filter((a: any) => a.patient)
-            .map((a: any, idx: number) => {
-              const p = a.patient;
-              return {
-                id: p._id || p.id || p.profileId || `APPT_${idx}`,
-                name: p.name || "Bệnh nhân",
-                age: p.age || 0,
-                gender: p.gender || "Nam",
-                lastVisit: formatLastVisitDate(a?.date),
-                condition: a?.reasonForAppointment || a?.serviceType || "",
-                status: a?.appointmentStatus === "COMPLETED" ? "done" : "pending",
-                avatar: p.profileId?.avatarUrl || undefined,
-              } as Patient;
-            });
+        // Only show CHECKED_IN or IN_PROGRESS per requirements
+        const filtered = (items || []).filter((v: any) => v.status === "CHECKED_IN" || v.status === "IN_PROGRESS") as VisitDto[];
 
-          // merge unique by id (preserve existing patients stored in state)
-          const map = new Map<string, Patient>();
-          for (const p of extracted) map.set(p.id, p);
-          setPatients((prev) => {
-            for (const p of prev) map.set(p.id, p);
-            return Array.from(map.values());
-          });
-        } catch (err) {
-          // ignore mapping errors
-        }
+        console.log('visits', filtered);
+
+        if (String(res?.code) === "SUCCESS") setVisits(filtered);
+        else setVisits([]);
       } catch (err) {
-        console.error("Error fetching today appointments", err);
-        setTodayAppointments([]);
+        console.error("Error fetching today visits", err);
+        setVisits([]);
       } finally {
         setApptLoading(false);
       }
@@ -332,30 +245,23 @@ export default function PatientsPage() {
     fetch();
   }, []);
 
-  const submitCompletion = () => {
-    if (!selectedId) return;
-  const today = formatDateLocal(new Date());
-    const exists = patients.find((p) => p.id === selectedId);
-    if (exists) {
-      setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: today } : p)));
-    } else {
-      // create a minimal patient entry from selectedAppt if available
-      const appt = selectedAppt || todayAppointments.find(a => a.patient && (a.patient._id === selectedId || a.patient.id === selectedId));
-      const newPatient: Patient = {
-        id: selectedId,
-        name: appt?.patient?.name || "Bệnh nhân",
-        age: 0,
-        gender: "Nam",
-        lastVisit: today,
-        condition: appt?.reasonForAppointment || appt?.serviceType || "",
-        status: "done",
-        avatar: "/assets/bs/bs-Minh.jpg",
-      };
-      setPatients((prev) => [newPatient, ...prev]);
-    }
-
-    // mark appointment completed if present
-    setTodayAppointments((prev) => prev.map((a) => (a.patient && (a.patient._id === selectedId || a.patient.id === selectedId)) ? { ...a, appointmentStatus: "COMPLETED" } : a));
+  const handleVisitCompleted = () => {
+    if (!selectedVisit) return;
+    const today = formatDateLocal(new Date());
+    // Mark visit as done in patients list
+    const newPatient: Patient = {
+      id: selectedVisit.visitId,
+      name: selectedVisit.patientName || "Bệnh nhân",
+      age: 0,
+      gender: "Nam",
+      lastVisit: today,
+      condition: "",
+      status: "done",
+      avatar: undefined,
+    };
+    setPatients((prev) => [newPatient, ...prev]);
+    // Remove visit from pending list
+    markVisitComplete(selectedVisit.visitId);
     setOpen(false);
   };
 
@@ -483,37 +389,38 @@ export default function PatientsPage() {
                   <tbody>
                     {pendingRows.map((r) => (
                       <tr key={r.rowId} className="border-b hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="py-3 px-4 text-sm">{r.time ?? '-'}</td>
+                        <td className="py-3 px-4 text-sm">{new Date(r.scheduledAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
-                              <AvatarImage src={r.patientObj?.avatar} alt={r.patientName} />
                               <AvatarFallback>{r.patientName?.charAt(0)}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-medium">{r.patientName} {((r.appt && r.appt.patient?.medicalRecord?.bloodType) || (r.patientObj && (r.patientObj as any).bloodType)) && (
-                                <span className="ml-2 inline-block px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-800 text-muted-foreground">{r.appt?.patient?.medicalRecord?.bloodType ?? (r.patientObj as any).bloodType}</span>
-                              )}</div>
+                              <div className="font-medium">{r.patientName}</div>
                               <div className="text-xs text-muted-foreground">{r.patientPhone ?? ''}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-sm">{r.service ?? (r.patientObj?.condition) ?? '-'}</td>
+                        <td className="py-3 px-4 text-sm">{r.service ?? '-'}</td>
                         <td className="py-3 px-4 text-sm text-muted-foreground">{r.reason ?? '-'}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{r.appt?.consultationFee ? Number(r.appt.consultationFee).toLocaleString() + ' VNĐ' : '-'}</td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">-</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button size="sm" variant="outline" onClick={() => { if (r.appt) { openApptDetail(r.appt); } }}>
+                            <Button size="sm" variant="outline" onClick={() => openVisitDetail(r.visit)}>
                               Xem chi tiết
                             </Button>
-                            {/* <Button size="sm" variant="outline" onClick={() => { setSelectedMedicalRecord(r.appt?.patient?.medicalRecord || (r.patientObj as any)?.medicalRecord || r.patientObj || {}); setMedicalOpen(true); }}>
-                              Xem bệnh án
-                            </Button> */}
-                            <Button size="sm" onClick={() => { openCompleteForm(r.patientId); if (r.appt) setSelectedAppt(r.appt); }} className="bg-emerald-600 hover:bg-emerald-700 text-white">Hoàn thành</Button>
+                            {r.status === 'CHECKED_IN' && (
+                              <Button size="sm" onClick={() => handleStartVisit(r.visitId)} disabled={startingVisitId === r.visitId}>
+                                {startingVisitId === r.visitId ? 'Đang xử lý...' : 'Bắt đầu'}
+                              </Button>
+                            )}
+                            {r.status === 'IN_PROGRESS' && (
+                              <Button size="sm" onClick={() => { setSelectedVisit(r.visit); openCompleteForm(); }} className="bg-emerald-600 hover:bg-emerald-700 text-white">Hoàn thành</Button>
+                            )}
                           </div>
-                        </td>
+                        </td>\
                       </tr>
-                    ))}
+                    ))}     
                   </tbody>
                 </table>
               </div>
@@ -703,12 +610,8 @@ export default function PatientsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={async () => { console.log('Med list', medList);
-                // Client-side validation
-                if (!diagnosis || diagnosis.trim() === "") {
-                  toast.error("Vui lòng nhập chẩn đoán chính");
-                  return;
-                }
+            <Button disabled={completingVisitId === (selectedVisit?.visitId)} onClick={async () => { console.log('Med list', medList);
+                // diagnosis is optional per Visit contract
 
                 // Ensure each prescription has a non-empty note string (server validation requires this)
                 for (let i = 0; i < medList.length; i++) {
@@ -727,47 +630,45 @@ export default function PatientsPage() {
                   }
                 }
 
-                // Build prescriptions for API (omit empty medicineId)
+                // Build prescriptions for API
                 const prescriptions = medList.map((m) => {
-                  const base: any = { name: m.name, quantity: Number(m.qty || 1), note: String(m.note || '') };
+                  const base: any = { quantity: Number(m.qty || 1), note: String(m.note || '') };
                   if (m.medicineId) base.medicineId = m.medicineId;
+                  // prefer sending name when id not available
+                  base.name = m.name || null;
                   return base;
                 });
 
-                // appointmentId: try selectedAppt first
-                const apptId = selectedAppt?._id || (todayAppointments.find(a => a.patient && (a.patient._id === selectedId || a.patient.id === selectedId))?._id);
-                if (apptId) {
+                const visitId = selectedVisit?.visitId;
+                if (visitId) {
                   try {
-                    const payload = { appointmentId: apptId, diagnosis, note: notes, prescriptions };
-                    console.log('=== Completing appointment ===');
+                    setCompletingVisitId(visitId);
+                    const payload = { diagnosis: diagnosis || undefined, note: notes || undefined, prescriptions };
+                    console.log('=== Completing visit ===');
                     console.log('Payload:', JSON.stringify(payload, null, 2));
-                    console.log('Prescriptions count:', prescriptions.length);
-                    console.log('Med list:', medList);
-                    
-                    const response = await completeAppointment(payload);
-                    console.log('Complete appointment response:', response);
-                    
+
+                    const response = await completeVisit(visitId, payload);
+                    console.log('Complete visit response:', response);
+
                     toast.success('Hoàn thành khám bệnh thành công');
                     setOpen(false);
                     setMedList([]);
                     setDiagnosis('');
                     setNotes('');
-                    
-                    // local updates
-                    const todayStr = formatDateLocal(new Date());
-                    setPatients((prev) => prev.map((p) => (p.id === selectedId ? { ...p, status: "done", lastVisit: todayStr } : p)));
-                    setTodayAppointments((prev) => prev.map((a) => (a._id === apptId ? { ...a, appointmentStatus: "COMPLETED" } : a)));
+
+                    handleVisitCompleted();
                   } catch (e) {
-                    console.error('Failed completing appointment', e);
+                    console.error('Failed completing visit', e);
                     console.error('Error details:', (e as any)?.response?.data);
-                    const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi hoàn thành lịch hẹn';
+                    const msg = (e as any)?.response?.data?.message || (e as any)?.message || 'Lỗi khi hoàn thành cuộc khám';
                     toast.error(msg);
+                  } finally {
+                    setCompletingVisitId(null);
                   }
                 } else {
-                  // fallback: just update local state
-                  submitCompletion();
+                  toast.error('Không tìm thấy cuộc khám');
                 }
-              }} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
+                }} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800">
               <CheckCircle2 className="w-4 h-4 mr-2" />
               Lưu và hoàn thành
             </Button>
@@ -794,134 +695,45 @@ export default function PatientsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Appointment detail dialog (modernized) */}
+      {/* Visit detail dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">Chi tiết lịch hẹn</DialogTitle>
+            <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">Chi tiết cuộc khám</DialogTitle>
           </DialogHeader>
-          {selectedAppt ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left: Patient card */}
-              <Card className="col-span-1 shadow-sm border">
+          {selectedVisit ? (
+            <div className="space-y-4">
+              <Card className="shadow-sm border">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={selectedAppt.patient?.profileId?.avatarUrl} alt={selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name} />
-                      <AvatarFallback>{((selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name) || "B").charAt(0)}</AvatarFallback>
-                    </Avatar>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedAppt.patient?.profileId?.name ?? selectedAppt.patient?.name ?? '-'}</h3>
-                      <div className="text-sm text-muted-foreground">Mã BN: <span className="font-medium">{formatPatientId(selectedAppt.patient?._id ?? selectedAppt.patient?.id)}</span></div>
+                      <p className="text-sm text-muted-foreground">Bệnh nhân</p>
+                      <p className="text-lg font-semibold">{selectedVisit.patientName || 'Bệnh nhân'}</p>
                     </div>
-                  </div>
-
-                  <div className="mt-4 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Số điện thoại</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.phone ?? selectedAppt.patient?.phone ?? '-'}</span>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Bác sĩ</p>
+                      <p className="text-lg font-semibold">{selectedVisit.doctorName || '-'}</p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Email</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.email ?? '-'}</span>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Thời gian khám</p>
+                      <p className="text-lg font-semibold">{new Date(selectedVisit.scheduledAt).toLocaleString('vi-VN')}</p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Địa chỉ</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.address ?? '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Giới tính</span>
-                      <span className="font-medium">{selectedAppt.patient?.profileId?.gender ?? '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Ngày sinh</span>
-                      <span className="font-medium">{formatDateDisplay(selectedAppt.patient?.profileId?.dob)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Chiều cao</span>
-                      <span className="font-medium">{selectedAppt.patient?.height ? `${selectedAppt.patient.height} cm` : '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Cân nặng</span>
-                      <span className="font-medium">{selectedAppt.patient?.weight ? `${selectedAppt.patient.weight} kg` : '-'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Nhóm máu</span>
-                      <span className="font-medium">{selectedAppt.patient?.bloodType ?? selectedAppt.patient?.profileId?.bloodType ?? '-'}</span>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Trạng thái</p>
+                      <Badge className={selectedVisit.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}>
+                        {selectedVisit.status}
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Right: Appointment summary and actions */}
-              <div className="col-span-2 space-y-4">
-                <Card className="shadow-sm border">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="text-sm text-muted-foreground">Lịch hẹn</div>
-                        <h4 className="text-lg font-semibold mt-1 text-gray-900 dark:text-white">{selectedAppt.label ?? selectedAppt.serviceType ?? 'Lịch hẹn khám'}</h4>
-                        <div className="text-sm text-muted-foreground mt-1">{formatDateDisplay(selectedAppt.date)} • {formatTimeValue(selectedAppt.startTime)} - {formatTimeValue(selectedAppt.endTime)}</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge className={cn('px-3 py-1 rounded-full text-sm', selectedAppt.appointmentStatus === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
-                          {selectedAppt.appointmentStatus ?? '-'}
-                        </Badge>
-                        <div className="text-right">
-                          <div className="text-sm text-muted-foreground">Phí khám</div>
-                          <div className="text-lg font-semibold">{selectedAppt.consultationFee ? Number(selectedAppt.consultationFee).toLocaleString() + ' VNĐ' : '-'}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">Ghi chú</p>
-                      <p className="text-sm text-muted-foreground mt-2">{selectedAppt.reasonForAppointment ?? '-'}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" onClick={() => { setSelectedMedicalRecord(selectedAppt.patient?.medicalRecord || selectedAppt.patient || {}); setMedicalOpen(true); }}>
-                    <FileText className="w-4 h-4 mr-2" /> Xem bệnh án
-                  </Button>
-                  {selectedAppt.appointmentStatus !== 'COMPLETED' && (
-                    <Button onClick={() => { openCompleteForm(selectedAppt.patient?._id || selectedAppt.patient?.id); setDetailOpen(false); }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Hoàn thành
-                    </Button>
-                  )}
-                  {/* <Button variant="ghost" onClick={() => setDetailOpen(false)}>Đóng</Button> */}
-                </div>
-
-                {/* Small medical-record preview */}
-                <Card className="shadow-none border-t">
-                  <CardContent className="p-3">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="text-sm">
-                        <div className="text-muted-foreground text-xs">Tiền sử bệnh</div>
-                        <div className="font-medium">{selectedAppt.patient?.medicalRecord?.medicalHistory?.length ?? 0}</div>
-                      </div>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground text-xs">Dị ứng thuốc</div>
-                        <div className="font-medium">{selectedAppt.patient?.medicalRecord?.drugAllergies?.length ?? 0}</div>
-                      </div>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground text-xs">Dị ứng thức ăn</div>
-                        <div className="font-medium">{selectedAppt.patient?.medicalRecord?.foodAllergies?.length ?? 0}</div>
-                      </div>
-                      <div className="text-sm">
-                        <div className="text-muted-foreground text-xs">Ghi nhận huyết áp</div>
-                        <div className="font-medium">{selectedAppt.patient?.medicalRecord?.bloodPressure?.length ?? 0}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           ) : (
             <div>Không có dữ liệu</div>
           )}
-          <DialogFooter className="gap-3" />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>Đóng</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

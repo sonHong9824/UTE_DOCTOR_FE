@@ -1,11 +1,14 @@
 import {
+    BroadBookingPayload,
     bookAppointment,
+    bookBroadAppointment,
     cancelAppointment,
     getAppointmentById,
+    getAppointmentDepositStatus,
     getDoctorBySpecialty,
     getSpecialties,
     getTimeSlotsByDoctorAndDate,
-    rescheduleAppointment,
+    rescheduleAppointmentById,
 } from "@/apis/appointment/appointment.api";
 import { getTimeslot } from "@/apis/timeslot/timeslot.api";
 import { getWalletBalance } from "@/apis/wallet/wallet.api";
@@ -25,17 +28,31 @@ export const appointmentService = {
     return bookAppointment(payload);
   },
 
+  // Broad booking: no doctor/slot. Backend creates a PENDING appointment
+  // (assignmentStatus = AWAITING_ASSIGNMENT). DICH_VU assignment work opens after deposit success.
+  async bookBroad(payload: BroadBookingPayload): Promise<AppointmentBookingResult> {
+    return bookBroadAppointment(payload);
+  },
+
   async getAppointmentById(appointmentId: string): Promise<AppointmentDetail> {
     const res = await getAppointmentById(appointmentId);
     return res?.data as AppointmentDetail;
   },
 
-  async cancel(appointmentId: string) {
-    return cancelAppointment(appointmentId);
+  async getDepositStatus(appointmentId: string) {
+    return getAppointmentDepositStatus(appointmentId);
+  },
+
+  async cancel(appointmentId: string, reason?: string) {
+    return cancelAppointment(appointmentId, reason);
   },
 
   async reschedule(payload: ReschedulePayload) {
-    return rescheduleAppointment(payload);
+    return rescheduleAppointmentById(payload.appointmentId, {
+      appointmentDate: payload.newDate,
+      timeSlotId: payload.newTimeSlotId,
+      reason: payload.reason,
+    });
   },
 
   async getSpecialties() {

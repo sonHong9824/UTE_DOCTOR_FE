@@ -12,6 +12,7 @@ import { getProfileById, getDoctorById, ProfileResponseDto } from "@/apis/doctor
 import axiosClient from "@/lib/axiosClient";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { clearAuthSession } from "@/features/auth/utils/auth-storage";
 
 const menuItems = [
   // { name: "Tổng quan", icon: LayoutDashboard, path: "/doctor", },
@@ -66,9 +67,8 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
   const handleLogout = () => {
     if (typeof window === 'undefined') return;
-    // keys to clear
-    const keys = ['accessToken', 'refreshToken', 'email', 'id', 'accountId', 'userId', 'role', 'name', 'doctorId', 'patientId'];
-    keys.forEach((k) => localStorage.removeItem(k));
+    // Clears the session AND emits `auth-logout` so the shared sockets disconnect.
+    clearAuthSession();
 
     // clear axios default auth header
     try {

@@ -11,11 +11,19 @@ import { Modal } from "@/components/ui/modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AppointmentStatus from "@/enum/appointment-status.enum";
 import AppointmentsList from "@/features/appointment/components/AppointmentsList";
+import {
+  getCombinedAppointmentStatusClass,
+  getCombinedAppointmentStatusLabel,
+} from "@/features/appointment/utils/appointment-status";
 import { useMedicalRecordDetailPdf } from "@/features/medical-record/hooks/useMedicalRecordDetailPdf";
+import {
+  APPOINTMENT_CANCELLED_EVENT,
+  APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+} from "@/lib/realtimeEvents";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
 
@@ -549,6 +557,24 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
     }
   };
 
+  // Patient broad booking realtime: assignment completion and assignment-timeout cancellation
+  // arrive through the shared notification bell, then this screen refreshes its source-of-truth list.
+  const loadAppointmentsRef = useRef(loadAppointments);
+  loadAppointmentsRef.current = loadAppointments;
+  const currentPageRef = useRef(currentPage);
+  currentPageRef.current = currentPage;
+  useEffect(() => {
+    const handleAppointmentStateChanged = () => {
+      void loadAppointmentsRef.current(currentPageRef.current);
+    };
+    window.addEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
+    window.addEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+    return () => {
+      window.removeEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
+      window.removeEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+    };
+  }, []);
+
 
 
   async function handleCancelAppointment(apptData: any): Promise<void> {
@@ -969,7 +995,9 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
             </div>
 
             <div className="flex items-center gap-3">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>{apptData?.appointmentStatus ?? 'UNKNOWN'}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>
+                {getCombinedAppointmentStatusLabel(apptData) ?? apptData?.appointmentStatus ?? 'UNKNOWN'}
+              </span>
               <div className="flex items-center gap-2">
                 {/* Hide rating button if an existing review is present */}
                   {/* {apptData?.appointmentStatus !== AppointmentStatus.COMPLETED &&
@@ -994,6 +1022,12 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
           {apptLoading ? (
             <div className="py-8 text-center">Đang tải...</div>
           ) : apptData ? (
+            <>
+            {getCombinedAppointmentStatusLabel(apptData) && (
+              <div className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${getCombinedAppointmentStatusClass(apptData)}`}>
+                {getCombinedAppointmentStatusLabel(apptData)}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Left/Main: summary */}
               <div className="md:col-span-2">
@@ -1105,6 +1139,7 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                 </Card>
               </div>
             </div>
+            </>
           ) : (
             <div className="py-8 text-center">Không có dữ liệu cuộc hẹn.</div>
           )}

@@ -1,17 +1,15 @@
 import { TimeSlotStatusEnum } from "@/enum/timeslot-status.enum";
-import { AppointmentBookingPayload } from "@/features/appointment/types/appointment.types";
+import {
+  AppointmentBookingPayload,
+  AppointmentBookingResult,
+  AppointmentDepositStatusResult,
+} from "@/features/appointment/types/appointment.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { assertValidISO, buildZonedISO, ensureHasTimezone } from "@/utils/time.util";
 
-export type BookAppointmentResponse = DataResponse<{
-  appointmentId?: string;
-  paymentUrl?: string;
-  originalAmount?: number;
-  discountAmount?: number;
-  finalAmount?: number;
-} | null>;
+export type BookAppointmentResponse = AppointmentBookingResult;
 
 export const bookAppointment = async (form: AppointmentBookingPayload) => {
   try {
@@ -20,6 +18,29 @@ export const bookAppointment = async (form: AppointmentBookingPayload) => {
     return res.data;
   } catch (e) {
     console.error("Failed to book appointment: " + e);
+    throw e;
+  }
+};
+
+// Broad booking: patient books without choosing a doctor/slot. The backend creates a
+// PENDING appointment (assignmentStatus = AWAITING_ASSIGNMENT). BHYT/NOT_REQUIRED creates
+// assignment work immediately; DICH_VU creates it only after deposit success.
+export interface BroadBookingPayload {
+  broadBooking: true;
+  specialty?: string;
+  reasonForAppointment?: string;
+  paymentCategory: "BHYT" | "DICH_VU";
+  depositAmount?: number;
+  paymentMethod?: "VNPAY" | "OFFLINE";
+  serviceType?: string;
+}
+
+export const bookBroadAppointment = async (form: BroadBookingPayload) => {
+  try {
+    const res = await axiosClient.post<BookAppointmentResponse>("/appointment/book", form);
+    return res.data;
+  } catch (e) {
+    console.error("Failed to create broad appointment: " + e);
     throw e;
   }
 };
@@ -114,6 +135,13 @@ export const getAppointmentById = async (id: string) => {
   }
 };
 
+export const getAppointmentDepositStatus = async (appointmentId: string) => {
+  const res = await axiosClient.get<AppointmentDepositStatusResult>(
+    `/appointment/${appointmentId}/deposit-status`
+  );
+  return res.data;
+};
+
 export const getAppointments = async (
   page: number = 1,
   limit: number = 10
@@ -143,36 +171,27 @@ export const getAppointments = async (
 export type RescheduleV2Payload = {
   appointmentDate: string;
   timeSlotId: string;
+  reason?: string;
 };
 
 export const getAppointmentDetailForReschedule = async (id: string) => {
-  try {
-    const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
-    return res.data;
-  } catch {
-    const res = await axiosClient.get<DataResponse<any>>(`/appointments/${id}`);
-    return res.data;
-  }
+  const res = await axiosClient.get<DataResponse<any>>(`/appointment/${id}`);
+  return res.data;
 };
 
+// Contract: GET /doctors/doctor/:doctorId/date/:date — date must be YYYY-MM-DD only
 export const getAvailableTimeSlotsForReschedule = async (params: {
   doctorId: string;
-  date: string;
+  date: string; // YYYY-MM-DD
 }) => {
-  try {
-    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>("/time-slots", {
-      params,
-    });
-    return res.data;
-  } catch {
-    const encodedDate = encodeURIComponent(params.date);
-    const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
-      `/doctors/doctor/${params.doctorId}/date/${encodedDate}`
-    );
-    return res.data;
-  }
+  const encodedDate = encodeURIComponent(params.date);
+  const res = await axiosClient.get<DataResponse<TimeSlotDto[]>>(
+    `/doctors/doctor/${params.doctorId}/date/${encodedDate}`
+  );
+  return res.data;
 };
 
+// Contract: PATCH /appointment/:id/reschedule
 export const rescheduleAppointmentById = async (
   appointmentId: string,
   payload: RescheduleV2Payload
@@ -183,23 +202,19 @@ export const rescheduleAppointmentById = async (
 
   assertValidISO(normalizedDate);
 
-  try {
-    const res = await axiosClient.patch<DataResponse<any>>(
-      `/appointments/${appointmentId}/reschedule`,
-      {
-        appointmentDate: normalizedDate,
-        timeSlotId: payload.timeSlotId,
-      }
-    );
-    return res.data;
-  } catch {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/reschedule", {
-      appointmentId,
-      newDate: normalizedDate,
-      newTimeSlotId: payload.timeSlotId,
-    });
-    return res.data;
+  const body: Record<string, unknown> = {
+    appointmentDate: normalizedDate,
+    timeSlotId: payload.timeSlotId,
+  };
+  if (payload.reason?.trim()) {
+    body.reason = payload.reason.trim();
   }
+
+  const res = await axiosClient.patch<DataResponse<any>>(
+    `/appointment/${appointmentId}/reschedule`,
+    body
+  );
+  return res.data;
 };
 
 
@@ -227,12 +242,16 @@ export const rescheduleAppointment = async (data: {
   }
 };
 
-export const cancelAppointment = async (appointmentId: string) => {
+export const cancelAppointment = async (appointmentId: string, reason?: string) => {
   try {
-    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", { 
-      appointmentId
+    const res = await axiosClient.patch<DataResponse<any>>("/appointment/cancel", {
+      appointmentId,
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
     });
     console.log("[Axios] Cancel appointment:", res.data);
+    if (res.data?.code && res.data.code !== "SUCCESS") {
+      throw { response: { data: res.data } };
+    }
     return res.data;
   } catch (e) {
     console.error("Failed to cancel appointment:", e);

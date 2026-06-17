@@ -15,7 +15,6 @@ interface RescheduleAppointmentModalProps {
         id: string;
         date: string;
         startTime: string;
-        consultationFee: number;
         doctorName: string;
         specialization: string;
     };
@@ -36,8 +35,6 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    const refundAmount = Math.ceil(appointment.consultationFee * 0.8);
-
     const handleSubmit = async () => {
         if (!selectedTimeSlot) {
             setError('Vui lòng chọn khung giờ mới');
@@ -53,11 +50,9 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                 throw new Error('Khung giờ không hợp lệ');
             }
 
-            // Use appointment's current date as the new date (typically time slots are for the same date)
-            await onSubmit(appointment.id, appointment.date, selectedTimeSlot, reason);
+            await onSubmit(appointment.id, appointment.date, selectedTimeSlot, reason || undefined);
             setSuccess(true);
 
-            // Reset form
             setTimeout(() => {
                 setSelectedTimeSlot('');
                 setReason('');
@@ -65,7 +60,7 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                 onClose();
             }, 2000);
         } catch (err: any) {
-            setError(err.message || 'Lỗi khi hoãn lịch hẹn');
+            setError(err.message || 'Lỗi khi đổi lịch hẹn');
         } finally {
             setIsLoading(false);
         }
@@ -75,7 +70,7 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Hoãn lịch hẹn</DialogTitle>
+                    <DialogTitle>Đổi lịch hẹn</DialogTitle>
                     <DialogDescription>
                         Chọn khung giờ mới cho lịch hẹn với {appointment.doctorName}
                     </DialogDescription>
@@ -91,15 +86,6 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                         </p>
                         <p className="text-sm text-gray-600">
                             {appointment.doctorName} • {appointment.specialization}
-                        </p>
-                    </div>
-
-                    {/* Refund Info */}
-                    <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900">Hoàn tiền</p>
-                        <p className="text-sm text-blue-700">
-                            Bạn sẽ nhận được{' '}
-                            <span className="font-semibold">{refundAmount} coins</span> (80% của phí tư vấn)
                         </p>
                     </div>
 
@@ -125,11 +111,11 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                     {/* Reason */}
                     <div className="space-y-2">
                         <Label htmlFor="reason" className="font-medium">
-                            Lý do hoãn (tùy chọn)
+                            Lý do đổi lịch (tùy chọn)
                         </Label>
                         <Textarea
                             id="reason"
-                            placeholder="Nhập lý do hoãn lịch..."
+                            placeholder="Nhập lý do đổi lịch..."
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             className="min-h-[80px]"
@@ -149,7 +135,7 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                         <Alert className="bg-green-50 border-green-200">
                             <CheckCircle className="h-4 w-4 text-green-600" />
                             <AlertDescription className="text-green-800">
-                                Hoãn lịch thành công! Coins đã được cộng vào tài khoản.
+                                Đổi lịch thành công.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -160,7 +146,7 @@ export const RescheduleAppointmentModal: React.FC<RescheduleAppointmentModalProp
                             Hủy
                         </Button>
                         <Button onClick={handleSubmit} disabled={isLoading || !selectedTimeSlot}>
-                            {isLoading ? 'Đang xử lý...' : 'Xác nhận hoãn'}
+                            {isLoading ? 'Đang xử lý...' : 'Xác nhận đổi lịch'}
                         </Button>
                     </div>
                 </div>

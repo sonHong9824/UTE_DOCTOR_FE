@@ -1,6 +1,7 @@
 export type RescheduleFormValues = {
   appointmentDate: string;
   timeSlotId: string;
+  reason?: string;
 };
 
 export type RescheduleTimeSlotOption = {
@@ -13,9 +14,13 @@ export type RescheduleTimeSlotOption = {
 export type RescheduleAppointmentDetail = {
   _id?: string;
   id?: string;
+  // booking snapshot: { id, name, email }
+  doctor?: { id?: string; name?: string; email?: string };
+  // populated ref or bare ObjectId string
   doctorId?: string | { _id?: string; id?: string; profileId?: { name?: string }; name?: string };
   doctorName?: string;
   appointmentStatus?: string;
+  visitStatus?: string;
   scheduledAt?: string | number;
   appointmentDate?: string | number;
   date?: string | number;

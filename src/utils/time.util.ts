@@ -107,6 +107,22 @@ export const normalizeApiDateToLocalISO = (value: string | number | Date): strin
   return dayjs(localDate).tz(timezoneName).format("YYYY-MM-DDTHH:mm:ssZ");
 };
 
+export const formatApiDateToLocalDate = (
+  value: string | number | Date,
+  locale = "vi-VN"
+): string => {
+  const localDate = parseApiDateTimeToLocal(value);
+  if (!localDate) return "--/--/----";
+
+  const timezoneName = resolveBrowserTimezone();
+  return localDate.toLocaleDateString(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: timezoneName,
+  });
+};
+
 export const formatApiDateToLocalTime = (
   value: string | number | Date,
   locale = "vi-VN"
@@ -114,18 +130,93 @@ export const formatApiDateToLocalTime = (
   const localDate = parseApiDateTimeToLocal(value);
   if (!localDate) return "--:--";
 
+  const timezoneName = resolveBrowserTimezone();
+
   return localDate.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
+    timeZone: timezoneName,
   });
+};
+
+export const formatApiDateToLocalTimeWithSeconds = (
+  value: string | number | Date,
+  locale = "vi-VN"
+): string => {
+  const localDate = parseApiDateTimeToLocal(value);
+  if (!localDate) return "--:--:--";
+
+  const timezoneName = resolveBrowserTimezone();
+
+  return localDate.toLocaleTimeString(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: timezoneName,
+  });
+};
+
+export const formatApiDateToLocalDateTime = (
+  value: string | number | Date,
+  locale = "vi-VN",
+  includeSeconds = false
+): string => {
+  const date = formatApiDateToLocalDate(value, locale);
+  if (date === "--/--/----") {
+    return includeSeconds ? "--/--/---- --:--:--" : "--/--/---- --:--";
+  }
+
+  const time = includeSeconds
+    ? formatApiDateToLocalTimeWithSeconds(value, locale)
+    : formatApiDateToLocalTime(value, locale);
+
+  return `${date} ${time}`;
 };
 
 export const normalizeEpochDateInText = (text: string, locale = "vi-VN"): string => {
   if (!text) return text;
 
-  return text.replace(/(ngày\s+)(\d{10,13})/giu, (_, prefix: string, epochRaw: string) => {
-    const parsed = parseApiDateTimeToLocal(Number(epochRaw));
-    if (!parsed) return `${prefix}${epochRaw}`;
-    return `${prefix}${parsed.toLocaleDateString(locale)}`;
+  const textWithLocalIsoDateTime = text.replace(
+    /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})\b/g,
+    (rawIsoDateTime: string) => {
+      const formatted = formatApiDateToLocalDateTime(rawIsoDateTime, locale, true);
+      if (formatted.includes("--/--/----")) {
+        return rawIsoDateTime;
+      }
+
+      return formatted;
+    }
+  );
+
+  const textWithLabeledEpochDateTime = textWithLocalIsoDateTime.replace(
+    /(ngày|date|thời\s*gian|time|lúc|at)\s*[:=-]?\s*(\d{10,13})/giu,
+    (_full: string, label: string, epochRaw: string) => {
+      const formattedDateTime = formatApiDateToLocalDateTime(Number(epochRaw), locale, true);
+      if (formattedDateTime.includes("--/--/----")) {
+        return `${label} ${epochRaw}`;
+      }
+
+      return `${label} ${formattedDateTime}`;
+    }
+  );
+
+  const textWithDateTimeKeys = textWithLabeledEpochDateTime.replace(
+    /(["']?(?:appointmentDate|bookingDate|date|dateTime|time|appointmentTime|startTime|endTime|expiresAt|createdAt|updatedAt)["']?\s*[:=]\s*)(\d{10,13})/giu,
+    (_full: string, keyPrefix: string, epochRaw: string) => {
+      const formattedDateTime = formatApiDateToLocalDateTime(Number(epochRaw), locale, true);
+      if (formattedDateTime.includes("--/--/----")) {
+        return `${keyPrefix}${epochRaw}`;
+      }
+
+      return `${keyPrefix}${formattedDateTime}`;
+    }
+  );
+
+  return textWithDateTimeKeys.replace(/(ngày\s+)(\d{10,13})/giu, (_, prefix: string, epochRaw: string) => {
+    const formattedDate = formatApiDateToLocalDate(Number(epochRaw), locale);
+    if (formattedDate === "--/--/----") return `${prefix}${epochRaw}`;
+    return `${prefix}${formattedDate}`;
   });
 };

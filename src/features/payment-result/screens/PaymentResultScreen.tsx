@@ -3,16 +3,38 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { getAppointmentById } from "@/apis/appointment/appointment.api";
+import {
+  getCombinedAppointmentStatusLabel,
+  isPaidAwaitingAssignment,
+} from "@/features/appointment/utils/appointment-status";
 import { usePaymentStatus } from "@/features/payment-result/hooks/usePaymentStatus";
 import { PaymentViewStatus } from "@/features/payment-result/types/payment-result.types";
 import { TimeHelper } from "@/lib/time";
 import { ArrowLeft, CheckCircle2, Clock3, Home, RefreshCw, TriangleAlert, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface PaymentResultScreenProps {
   orderId: string | null;
+  appointmentId?: string | null;
+  statusParam?: string | null;
+  purpose?: string | null;
 }
+
+type DepositAppointmentSnapshot = {
+  appointmentStatus?: string;
+  assignmentStatus?: string;
+  paymentCategory?: string;
+  depositStatus?: string;
+  doctorId?: unknown;
+  doctor?: unknown;
+  timeSlot?: unknown;
+  timeSlotId?: string | null;
+  slot?: unknown;
+  reasonCode?: string;
+  cancellationReasonCode?: string;
+};
 
 const formatCurrencyVnd = (amount: number) =>
   new Intl.NumberFormat("vi-VN", {
@@ -57,16 +79,48 @@ const statusConfig: Record<Exclude<PaymentViewStatus, null>, { title: string; de
   },
 };
 
-export default function PaymentResultScreen({ orderId }: PaymentResultScreenProps) {
-  const { status, loading, error, payment, retry } = usePaymentStatus(orderId);
+const normalizeQueryStatus = (status?: string | null): PaymentViewStatus | null => {
+  const normalized = status?.toUpperCase();
+  if (!normalized) return null;
+  if (["SUCCESS", "COMPLETED", "PAID", "00"].includes(normalized)) return "COMPLETED";
+  if (["FAILED", "FAIL", "CANCELLED", "CANCELED"].includes(normalized)) return "FAILED";
+  if (normalized === "PENDING") return "PENDING";
+  return null;
+};
+
+export default function PaymentResultScreen({ orderId, appointmentId, statusParam, purpose }: PaymentResultScreenProps) {
+  const queryStatus = normalizeQueryStatus(statusParam);
+  const { status, loading, error, payment, retry } = usePaymentStatus(queryStatus ? null : orderId);
   const popupHandledRef = useRef(false);
+  const isDepositPayment = purpose === "APPOINTMENT_DEPOSIT" || Boolean(queryStatus);
+  const [appointmentSnapshot, setAppointmentSnapshot] = useState<DepositAppointmentSnapshot | null>(null);
+
+  useEffect(() => {
+    if (!appointmentId || !queryStatus) {
+      return;
+    }
+
+    const fetchAppointment = async () => {
+      try {
+        const response = await getAppointmentById(appointmentId);
+        const data = response?.data as DepositAppointmentSnapshot | undefined;
+        setAppointmentSnapshot(data ?? null);
+      } catch (error) {
+        console.error("Failed to fetch appointment after deposit payment", error);
+      }
+    };
+
+    void fetchAppointment();
+  }, [appointmentId, queryStatus]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    if (!orderId || !status || loading || error) {
+    const effectiveStatus = queryStatus ?? status;
+
+    if (!orderId || !effectiveStatus || loading || error) {
       return;
     }
 
@@ -79,13 +133,13 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
       {
         type: "PAYMENT_RESULT",
         orderId,
-        status,
+        status: effectiveStatus,
       },
       "*"
     );
-  }, [error, loading, orderId, status]);
+  }, [error, loading, orderId, queryStatus, status]);
 
-  if (!orderId) {
+  if (!orderId && !queryStatus) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-10">
         <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl items-center justify-center">
@@ -119,7 +173,7 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
     );
   }
 
-  if (loading && !payment) {
+  if (loading && !payment && !queryStatus) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-10">
         <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl items-center justify-center">
@@ -139,12 +193,28 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
     );
   }
 
-  const effectiveStatus = status ?? payment?.status ?? null;
+  const effectiveStatus = queryStatus ?? status ?? payment?.status ?? null;
   const displayStatus = effectiveStatus ?? (error ? "FAILED" : "PENDING");
   const config = displayStatus ? statusConfig[displayStatus] : null;
   const Icon = config?.icon ?? TriangleAlert;
   const formattedAmount = payment ? formatCurrencyVnd(payment.amount) : "-";
   const formattedPaidAt = payment?.paidAt ? formatVietnameseDateTime(payment.paidAt) : "Chưa xác định";
+  const appointmentDisplayLabel = appointmentSnapshot
+    ? getCombinedAppointmentStatusLabel(appointmentSnapshot)
+    : null;
+  const isBroadDepositAwaitingAssignment = isPaidAwaitingAssignment(appointmentSnapshot);
+  const title = isDepositPayment && displayStatus === "COMPLETED"
+    ? "Thanh toán phí giữ chỗ thành công"
+    : config?.title ?? "Thanh toán";
+  const description = isDepositPayment && displayStatus === "COMPLETED"
+    ? isBroadDepositAwaitingAssignment
+      ? "Đã thanh toán phí giữ chỗ. Lịch hẹn đang chờ lễ tân phân bác sĩ."
+      : appointmentSnapshot?.appointmentStatus === "CONFIRMED"
+        ? "Phí giữ chỗ đã được xác nhận và lịch hẹn của bạn đã được xác nhận."
+        : "Phí giữ chỗ đã được xác nhận. Trạng thái lịch hẹn sẽ được cập nhật trong hồ sơ của bạn."
+    : isDepositPayment && displayStatus === "FAILED"
+      ? "Thanh toán phí giữ chỗ không hoàn tất. Lịch hẹn chưa được xác nhận."
+      : config?.description ?? "Đang tải dữ liệu thanh toán.";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 px-4 py-10">
@@ -154,8 +224,8 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
             <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${config?.className ?? "bg-slate-100 text-slate-700"}`}>
               <Icon className="h-8 w-8" />
             </div>
-            <CardTitle className="text-2xl text-slate-900">{config?.title ?? "Thanh toán"}</CardTitle>
-            <CardDescription className="text-base text-slate-600">{config?.description ?? "Đang tải dữ liệu thanh toán."}</CardDescription>
+            <CardTitle className="text-2xl text-slate-900">{title}</CardTitle>
+            <CardDescription className="text-base text-slate-600">{description}</CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6 py-6">
@@ -167,8 +237,8 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
 
             <div className="grid gap-4 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Mã đơn hàng</p>
-                <p className="mt-1 break-all text-sm font-semibold text-slate-900">{payment?.orderId ?? orderId}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{isDepositPayment ? "Mã thanh toán" : "Mã đơn hàng"}</p>
+                <p className="mt-1 break-all text-sm font-semibold text-slate-900">{payment?.orderId ?? orderId ?? "-"}</p>
               </div>
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Số tiền</p>
@@ -178,6 +248,15 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Trạng thái</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{displayStatus}</p>
               </div>
+              {appointmentSnapshot && (
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lịch hẹn</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {appointmentDisplayLabel ??
+                      `${appointmentSnapshot.appointmentStatus ?? "-"} / ${appointmentSnapshot.depositStatus ?? "-"}`}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Thời gian thanh toán</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{formattedPaidAt}</p>
@@ -192,7 +271,7 @@ export default function PaymentResultScreen({ orderId }: PaymentResultScreenProp
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={retry} disabled={loading} className="flex-1">
+              <Button onClick={retry} disabled={loading || Boolean(queryStatus)} className="flex-1">
                 <RefreshCw className="h-4 w-4" />
                 Thử lại
               </Button>

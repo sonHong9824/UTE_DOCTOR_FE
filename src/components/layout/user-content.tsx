@@ -1,6 +1,7 @@
 
 import AppointmentForm from "@/features/appointment/components/AppointmentForm";
 import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
+import NotificationCenterScreen from "@/features/notification/screens/NotificationCenterScreen";
 import WalletScreen from "@/features/wallet/screens/WalletScreen";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import UserInfoCard from "../cards/user-info-card";
@@ -48,6 +49,7 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
 
       {activeTab === "medical-detail" && <MedicalRecordDetailScreen user={user} />}
       {activeTab === "appointments" && <AppointmentForm />}
+      {activeTab === "notifications" && <NotificationCenterScreen />}
       {activeTab === "wallet" && (
         <WalletScreen />
       )}
