@@ -2,11 +2,11 @@
 import AppointmentForm from "@/features/appointment/components/AppointmentForm";
 import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
 import NotificationCenterScreen from "@/features/notification/screens/NotificationCenterScreen";
+import PatientHealthDashboardScreen from "@/features/patient-health/screens/PatientHealthDashboardScreen";
 import WalletScreen from "@/features/wallet/screens/WalletScreen";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 import UserInfoCard from "../cards/user-info-card";
 import ChangePasswordForm from "../forms/account/change-password-form";
-import MedicalRecordDisplay from "../medical-record/medical-record-display";
 import { Card, CardTitle } from "../ui/card";
 
 
@@ -27,14 +27,16 @@ export default function UserContent({ user, activeTab }: UserContentProps) {
   // Individual components handle empty states internally.
   
   return (
-    <div className="flex-1 p-4">
-      {!hasData && (
+    <div className="w-full min-w-0 flex-1">
+      {!hasData && activeTab === "medical-detail" && (
         <Card className="w-full mb-4 px-4 py-3 border">
           <CardTitle className="text-base">Chưa có hồ sơ y tế</CardTitle>
-          <p className="text-sm text-gray-600">Bạn có thể cập nhật thông tin y tế trong mục "Chi tiết y tế".</p>
+          <p className="text-sm text-gray-600">
+            Bạn có thể cập nhật thông tin y tế trong mục &quot;Chi tiết bệnh lý&quot;.
+          </p>
         </Card>
       )}
-      {activeTab === "general-health" && <MedicalRecordDisplay user={user} />}
+      {activeTab === "general-health" && <PatientHealthDashboardScreen />}
       
       {activeTab === "personal-info" && (
           <UserInfoCard user={user.accountProfileDto}/>
