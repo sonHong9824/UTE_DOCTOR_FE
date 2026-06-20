@@ -4,17 +4,19 @@ import { getAppointmentById, getAppointments } from "@/apis/appointment/appointm
 import { getDoctorById } from "@/apis/doctor/profile.api";
 import { createAllergyRecord, createMedicalHistoryRecord, getPatientByAccount, getPatientProfile, upsertMedicalProfile } from "@/apis/patient/patient.api";
 import { createReview, getReviewByAppointmentAndPatient } from "@/apis/review/review.api";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AppointmentStatus from "@/enum/appointment-status.enum";
 import AppointmentsList from "@/features/appointment/components/AppointmentsList";
 import {
   getCombinedAppointmentStatusClass,
   getCombinedAppointmentStatusLabel,
 } from "@/features/appointment/utils/appointment-status";
+import HealthOverviewCards from "@/features/medical-record/components/HealthOverviewCards";
+import MedicalCategoryNav, { type MedicalCategory } from "@/features/medical-record/components/MedicalCategoryNav";
+import MedicalIndicatorPanels from "@/features/medical-record/components/MedicalIndicatorPanels";
+import SectionHeader from "@/features/medical-record/components/SectionHeader";
 import { useMedicalRecordDetailPdf } from "@/features/medical-record/hooks/useMedicalRecordDetailPdf";
 import {
   APPOINTMENT_CANCELLED_EVENT,
@@ -22,27 +24,13 @@ import {
 } from "@/lib/realtimeEvents";
 import { MedicalRecordDto } from "@/types/patientDTO/medical-record.dto";
 import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
+import { Activity, CalendarClock, ClipboardList, Gauge, HeartPulse, Pencil, Pill, Stethoscope, Utensils } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import QRCode from 'react-qr-code';
 import { toast } from "sonner";
 
 
-// Custom TabsTrigger styled
-function ThemedTabsTrigger({ children, value }: { children: React.ReactNode; value: string }) {
-  return (
-    <TabsTrigger
-      value={value}
-      className="px-6 py-3 text-lg font-semibold text-muted-foreground
-                 data-[state=active]:text-primary 
-                 data-[state=active]:border-b-2 
-                 data-[state=active]:border-primary
-                 transition-colors"
-    >
-      {children}
-    </TabsTrigger>
-  );
-}
 
 interface MedicalRecordDetailProps {
   user?: PatientProfileDto;
@@ -607,251 +595,112 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
     }
   }
 
+  const [activeCategory, setActiveCategory] = useState("medicalHistory");
+
+  const categories: MedicalCategory[] = [
+    { value: "medicalHistory", label: "Tiền sử bệnh", count: record.medicalHistory.length, icon: ClipboardList },
+    { value: "drugAllergies", label: "Dị ứng thuốc", count: record.drugAllergies.length, icon: Pill },
+    { value: "foodAllergies", label: "Dị ứng thức ăn", count: record.foodAllergies.length, icon: Utensils },
+    { value: "encounters", label: "Lượt khám", count: record.encounters.length, icon: Stethoscope },
+    { value: "bloodPressure", label: "Huyết áp", count: record.bloodPressure.length, icon: Gauge },
+    { value: "heartRate", label: "Nhịp tim", count: record.heartRate.length, icon: HeartPulse },
+  ];
   return (
-    <div className="flex flex-col max-h-full overflow-hidden rounded-lg">
-      {/* Top summary: vitals */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3 p-4 bg-transparent">
-        <Card className="p-4">
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Chiều cao</div>
-            <div className="text-lg font-semibold">{record.height ? `${record.height} cm` : '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="p-4">
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Cân nặng</div>
-            <div className="text-lg font-semibold">{record.weight ? `${record.weight} kg` : '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="p-4">
-          <CardContent>
-            <div className="text-sm text-muted-foreground">Nhóm máu</div>
-            <div className="text-lg font-semibold">{record.bloodType ?? '-'}</div>
-          </CardContent>
-        </Card>
-        <Card className="p-4">
-          <CardContent>
-            <div className="text-sm text-muted-foreground">BPM / BP</div>
-            <div className="text-lg font-semibold">
-              {record.heartRate?.length ? `${record.heartRate[record.heartRate.length - 1].value} bpm` : '-'}
-              {' • '}
-              {record.bloodPressure?.length ? `${record.bloodPressure[record.bloodPressure.length - 1].value?.systolic ?? '-'} / ${record.bloodPressure[record.bloodPressure.length - 1].value?.diastolic ?? '-'}` : '-'}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-      <div className="flex items-center justify-end px-4 mb-2">
-        <Button size="sm" variant="outline" onClick={openEditModal}>Cập nhật hồ sơ</Button>
-      </div>
+    <div className="space-y-6">
+      {/* Section 1: Health overview */}
+      <section className="space-y-4">
+        <SectionHeader
+          icon={Activity}
+          title="Tổng quan sức khỏe"
+          description="Các chỉ số sức khỏe cơ bản của bạn"
+          accentClass="from-sky-500 to-blue-600"
+          action={
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 rounded-lg"
+              onClick={openEditModal}
+            >
+              <Pencil className="h-4 w-4" />
+              Cập nhật hồ sơ
+            </Button>
+          }
+        />
+        <HealthOverviewCards
+          height={record.height || null}
+          weight={record.weight || null}
+          bloodType={record.bloodType}
+          heartRate={
+            record.heartRate?.length
+              ? record.heartRate[record.heartRate.length - 1].value
+              : null
+          }
+          bloodPressure={
+            record.bloodPressure?.length
+              ? record.bloodPressure[record.bloodPressure.length - 1].value
+              : null
+          }
+        />
+      </section>
 
-      <Tabs defaultValue="medicalHistory" className="flex-1 flex flex-col">
-        {/* Sticky tabs header */}
-        <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b">
-          <TabsList className="flex gap-3 px-4 py-3">
-            <TabsTrigger value="medicalHistory" className="px-3 py-2 rounded">Tiền sử bệnh <Badge variant="gray" className="ml-2">{record.medicalHistory.length}</Badge></TabsTrigger>
-            <TabsTrigger value="drugAllergies" className="px-3 py-2 rounded">Dị ứng thuốc <Badge variant="gray" className="ml-2">{record.drugAllergies.length}</Badge></TabsTrigger>
-            <TabsTrigger value="foodAllergies" className="px-3 py-2 rounded">Dị ứng thức ăn <Badge variant="gray" className="ml-2">{record.foodAllergies.length}</Badge></TabsTrigger>
-            <TabsTrigger value="encounters" className="px-3 py-2 rounded">Lượt khám <Badge variant="gray" className="ml-2">{record.encounters.length}</Badge></TabsTrigger>
-            <TabsTrigger value="bloodPressure" className="px-3 py-2 rounded">Huyết áp <Badge variant="gray" className="ml-2">{record.bloodPressure.length}</Badge></TabsTrigger>
-            <TabsTrigger value="heartRate" className="px-3 py-2 rounded">Nhịp tim <Badge variant="gray" className="ml-2">{record.heartRate.length}</Badge></TabsTrigger>
-            <TabsTrigger value="appointments" className="px-3 py-2 rounded">
-                Cuộc hẹn 
-                <Badge variant="gray" className="ml-2">
-                  {total}
-                </Badge>
-              </TabsTrigger>
+      {/* Section 2: Medical records & indicators */}
+      <section className="space-y-4">
+        <SectionHeader
+          icon={ClipboardList}
+          title="Hồ sơ & chỉ số y tế"
+          description="Tiền sử bệnh, dị ứng, lượt khám và chỉ số sinh tồn"
+          accentClass="from-cyan-500 to-sky-600"
+        />
+        <MedicalCategoryNav
+          categories={categories}
+          active={activeCategory}
+          onChange={setActiveCategory}
+        />
+        <MedicalIndicatorPanels
+          active={activeCategory}
+          record={record}
+          onSelectRecord={setSelectedRecord}
+        />
+      </section>
 
-          </TabsList>
-        </div>
-
-        {/* Scrollable tab content area */}
-       <div className="flex flex-col flex-1 overflow-hidden px-6 pt-4">
-          <TabsContent value="medicalHistory">
-            <div className="max-h-[80vh] overflow-auto pr-2 pb-6">
-              {record.medicalHistory.length === 0 ? (
-                <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
-              ) : (
-                <div className="space-y-5">
-                  {record.medicalHistory.map((r: any) => (
-                    <Card key={r._id || r.dateRecord} className="p-3 rounded-md shadow-sm m-4">
-                      <CardContent className="!p-0">
-                        <div className="flex items-center justify-between gap-3 p-8">
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="text-lg font-semibold leading-tight">{r.conditionName || r.diagnosis || r.name || 'Chẩn đoán'}</div>
-                                <div className="text-xs text-muted-foreground mt-0.5">{r.diagnosedAt ? new Date(r.diagnosedAt).toLocaleDateString('vi-VN') : (r.dateRecord ? new Date(r.dateRecord).toLocaleDateString('vi-VN') : '-')}</div>
-                              </div>
-                              <div className="text-xs text-muted-foreground text-right uppercase">{r.status || r.source || ''}</div>
-                            </div>
-
-                            {r.note && (
-                              <div className="mt-2 text-sm text-muted-foreground" style={{overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical'}}>
-                                {r.note}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="shrink-0 w-28">
-                            <Button size="sm" variant="outline" className="w-full" onClick={() => setSelectedRecord(r)}>Xem chi tiết</Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="drugAllergies">
-            {record.drugAllergies.length === 0 ? (
-              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-4">
-                {record.drugAllergies.map((r: any) => (
-                  <Card key={r._id || r.substance || r.name} className="p-4">
-                    <CardContent>
-                      <div className="text-lg font-semibold">{r.substance || r.name}</div>
-                      <div className="text-sm text-muted-foreground">{r.reaction || r.note || 'Chưa có mô tả phản ứng'}</div>
-                      {r.severity && <div className="mt-2 text-xs">Mức độ: {r.severity}</div>}
-                      {r.reportedBy && <div className="text-xs text-muted-foreground mt-1">Nguồn: {r.reportedBy === 'DOCTOR' ? 'Bác sĩ' : 'Bệnh nhân'}</div>}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="foodAllergies">
-            {record.foodAllergies.length === 0 ? (
-              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-4">
-                {record.foodAllergies.map((r: any) => (
-                  <Card key={r._id || r.substance || r.name} className="p-4">
-                    <CardContent>
-                      <div className="text-lg font-semibold">{r.substance || r.name}</div>
-                      <div className="text-sm text-muted-foreground">{r.reaction || r.note || 'Chưa có mô tả phản ứng'}</div>
-                      {r.severity && <div className="mt-2 text-xs">Mức độ: {r.severity}</div>}
-                      {r.reportedBy && <div className="text-xs text-muted-foreground mt-1">Nguồn: {r.reportedBy === 'DOCTOR' ? 'Bác sĩ' : 'Bệnh nhân'}</div>}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="bloodPressure">
-            {record.bloodPressure.length === 0 ? (
-              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
-            ) : (
-              <div className="space-y-3">
-                {record.bloodPressure.map((r: any) => (
-                  <Card key={r._id || r.dateRecord} className="p-4">
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{r.value?.systolic ?? '-'} / {r.value?.diastolic ?? '-'}</div>
-                        <div className="text-sm text-muted-foreground">{r.dateRecord ? new Date(r.dateRecord).toLocaleString('vi-VN') : '-'}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="heartRate">
-            {record.heartRate.length === 0 ? (
-              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có dữ liệu</p>
-            ) : (
-              <div className="space-y-3">
-                {record.heartRate.map((r: any) => (
-                  <Card key={r._id || r.dateRecord} className="p-4">
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{r.value ?? '-' } bpm</div>
-                        <div className="text-sm text-muted-foreground">{r.dateRecord ? new Date(r.dateRecord).toLocaleString('vi-VN') : '-'}</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="encounters">
-            {record.encounters.length === 0 ? (
-              <p className="italic text-muted-foreground text-center py-8 text-lg">Chưa có lượt khám</p>
-            ) : (
-              <div className="space-y-4">
-                {record.encounters.map((e: any) => (
-                  <Card key={e._id || e.appointmentId} className="p-4 border shadow-sm">
-                    <CardContent className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <div className="text-lg font-semibold leading-tight">{e.diagnosis || 'Chẩn đoán'}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{e.dateRecord ? new Date(e.dateRecord).toLocaleString('vi-VN') : '-'}</div>
-                        </div>
-                        <Button size="sm" variant="outline" onClick={() => setSelectedRecord(e)}>Xem chi tiết</Button>
-                      </div>
-
-                      {e.note && <div className="text-sm text-muted-foreground">{e.note}</div>}
-
-                      {Array.isArray(e.prescriptions) && e.prescriptions.length > 0 && (
-                        <div className="text-sm text-muted-foreground">Đơn thuốc: {e.prescriptions.length} thuốc</div>
-                      )}
-
-                      {Array.isArray(e.vitalSigns) && e.vitalSigns.length > 0 && (
-                        <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                          {e.vitalSigns.map((v: any, idx: number) => (
-                            <span key={v._id || idx} className="px-2 py-1 rounded bg-muted text-xs">
-                              {v.type === 'BP'
-                                ? `HA ${v.bloodPressure?.systolic ?? '-'} / ${v.bloodPressure?.diastolic ?? '-'}`
-                                : v.type === 'HR'
-                                  ? `HR ${v.value ?? '-'}`
-                                  : `${v.type} ${v.value ?? '-'}`}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="appointments">
-            <AppointmentsList
-              appointments={appointments}
-              loading={apptLoading}
-              showPagination={showPagination} 
-              currentPage={currentPage}
-              totalPages={totalPages}
-               onPageChange={(newPage) => {
-                setCurrentPage(newPage);
-                loadAppointments(newPage);
-              }}
-              onOpenDetail={(appt) => {
-                setApptLoading(true);
-                setApptModalOpen(true);
-                try {
-                  setApptData(appt);
-                } catch (err) {
-                  console.error('Failed to open appointment modal', err);
-                  setApptData(null);
-                  toast.error('Không tải được chi tiết cuộc hẹn');
-                } finally {
-                  setApptLoading(false);
-                }
-              }}
-              onRefresh={loadAppointments}
-            />
-          </TabsContent>
-
-        </div>
-      </Tabs>
+      {/* Section 3: Appointment / visit history */}
+      <section className="space-y-4">
+        <SectionHeader
+          icon={CalendarClock}
+          title="Lịch sử cuộc hẹn"
+          description={
+            total > 0
+              ? `${total} cuộc hẹn · trạng thái thanh toán & lịch sử khám`
+              : "Các buổi khám đã đặt và trạng thái thanh toán"
+          }
+          accentClass="from-blue-500 to-indigo-600"
+        />
+        <AppointmentsList
+          appointments={appointments}
+          loading={apptLoading}
+          showPagination={showPagination}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(newPage) => {
+            setCurrentPage(newPage);
+            loadAppointments(newPage);
+          }}
+          onOpenDetail={(appt) => {
+            setApptLoading(true);
+            setApptModalOpen(true);
+            try {
+              setApptData(appt);
+            } catch (err) {
+              console.error("Failed to open appointment modal", err);
+              setApptData(null);
+              toast.error("Không tải được chi tiết cuộc hẹn");
+            } finally {
+              setApptLoading(false);
+            }
+          }}
+          onRefresh={loadAppointments}
+        />
+      </section>
 
       {/* Modal for any selected record details (e.g., prescription detail) */}
       <Modal open={!!selectedRecord} onClose={() => {
@@ -965,14 +814,9 @@ export default function MedicalRecordDetail({ user, medicalRecord }: MedicalReco
                             {pdfLoading && <div className="text-xs text-blue-600 animate-pulse">⏳ Đang tạo...</div>}
                             {!pdfUrl && !pdfLoading && <div className="text-xs text-red-600">✗ Chưa có PDF</div>}
                           </div>
-                          {/* Debug info */}
-                          <div className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
-                            <div><strong>Debug Info:</strong></div>
-                            <div>PDF URL: {pdfUrl || 'null'}</div>
-                            <div>Loading: {pdfLoading ? 'true' : 'false'}</div>
-                            <div>Has prescriptions: {Array.isArray(selectedRecord.prescriptions) ? selectedRecord.prescriptions.length : 0}</div>
-                            {pdfErrorText && <div className="text-red-600">Error: {pdfErrorText}</div>}
-                          </div>
+                          {pdfErrorText && (
+                            <div className="text-xs text-red-600">Lỗi tạo PDF: {pdfErrorText}</div>
+                          )}
                         </div>
                       )}
                     </div>
