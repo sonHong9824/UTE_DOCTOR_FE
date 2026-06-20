@@ -1,5 +1,6 @@
 
 import AppointmentForm from "@/features/appointment/components/AppointmentForm";
+import AppointmentHistoryScreen from "@/features/appointment-history/screens/AppointmentHistoryScreen";
 import MedicalRecordDetailScreen from "@/features/medical-record/screens/MedicalRecordDetailScreen";
 import NotificationCenterScreen from "@/features/notification/screens/NotificationCenterScreen";
 import PatientHealthDashboardScreen from "@/features/patient-health/screens/PatientHealthDashboardScreen";
@@ -48,9 +49,11 @@ export default function UserContent({ user, activeTab, setActiveTab }: UserConte
                 </p>
               </Card>
             )}
-            <MedicalRecordDetailScreen user={user} />
+            <MedicalRecordDetailScreen user={user} onNavigateToTab={setActiveTab} />
           </div>
         );
+      case "appointment-history":
+        return <AppointmentHistoryScreen />;
       case "appointments":
         return <AppointmentForm />;
       case "notifications":

@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { AccountProfileDTO } from "@/types/accountDTO/accountProfile.dto";
 import {
   BellRing,
+  CalendarClock,
   CalendarDays,
   FileHeart,
   HeartPulse,
@@ -24,6 +25,7 @@ const tabs = [
   { id: "personal-info", label: "Thông tin cá nhân", icon: User },
   { id: "password", label: "Mật khẩu", icon: Lock },
   { id: "medical-detail", label: "Chi tiết bệnh lý", icon: FileHeart },
+  { id: "appointment-history", label: "Lịch sử khám", icon: CalendarClock },
   { id: "appointments", label: "Đăng ký lịch hẹn", icon: CalendarDays },
   { id: "notifications", label: "Thông báo", icon: BellRing },
   { id: "wallet", label: "Ví điện tử", icon: WalletCards },

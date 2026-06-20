@@ -7,8 +7,20 @@ import { PatientProfileDto } from "@/types/patientDTO/patient-profile.dto";
 interface MedicalRecordDetailScreenProps {
   user?: PatientProfileDto;
   medicalRecord?: MedicalRecordDto;
+  // UI-only navigation to another profile tab (forwarded to the in-tab CTA card).
+  onNavigateToTab?: (tab: string) => void;
 }
 
-export default function MedicalRecordDetailScreen({ user, medicalRecord }: MedicalRecordDetailScreenProps) {
-  return <MedicalRecordDetailView user={user} medicalRecord={medicalRecord} />;
+export default function MedicalRecordDetailScreen({
+  user,
+  medicalRecord,
+  onNavigateToTab,
+}: MedicalRecordDetailScreenProps) {
+  return (
+    <MedicalRecordDetailView
+      user={user}
+      medicalRecord={medicalRecord}
+      onNavigateToTab={onNavigateToTab}
+    />
+  );
 }
