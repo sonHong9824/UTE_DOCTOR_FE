@@ -11,6 +11,7 @@ const notificationTypeAliasMap: Record<string, NotificationType> = {
   appointment_success: "APPOINTMENT_SUCCESS",
   appointment_booking_success: "APPOINTMENT_SUCCESS",
   appointment_cancelled: "APPOINTMENT_CANCELLED",
+  appointment_no_show: "APPOINTMENT_NO_SHOW",
   appointment_rescheduled: "APPOINTMENT_RESCHEDULED",
   payment_success: "PAYMENT_SUCCESS",
   payment_update: "PAYMENT_SUCCESS",
@@ -24,6 +25,7 @@ const knownNotificationTypes = new Set<NotificationType>([
   "COIN_EXPIRY_REMINDER",
   "APPOINTMENT_SUCCESS",
   "APPOINTMENT_CANCELLED",
+  "APPOINTMENT_NO_SHOW",
   "APPOINTMENT_RESCHEDULED",
   "PAYMENT_SUCCESS",
   "ASSIGNMENT_TASK_CREATED",
@@ -82,6 +84,11 @@ const notificationDataNormalizers: NotificationDataNormalizerMap = {
   APPOINTMENT_CANCELLED: (data) => ({
     ...data,
     date: normalizeDataDateValue(data.date),
+  }),
+  APPOINTMENT_NO_SHOW: (data) => ({
+    ...data,
+    date: normalizeDataDateValue(data.date),
+    noShowAt: normalizeDataDateValue(data.noShowAt),
   }),
   APPOINTMENT_RESCHEDULED: (data) => ({
     ...data,

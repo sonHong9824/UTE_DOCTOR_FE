@@ -5,7 +5,7 @@ import { resolveBrowserTimezone } from "@/utils/time.util";
 export interface VisitApiItem {
   visitId: string;
   appointmentId: string;
-  status: "CREATED" | "CHECKED_IN" | "IN_PROGRESS" | "COMPLETED";
+  status: "CREATED" | "CHECKED_IN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
   scheduledAt: number;
   patientName: string;
   doctorName: string;

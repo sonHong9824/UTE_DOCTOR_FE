@@ -1,6 +1,7 @@
 export const CANCEL_APPOINTMENT_BLOCKED_REASON_MESSAGES = {
   VISIT_ALREADY_STARTED: "Không thể hủy lịch vì lượt khám đã bắt đầu.",
   VISIT_COMPLETED: "Không thể hủy lịch vì lượt khám đã hoàn tất.",
+  APPOINTMENT_TIME_PASSED: "Không thể hủy vì thời gian khám đã qua.",
   MEDICAL_ENCOUNTER_EXISTS: "Không thể hủy lịch vì hồ sơ khám đã được tạo.",
   BILLING_EXISTS: "Không thể hủy lịch vì hóa đơn đã được tạo.",
   PAYMENT_EXISTS: "Không thể hủy lịch vì đã phát sinh thanh toán.",

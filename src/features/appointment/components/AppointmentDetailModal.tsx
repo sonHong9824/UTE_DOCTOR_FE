@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AppointmentStatus } from '@/enum/appointment-status.enum';
+import { getNoShowReasonLabel, getNoShowSourceLabel } from '@/features/appointment/utils/appointment-status';
 import { Calendar, Clock, Coins, DollarSign, User } from 'lucide-react';
 import React from 'react';
 
@@ -25,6 +26,10 @@ interface AppointmentDetailModalProps {
     depositAmount?: number;
     depositPaidAmount?: number;
     depositPaidAt?: string | null;
+    noShowAt?: string | number | null;
+    noShowReasonCode?: string | null;
+    noShowSource?: string | null;
+    reasonCode?: string | null;
     prescriptions?: Array<{
       medicineId: string;
       name: string;
@@ -40,12 +45,16 @@ const getStatusBadgeColor = (status: AppointmentStatus) => {
       return 'bg-yellow-100 text-yellow-800';
     case AppointmentStatus.CONFIRMED:
       return 'bg-blue-100 text-blue-800';
+    case AppointmentStatus.FAILED:
+      return 'bg-rose-100 text-rose-800';
     case AppointmentStatus.COMPLETED:
       return 'bg-green-100 text-green-800';
     case AppointmentStatus.CANCELLED:
       return 'bg-red-100 text-red-800';
     case AppointmentStatus.RESCHEDULED:
       return 'bg-purple-100 text-purple-800';
+    case AppointmentStatus.NO_SHOW:
+      return 'bg-slate-200 text-slate-800';
     default:
       return 'bg-gray-100 text-gray-800';
   }
@@ -57,12 +66,16 @@ const getStatusLabel = (status: AppointmentStatus) => {
       return 'Chờ xác nhận';
     case AppointmentStatus.CONFIRMED:
       return 'Đã xác nhận';
+    case AppointmentStatus.FAILED:
+      return 'Thanh toán thất bại';
     case AppointmentStatus.COMPLETED:
       return 'Đã hoàn thành';
     case AppointmentStatus.CANCELLED:
       return 'Đã hủy';
     case AppointmentStatus.RESCHEDULED:
       return 'Đã hoãn';
+    case AppointmentStatus.NO_SHOW:
+      return 'Không đến khám';
     default:
       return status;
   }
@@ -178,6 +191,25 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-gray-700">{appointment.note}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {appointment.appointmentStatus === AppointmentStatus.NO_SHOW && (
+              <Card className="border-slate-200 bg-slate-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Không đến khám</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  {appointment.noShowAt && (
+                    <p>Ghi nhận lúc {new Date(appointment.noShowAt).toLocaleString("vi-VN")}</p>
+                  )}
+                  {getNoShowReasonLabel(appointment.noShowReasonCode ?? appointment.reasonCode) && (
+                    <p>{getNoShowReasonLabel(appointment.noShowReasonCode ?? appointment.reasonCode)}</p>
+                  )}
+                  {getNoShowSourceLabel(appointment.noShowSource) && (
+                    <p className="text-muted-foreground">{getNoShowSourceLabel(appointment.noShowSource)}</p>
+                  )}
                 </CardContent>
               </Card>
             )}

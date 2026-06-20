@@ -58,6 +58,7 @@ export type BookingLifecycleState =
   // Broad booking submitted (BHYT) or its deposit paid (DICH_VU): the appointment is
   // created but stays PENDING/AWAITING_ASSIGNMENT until a receptionist assigns a doctor.
   | "AWAITING_ASSIGNMENT"
+  | "NO_SHOW"
   | "FAILED";
 
 export type AppointmentBookingResult = DataResponse<{
@@ -103,6 +104,12 @@ export type AppointmentDetail = {
   depositPaidAt?: string | null;
   reasonCode?: string;
   cancellationReasonCode?: string;
+  actionable?: boolean;
+  noShowAt?: string | number | null;
+  noShowActor?: "SYSTEM" | "STAFF" | string;
+  noShowSource?: "STARTUP" | "DAILY_06AM" | "MANUAL" | string;
+  noShowMarkedByAccountId?: string | null;
+  noShowReasonCode?: string | null;
 };
 
 export type AppointmentDepositStatus = "PENDING" | "PAID" | "NOT_REQUIRED" | "FAILED" | "REFUNDED" | "FORFEITED";
@@ -129,6 +136,12 @@ export type AppointmentCardModel = {
   depositAmount?: number;
   depositPaidAmount?: number;
   depositPaidAt?: string | null;
+  actionable?: boolean;
+  noShowAt?: string | number | null;
+  noShowActor?: string | null;
+  noShowSource?: string | null;
+  noShowMarkedByAccountId?: string | null;
+  noShowReasonCode?: string | null;
 };
 
 export type AppointmentListModel = {
@@ -157,6 +170,19 @@ export type AppointmentListModel = {
   depositAmount?: number;
   depositPaidAmount?: number;
   depositPaidAt?: string | null;
+  actionable?: boolean;
+  noShowAt?: string | number | null;
+  noShowActor?: string | null;
+  noShowSource?: string | null;
+  noShowMarkedByAccountId?: string | null;
+  noShowReasonCode?: string | null;
+};
+
+export type MarkAppointmentNoShowResult = {
+  noShow: boolean;
+  alreadyNoShow?: boolean;
+  reason?: string;
+  appointmentId: string;
 };
 
 export type AppointmentBookingState = {

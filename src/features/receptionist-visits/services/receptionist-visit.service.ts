@@ -4,6 +4,7 @@ import {
   getTodayVisits,
   type CreatePatientVitalSignRequestDto,
 } from "@/apis/receptionist/receptionist.api";
+import { markAppointmentNoShow } from "@/apis/appointment/appointment.api";
 import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { VisitCheckInResult, VisitItem } from "@/features/receptionist-visits/types/visit.types";
 import type { VitalSignRecord } from "@/features/receptionist-visits/types/vital-sign.types";
@@ -23,6 +24,11 @@ export const receptionistVisitService = {
       visitId: data?.visitId || visitId,
       status: (data?.status as VisitStatusEnum) || VisitStatusEnum.CHECKED_IN,
     };
+  },
+
+  async markNoShow(appointmentId: string) {
+    const res = await markAppointmentNoShow(appointmentId);
+    return res.data;
   },
 
   async recordVitalSign(

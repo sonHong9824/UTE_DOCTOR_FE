@@ -46,6 +46,27 @@ export type AppointmentCancelledDto = {
   [key: string]: unknown;
 };
 
+export type AppointmentNoShowDto = {
+  appointmentId?: string;
+  patientEmail?: string;
+  doctorEmail?: string;
+  appointmentDate?: string | number | null;
+  scheduledAt?: string | number | null;
+  date?: string | number | null;
+  timeRange?: string | null;
+  timeSlot?: string;
+  timeSlotLabel?: string;
+  hospitalName?: string | null;
+  doctorName?: string | null;
+  patientName?: string | null;
+  noShowAt?: string | number | null;
+  noShowActor?: string;
+  noShowSource?: string;
+  noShowReasonCode?: string;
+  depositStatus?: string;
+  [key: string]: unknown;
+};
+
 export type PaymentSuccessDto = {
   orderId?: string;
   appointmentId?: string;
@@ -123,6 +144,7 @@ export type NotificationMap = {
   COIN_EXPIRY_REMINDER: CoinExpiryDto;
   APPOINTMENT_SUCCESS: AppointmentSuccessDto;
   APPOINTMENT_CANCELLED: AppointmentCancelledDto;
+  APPOINTMENT_NO_SHOW: AppointmentNoShowDto;
   APPOINTMENT_RESCHEDULED: AppointmentRescheduledDto;
   PAYMENT_SUCCESS: PaymentSuccessDto;
   // Broad-booking / assignment (doctor-less appointment routing):

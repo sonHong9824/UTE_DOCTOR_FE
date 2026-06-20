@@ -10,13 +10,18 @@ import { Modal } from "@/components/ui/modal";
 import AppointmentStatus from "@/enum/appointment-status.enum";
 import AppointmentsList from "@/features/appointment/components/AppointmentsList";
 import {
+  getAppointmentStatusClass,
+  getAppointmentStatusLabel,
   getCombinedAppointmentStatusClass,
   getCombinedAppointmentStatusLabel,
+  getNoShowReasonLabel,
+  getNoShowSourceLabel,
 } from "@/features/appointment/utils/appointment-status";
 import AppointmentSummaryCards from "@/features/appointment-history/components/AppointmentSummaryCards";
 import {
   APPOINTMENT_CANCELLED_EVENT,
   APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+  APPOINTMENT_NO_SHOW_EVENT,
 } from "@/lib/realtimeEvents";
 import { CalendarClock } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -88,9 +93,11 @@ export default function AppointmentHistoryScreen() {
     };
     window.addEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
     window.addEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+    window.addEventListener(APPOINTMENT_NO_SHOW_EVENT, handleAppointmentStateChanged);
     return () => {
       window.removeEventListener(APPOINTMENT_DOCTOR_ASSIGNED_EVENT, handleAppointmentStateChanged);
       window.removeEventListener(APPOINTMENT_CANCELLED_EVENT, handleAppointmentStateChanged);
+      window.removeEventListener(APPOINTMENT_NO_SHOW_EVENT, handleAppointmentStateChanged);
     };
   }, []);
 
@@ -105,16 +112,6 @@ export default function AppointmentHistoryScreen() {
     if (!obj) return null;
     const core = obj?.data ?? obj;
     return core?.profileId?.name ?? core?.name ?? null;
-  };
-
-  // Map appointment status to badge color classes (light + dark friendly)
-  const getStatusBadgeClasses = (status: string | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100';
-    const s = String(status).toLowerCase();
-    if (s.includes('completed') || s.includes('done')) return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200';
-    if (s.includes('pending') || s.includes('waiting')) return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-    if (s.includes('cancel') || s.includes('canceled') || s.includes('rejected')) return 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200';
-    return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
   };
 
   // Helpers for rendering review colors and stars
@@ -341,14 +338,16 @@ export default function AppointmentHistoryScreen() {
     let upcoming = 0;
     let completed = 0;
     let cancelled = 0;
+    let noShow = 0;
     for (const appt of appointments) {
       const status = appt?.appointmentStatus;
       if (status === "COMPLETED") completed += 1;
       else if (status === "CANCELLED") cancelled += 1;
+      else if (status === "NO_SHOW") noShow += 1;
       else if (status === "PENDING" || status === "CONFIRMED" || status === "RESCHEDULED")
         upcoming += 1;
     }
-    return { upcoming, completed, cancelled };
+    return { upcoming, completed, cancelled, noShow };
   }, [appointments]);
 
   return (
@@ -372,6 +371,7 @@ export default function AppointmentHistoryScreen() {
         upcoming={summary.upcoming}
         completed={summary.completed}
         cancelled={summary.cancelled}
+        noShow={summary.noShow}
         loading={initialLoading}
       />
 
@@ -419,8 +419,10 @@ export default function AppointmentHistoryScreen() {
             </div>
 
             <div className="flex items-center gap-3">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClasses(apptData?.appointmentStatus)}`}>
-                {getCombinedAppointmentStatusLabel(apptData) ?? apptData?.appointmentStatus ?? 'UNKNOWN'}
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getAppointmentStatusClass(apptData?.appointmentStatus as AppointmentStatus)}`}>
+                {apptData?.appointmentStatus
+                  ? getAppointmentStatusLabel(apptData.appointmentStatus as AppointmentStatus)
+                  : "UNKNOWN"}
               </span>
               <div className="flex items-center gap-2">
                 {/* Hide rating button if an existing review is present */}
@@ -487,6 +489,29 @@ export default function AppointmentHistoryScreen() {
                       <div className="mt-4">
                         <div className="text-xs text-muted-foreground">Lý do khám</div>
                         <div className="mt-1 text-sm bg-gray-50 dark:bg-gray-900 p-3 rounded">{apptData.reasonForAppointment}</div>
+                      </div>
+                    )}
+
+                    {apptData.appointmentStatus === AppointmentStatus.NO_SHOW && (
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                          Không đến khám
+                        </div>
+                        {apptData.noShowAt && (
+                          <div className="mt-1 text-sm">
+                            Ghi nhận lúc {new Date(apptData.noShowAt).toLocaleString("vi-VN")}
+                          </div>
+                        )}
+                        {getNoShowReasonLabel(apptData.noShowReasonCode ?? apptData.reasonCode) && (
+                          <div className="mt-1 text-sm">
+                            {getNoShowReasonLabel(apptData.noShowReasonCode ?? apptData.reasonCode)}
+                          </div>
+                        )}
+                        {getNoShowSourceLabel(apptData.noShowSource) && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {getNoShowSourceLabel(apptData.noShowSource)}
+                          </div>
+                        )}
                       </div>
                     )}
 

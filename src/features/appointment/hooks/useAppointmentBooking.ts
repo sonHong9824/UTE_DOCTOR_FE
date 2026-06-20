@@ -199,6 +199,18 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
     refreshSlotsAfterPaymentEnd();
   }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup, refreshSlotsAfterPaymentEnd]);
 
+  const handleNoShowTerminal = useCallback(() => {
+    if (paymentHandledRef.current) return;
+    paymentHandledRef.current = true;
+    clearPaymentWatchers();
+    closePaymentPopup();
+    clearPendingDeposit();
+    setLoading(false);
+    setBookingLifecycleState("NO_SHOW");
+    setErrorMessage("Lịch khám này đã được ghi nhận là không đến khám.");
+    setShowErrorModal(true);
+  }, [clearPaymentWatchers, clearPendingDeposit, closePaymentPopup]);
+
   const handleDepositPollingError = useCallback((error: unknown) => {
     const status = typeof error === "object" && error && "response" in error
       ? (error as { response?: { status?: number } }).response?.status
@@ -239,6 +251,11 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
       }
     }
 
+    if (appointmentStatus === "NO_SHOW") {
+      handleNoShowTerminal();
+      return "NO_SHOW";
+    }
+
     if (isTerminal || depositStatus === "FAILED" || appointmentStatus === "FAILED" || appointmentStatus === "CANCELLED") {
       handleDepositFailure();
       return "FAILED";
@@ -246,7 +263,7 @@ export const useAppointmentBooking = (initialStrategy: BookingStrategy = "NORMAL
 
     setPaymentStatusMessage(popupClosedEarlyRef.current ? "Checking payment status..." : "Waiting for deposit payment...");
     return "PENDING";
-  }, [handleBroadDepositPaid, handleDepositFailure, handleDepositSuccess]);
+  }, [handleBroadDepositPaid, handleDepositFailure, handleDepositSuccess, handleNoShowTerminal]);
 
   const startDepositPolling = useCallback((appointmentId: string, timeoutMs = DEPOSIT_PAYMENT_TIMEOUT_MS) => {
     clearPaymentWatchers();

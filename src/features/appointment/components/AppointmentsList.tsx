@@ -11,6 +11,9 @@ import {
   getAppointmentStatusLabel,
   getCombinedAppointmentStatusClass,
   getCombinedAppointmentStatusLabel,
+  getNoShowReasonLabel,
+  getNoShowSourceLabel,
+  isAppointmentActionable,
   isAwaitingAssignment,
 } from "@/features/appointment/utils/appointment-status";
 import { TimeHelper } from "@/lib/time";
@@ -247,7 +250,14 @@ export default function AppointmentsList({
             const isExpanded = expandedId === id;
             const depositLabel = getDepositStatusLabel(appt.depositStatus);
             const depositAmountText = getDepositAmountText(appt);
+            const actionable = isAppointmentActionable(appt);
             const canReschedule =
+              actionable &&
+              !awaiting &&
+              (appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") &&
+              canRescheduleVisit(appt.visitStatus);
+            const canCancel =
+              actionable &&
               !awaiting &&
               (appt.appointmentStatus === "PENDING" || appt.appointmentStatus === "CONFIRMED") &&
               canRescheduleVisit(appt.visitStatus);
@@ -351,7 +361,7 @@ export default function AppointmentsList({
                           {activeAppointmentId === id ? "Đang đổi lịch..." : "Đổi lịch"}
                         </Button>
                       )}
-                      {appt.appointmentStatus !== "CANCELLED" && (
+                      {canCancel && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -416,6 +426,29 @@ export default function AppointmentsList({
                               <p className="mt-0.5 text-slate-700 dark:text-slate-200">
                                 {appt.paymentCategory === "BHYT" ? "Bảo hiểm y tế" : "Dịch vụ"}
                               </p>
+                            </div>
+                          ) : null}
+
+                          {appt.appointmentStatus === AppointmentStatus.NO_SHOW ? (
+                            <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                Không đến khám
+                              </p>
+                              {appt.noShowAt ? (
+                                <p className="mt-1 text-slate-700 dark:text-slate-200">
+                                  Ghi nhận lúc {TimeHelper.formatLocalDateTime(appt.noShowAt, "vi-VN")}
+                                </p>
+                              ) : null}
+                              {getNoShowReasonLabel(appt.noShowReasonCode ?? appt.reasonCode) ? (
+                                <p className="mt-1 text-slate-700 dark:text-slate-200">
+                                  {getNoShowReasonLabel(appt.noShowReasonCode ?? appt.reasonCode)}
+                                </p>
+                              ) : null}
+                              {getNoShowSourceLabel(appt.noShowSource) ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {getNoShowSourceLabel(appt.noShowSource)}
+                                </p>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>

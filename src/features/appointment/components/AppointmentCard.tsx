@@ -8,7 +8,11 @@ import { VisitStatusEnum } from "@/enum/visit-status.enum";
 import { RescheduleAppointmentModal } from "@/features/appointment/components/RescheduleAppointmentModal";
 import { useAppointmentActions } from "@/features/appointment/hooks/useAppointmentActions";
 import { AppointmentCardModel } from "@/features/appointment/types/appointment.types";
-import { getAppointmentStatusClass, getAppointmentStatusLabel } from "@/features/appointment/utils/appointment-status";
+import {
+  getAppointmentStatusClass,
+  getAppointmentStatusLabel,
+  isAppointmentActionable,
+} from "@/features/appointment/utils/appointment-status";
 import { TimeSlotDto } from "@/types/timeslot.dto";
 import { AlertCircle, Calendar, Clock, Stethoscope, User } from "lucide-react";
 import React, { useState } from "react";
@@ -50,15 +54,19 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
   const visitEligible =
     !appointment.visitStatus || appointment.visitStatus === VisitStatusEnum.CREATED;
+  const actionable = isAppointmentActionable(appointment);
 
   const canReschedule =
+    actionable &&
     visitEligible &&
     (appointment.appointmentStatus === AppointmentStatus.PENDING ||
       appointment.appointmentStatus === AppointmentStatus.CONFIRMED);
 
   const canCancel =
-    appointment.appointmentStatus === AppointmentStatus.PENDING ||
-    appointment.appointmentStatus === AppointmentStatus.CONFIRMED;
+    actionable &&
+    visitEligible &&
+    (appointment.appointmentStatus === AppointmentStatus.PENDING ||
+      appointment.appointmentStatus === AppointmentStatus.CONFIRMED);
 
   const appointmentDate = new Date(appointment.date);
   const isUpcoming = appointmentDate > new Date();

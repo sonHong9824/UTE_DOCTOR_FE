@@ -2,13 +2,14 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { CircleCheckBig, CircleX, Hourglass, ListChecks, type LucideIcon } from "lucide-react";
+import { CircleCheckBig, CircleSlash2, CircleX, Hourglass, ListChecks, type LucideIcon } from "lucide-react";
 
 interface AppointmentSummaryCardsProps {
   total: number;
   upcoming: number;
   completed: number;
   cancelled: number;
+  noShow: number;
   loading?: boolean;
 }
 
@@ -27,6 +28,7 @@ export default function AppointmentSummaryCards({
   upcoming,
   completed,
   cancelled,
+  noShow,
   loading = false,
 }: AppointmentSummaryCardsProps) {
   const cards: SummaryCard[] = [
@@ -58,10 +60,17 @@ export default function AppointmentSummaryCards({
       iconClass: "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400",
       valueClass: "text-rose-700 dark:text-rose-300",
     },
+    {
+      label: "Không đến khám",
+      value: noShow,
+      icon: CircleSlash2,
+      iconClass: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      valueClass: "text-slate-700 dark:text-slate-200",
+    },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
