@@ -3,6 +3,7 @@ import {
   getAdminAppointments,
   getAdminLifecycleNodeDetail,
 } from "@/apis/admin/appointments.api";
+import { markAppointmentNoShow } from "@/apis/appointment/appointment.api";
 import {
   AdminAppointmentQuery,
   AdminAppointmentsPageResult,
@@ -28,6 +29,11 @@ export const adminAppointmentLifecycleService = {
 
   async getNodeDetail(appointmentId: string, nodeId: string): Promise<LifecycleNodeDetail> {
     const res = await getAdminLifecycleNodeDetail(appointmentId, nodeId);
+    return res.data;
+  },
+
+  async markNoShow(appointmentId: string) {
+    const res = await markAppointmentNoShow(appointmentId);
     return res.data;
   },
 };

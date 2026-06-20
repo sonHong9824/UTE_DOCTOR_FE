@@ -17,7 +17,16 @@ type CombinedAppointmentStatusInput = {
   slot?: unknown;
   reasonCode?: string | null;
   cancellationReasonCode?: string | null;
+  actionable?: boolean;
+  date?: string | number | Date | null;
 };
+
+const TERMINAL_APPOINTMENT_STATUSES = new Set<string>([
+  AppointmentStatus.COMPLETED,
+  AppointmentStatus.CANCELLED,
+  AppointmentStatus.FAILED,
+  AppointmentStatus.NO_SHOW,
+]);
 
 export const isAwaitingAssignment = (assignmentStatus?: string): boolean =>
   assignmentStatus === "AWAITING_ASSIGNMENT";
@@ -106,6 +115,50 @@ export const getCombinedAppointmentStatusClass = (
   return "border-amber-200 bg-amber-50 text-amber-800";
 };
 
+const getTimeSlotEnd = (timeSlot: unknown): string | null => {
+  if (!timeSlot || typeof timeSlot !== "object") return null;
+  const value = (timeSlot as { end?: unknown; endTime?: unknown }).end ??
+    (timeSlot as { endTime?: unknown }).endTime;
+  return typeof value === "string" && /^\d{1,2}:\d{2}/.test(value) ? value : null;
+};
+
+export const getAppointmentScheduledEndMs = (
+  appointment?: CombinedAppointmentStatusInput | null
+): number | null => {
+  if (!appointment?.date) return null;
+
+  const rawDate = appointment.date instanceof Date
+    ? appointment.date
+    : new Date(appointment.date);
+  if (!Number.isFinite(rawDate.getTime())) return null;
+
+  const timeSlotEnd = getTimeSlotEnd(appointment.timeSlot);
+  if (!timeSlotEnd) return rawDate.getTime();
+
+  const [hours, minutes] = timeSlotEnd.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return rawDate.getTime();
+
+  const scheduledEnd = new Date(rawDate);
+  scheduledEnd.setHours(hours, minutes, 0, 0);
+  return scheduledEnd.getTime();
+};
+
+export const isAppointmentActionable = (
+  appointment?: CombinedAppointmentStatusInput | null,
+  nowMs = Date.now()
+): boolean => {
+  if (!appointment?.appointmentStatus) return false;
+  if (appointment.actionable === false) return false;
+  if (TERMINAL_APPOINTMENT_STATUSES.has(String(appointment.appointmentStatus))) return false;
+
+  const scheduledEndMs = getAppointmentScheduledEndMs(appointment);
+  if (appointment.actionable !== true && scheduledEndMs !== null && scheduledEndMs < nowMs) {
+    return false;
+  }
+
+  return true;
+};
+
 export const getAppointmentStatusClass = (status: AppointmentStatus) => {
   switch (status) {
     case AppointmentStatus.PENDING:
@@ -120,6 +173,8 @@ export const getAppointmentStatusClass = (status: AppointmentStatus) => {
       return "bg-red-100 text-red-800";
     case AppointmentStatus.RESCHEDULED:
       return "bg-purple-100 text-purple-800";
+    case AppointmentStatus.NO_SHOW:
+      return "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100";
     default:
       return "bg-gray-100 text-gray-800";
   }
@@ -139,7 +194,31 @@ export const getAppointmentStatusLabel = (status: AppointmentStatus) => {
       return "Đã hủy";
     case AppointmentStatus.RESCHEDULED:
       return "Đã hoãn";
+    case AppointmentStatus.NO_SHOW:
+      return "Không đến khám";
     default:
       return status;
   }
+};
+
+export const getNoShowSourceLabel = (source?: string | null): string | null => {
+  switch (source) {
+    case "STARTUP":
+      return "Hệ thống đối soát khi khởi động";
+    case "DAILY_06AM":
+      return "Hệ thống đối soát hằng ngày";
+    case "MANUAL":
+      return "Nhân viên đánh dấu thủ công";
+    default:
+      return source ? source.replace(/_/g, " ") : null;
+  }
+};
+
+export const getNoShowReasonLabel = (reason?: string | null): string | null => {
+  if (!reason) return null;
+  const labels: Record<string, string> = {
+    PATIENT_DID_NOT_CHECK_IN: "Bệnh nhân không check-in trong thời gian quy định",
+    OVERDUE_NO_CHECK_IN: "Quá giờ khám nhưng bệnh nhân chưa check-in",
+  };
+  return labels[reason] ?? reason.replace(/_/g, " ").toLowerCase();
 };

@@ -1,4 +1,10 @@
-export type VisitStatus = "CHECKED_IN" | "IN_PROGRESS" | "COMPLETED";
+export type VisitStatus =
+  | "CREATED"
+  | "CHECKED_IN"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW";
 
 export interface VisitDto {
   visitId: string;

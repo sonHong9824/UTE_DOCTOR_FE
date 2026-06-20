@@ -1,10 +1,14 @@
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
 import { VisitDto, CompleteVisitPayload } from "@/types/visit.dto";
+import { resolveBrowserTimezone } from "@/utils/time.util";
 
 export const getTodayVisits = async () => {
   try {
-    const res = await axiosClient.get<DataResponse<VisitDto[]>>("/doctor/visits/today");
+    const res = await axiosClient.get<DataResponse<VisitDto[]>>("/doctor/visits/today", {
+      // The backend derives the local calendar day from this zone; timestamps remain epoch values.
+      params: { timezone: resolveBrowserTimezone() },
+    });
     console.log("[Axios] Get today visits:", res.data);
     return res.data;
   } catch (e) {

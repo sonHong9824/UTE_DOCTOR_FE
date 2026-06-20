@@ -17,6 +17,9 @@ export const APPOINTMENT_DOCTOR_ASSIGNED_EVENT = "appointment:doctor-assigned";
 /** Fired when a patient's appointment state changed and mounted appointment views should refresh. */
 export const APPOINTMENT_CANCELLED_EVENT = "appointment:cancelled";
 
+/** Fired when an appointment is terminalized because the patient did not check in. */
+export const APPOINTMENT_NO_SHOW_EVENT = "appointment:no-show";
+
 /** Fired whenever a notification socket payload arrives for the current user. */
 export const NOTIFICATIONS_CHANGED_EVENT = "notifications:changed";
 

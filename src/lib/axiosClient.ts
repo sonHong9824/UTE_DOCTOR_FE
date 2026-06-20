@@ -1,10 +1,10 @@
-import axios from "axios";
 import { refreshAccessToken } from "@/lib/authRefresh";
 import {
   clearAuthTokens,
   emitAuthLogout,
   getAccessToken,
 } from "@/lib/authTokenStore";
+import axios from "axios";
 
 const axiosClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_BASE_API || "http://localhost:3001/api",

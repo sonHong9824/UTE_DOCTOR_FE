@@ -22,6 +22,7 @@ import {
   RefreshCcw,
   ShieldAlert,
   Split,
+  UserX,
   UserRound,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useAdminAppointmentLifecycle } from "@/features/admin-appointment-lifecycle/hooks/useAdminAppointmentLifecycle";
 import { useLifecycleNodeDetail } from "@/features/admin-appointment-lifecycle/hooks/useLifecycleNodeDetail";
+import { useMarkAppointmentNoShow } from "@/features/admin-appointment-lifecycle/hooks/useMarkAppointmentNoShow";
 import {
   ActorSummary,
   LifecycleEdge,
@@ -54,6 +56,7 @@ import {
   formatActorLabel,
   formatActorMeta,
   formatEdgeStatusLabel,
+  formatLifecycleNodeLabel,
   formatPhaseLabel,
   formatStatusLabel,
   formatTimestamp,
@@ -63,6 +66,7 @@ import {
   getStatusTone,
   getWarningTone,
   groupNodesByPhase,
+  isNoShowLifecycleNode,
   snapshotValueToText,
   warningLabel,
 } from "@/features/admin-appointment-lifecycle/utils/lifecycle-formatters";
@@ -318,7 +322,7 @@ const NodeDetailContent = ({
           {detail?.complete === false ? <Pill tone="orange">Incomplete detail</Pill> : null}
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-foreground">{selectedNode.label || "Unlinked event"}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{formatLifecycleNodeLabel(selectedNode)}</h3>
           <p className="text-sm text-muted-foreground">{detail?.eventType || selectedNode.eventType || "Unknown event"}</p>
         </div>
       </div>
@@ -416,6 +420,7 @@ const NodeCard = ({
   onSelect: () => void;
 }) => {
   const visualState = getMilestoneVisualState(node, selected, latestMajor);
+  const noShowNode = isNoShowLifecycleNode(node);
 
   return (
     <button
@@ -442,8 +447,9 @@ const NodeCard = ({
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0 space-y-1 pl-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-foreground">{node.label || "Unlinked event"}</p>
+            <p className="font-semibold text-foreground">{formatLifecycleNodeLabel(node)}</p>
             {latestMajor ? <Pill tone="blue">Current stage</Pill> : null}
+            {noShowNode ? <Pill tone="orange">Terminal outcome</Pill> : null}
             {sideRoute ? <Pill tone="gray">Side branch</Pill> : null}
           </div>
           <p className="break-all text-xs uppercase tracking-wide text-muted-foreground">{node.eventType || "UNKNOWN_EVENT"}</p>
@@ -484,6 +490,7 @@ const NodeCard = ({
 export default function AdminAppointmentLifecycleDetailScreen({ appointmentId }: { appointmentId: string }) {
   const router = useRouter();
   const { tree, loading, refreshing, error, refresh } = useAdminAppointmentLifecycle(appointmentId);
+  const { markingAppointmentId, markNoShow } = useMarkAppointmentNoShow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({
@@ -534,6 +541,15 @@ export default function AdminAppointmentLifecycleDetailScreen({ appointmentId }:
   );
   const latestMajorNode = useMemo(() => {
     const nodes = tree?.nodes ?? [];
+    const noShowNodes = nodes.filter(
+      (node) => isNoShowLifecycleNode(node) && node.timestamp !== null
+    );
+    if (noShowNodes.length) {
+      return [...noShowNodes].sort(
+        (a, b) => Number(b.timestamp ?? 0) - Number(a.timestamp ?? 0)
+      )[0];
+    }
+
     const mainNodes = nodes.filter((node) => isMainProgressPhase(node.phase) && node.timestamp !== null);
     const candidates = mainNodes.length ? mainNodes : nodes.filter((node) => node.timestamp !== null);
 
@@ -607,6 +623,10 @@ export default function AdminAppointmentLifecycleDetailScreen({ appointmentId }:
 
   const globalWarnings = tree.globalWarnings ?? [];
   const appointment = tree.appointment;
+  const canMarkNoShow =
+    appointment.appointmentStatus === "CONFIRMED" &&
+    appointment.scheduledAt !== null &&
+    appointment.scheduledAt < Date.now();
 
   return (
     <div className="space-y-5">
@@ -641,10 +661,27 @@ export default function AdminAppointmentLifecycleDetailScreen({ appointmentId }:
               </div>
             </div>
 
-            <Button type="button" variant="outline" onClick={() => refresh()} disabled={refreshing} className="gap-2">
-              <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-              Refresh
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {canMarkNoShow ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 border-slate-300 text-slate-700"
+                  onClick={() => {
+                    if (!window.confirm("Đánh dấu bệnh nhân không đến khám cho lịch này?")) return;
+                    void markNoShow(appointment.id || appointmentId, () => refresh());
+                  }}
+                  disabled={Boolean(markingAppointmentId)}
+                >
+                  <UserX className="h-4 w-4" />
+                  {markingAppointmentId ? "Đang xử lý..." : "Đánh dấu không đến khám"}
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" onClick={() => refresh()} disabled={refreshing} className="gap-2">
+                <RefreshCcw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -667,6 +704,25 @@ export default function AdminAppointmentLifecycleDetailScreen({ appointmentId }:
           </div>
         </CardContent>
       </Card>
+
+      {appointment.appointmentStatus === "NO_SHOW" ? (
+        <div className="rounded-2xl border border-slate-300 bg-slate-50 p-4 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+          <div className="flex items-start gap-3">
+            <UserX className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p className="font-semibold">Không đến khám</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {appointment.noShowActor === "SYSTEM"
+                  ? "Được hệ thống ghi nhận qua đối soát tự động."
+                  : appointment.noShowActor === "STAFF" || appointment.noShowSource === "MANUAL"
+                    ? "Được nhân viên lễ tân hoặc quản trị viên đánh dấu thủ công."
+                    : "Nguồn ghi nhận được hiển thị trong các node lifecycle bên dưới."}
+                {appointment.noShowAt ? ` Thời điểm: ${formatTimestamp(appointment.noShowAt)}.` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <Card className="cursor-default overflow-hidden border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-sky-50 shadow-sm transition-none hover:scale-100 hover:shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/30 dark:via-gray-950 dark:to-sky-950/30">
         <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">

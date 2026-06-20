@@ -13,18 +13,22 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { VisitStatusEnum } from "@/enum/visit-status.enum";
+import VitalSignFormDialog from "@/features/receptionist-visits/components/VitalSignFormDialog";
 import { useTodayVisits } from "@/features/receptionist-visits/hooks/useTodayVisits";
+import type { VisitItem } from "@/features/receptionist-visits/types/visit.types";
 import {
     formatVisitSchedule,
     getVisitStatusLabel,
     getVisitStatusVariant,
 } from "@/features/receptionist-visits/utils/visit.utils";
-import { CheckCircle2, Clock3, Loader2, RefreshCcw, Users } from "lucide-react";
+import { Activity, CheckCircle2, Clock3, Loader2, RefreshCcw, UserX, Users } from "lucide-react";
+import { useState } from "react";
 
 const filterOptions = [
   { value: "all", label: "Tất cả" },
   { value: "waiting", label: "Chờ check-in" },
   { value: "checked-in", label: "Đã check-in" },
+  { value: "no-show", label: "Không đến khám" },
 ] as const;
 
 export default function TodayVisitsScreen() {
@@ -33,13 +37,23 @@ export default function TodayVisitsScreen() {
     loading,
     refreshing,
     checkingInVisitId,
+    markingNoShowAppointmentId,
     error,
     filter,
     setFilter,
     refresh,
     checkInVisit,
+    markNoShow,
     counts,
   } = useTodayVisits();
+
+  const [vitalSignVisit, setVitalSignVisit] = useState<VisitItem | null>(null);
+  const [vitalSignDialogOpen, setVitalSignDialogOpen] = useState(false);
+
+  const openVitalSignDialog = (visit: VisitItem) => {
+    setVitalSignVisit(visit);
+    setVitalSignDialogOpen(true);
+  };
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -65,6 +79,10 @@ export default function TodayVisitsScreen() {
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1">
                   Tổng: <strong className="text-foreground">{counts.total}</strong>
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1">
+                  <UserX className="h-4 w-4 text-slate-600" />
+                  Không đến: <strong className="text-foreground">{counts.noShow}</strong>
                 </span>
               </div>
             </div>
@@ -137,6 +155,13 @@ export default function TodayVisitsScreen() {
                   visits.map((visit) => {
                     const isCheckingIn = checkingInVisitId === visit.id;
                     const canCheckIn = visit.status === VisitStatusEnum.CREATED;
+                    const canMarkNoShow =
+                      visit.status === VisitStatusEnum.CREATED &&
+                      visit.appointmentStatus === "CONFIRMED" &&
+                      visit.scheduledAt < Date.now();
+                    const canRecordVitalSign =
+                      visit.status === VisitStatusEnum.CHECKED_IN ||
+                      visit.status === VisitStatusEnum.IN_PROGRESS;
 
                     return (
                       <TableRow key={visit.id}>
@@ -150,15 +175,48 @@ export default function TodayVisitsScreen() {
                         </TableCell>
                         <TableCell className="text-right">
                           {canCheckIn ? (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void checkInVisit(visit.id)}
+                                disabled={Boolean(checkingInVisitId) || Boolean(markingNoShowAppointmentId)}
+                                className="gap-2"
+                              >
+                                {isCheckingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                {isCheckingIn ? "Đang xử lý" : "Check-in"}
+                              </Button>
+                              {canMarkNoShow ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-2"
+                                  onClick={() => {
+                                    if (!window.confirm("Đánh dấu bệnh nhân không đến khám?")) return;
+                                    void markNoShow(visit.appointmentId);
+                                  }}
+                                  disabled={Boolean(checkingInVisitId) || Boolean(markingNoShowAppointmentId)}
+                                >
+                                  {markingNoShowAppointmentId === visit.appointmentId ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <UserX className="h-4 w-4" />
+                                  )}
+                                  Không đến
+                                </Button>
+                              ) : null}
+                            </div>
+                          ) : canRecordVitalSign ? (
                             <Button
                               type="button"
                               size="sm"
-                              onClick={() => void checkInVisit(visit.id)}
-                              disabled={Boolean(checkingInVisitId)}
+                              variant="outline"
+                              onClick={() => openVitalSignDialog(visit)}
                               className="gap-2"
                             >
-                              {isCheckingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                              {isCheckingIn ? "Đang xử lý" : "Check-in"}
+                              <Activity className="h-4 w-4" />
+                              Ghi nhận chỉ số
                             </Button>
                           ) : (
                             <span className="text-sm text-muted-foreground">-</span>
@@ -173,6 +231,12 @@ export default function TodayVisitsScreen() {
           </div>
         </CardContent>
       </Card>
+
+      <VitalSignFormDialog
+        visit={vitalSignVisit}
+        open={vitalSignDialogOpen}
+        onOpenChange={setVitalSignDialogOpen}
+      />
     </div>
   );
 }

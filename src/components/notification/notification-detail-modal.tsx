@@ -55,6 +55,12 @@ const visualMetaByType: Partial<Record<NotificationType, NotificationVisualMeta>
     iconClassName: "bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/60",
     surfaceClassName: "from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-950",
   },
+  APPOINTMENT_NO_SHOW: {
+    icon: <AlertTriangle className="h-5 w-5" />,
+    label: "Không đến khám",
+    iconClassName: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
+    surfaceClassName: "from-slate-100/80 to-white dark:from-slate-900/60 dark:to-slate-950",
+  },
   APPOINTMENT_RESCHEDULED: {
     icon: <Calendar className="h-5 w-5" />,
     label: "Đổi lịch",

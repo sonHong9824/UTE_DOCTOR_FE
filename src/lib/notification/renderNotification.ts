@@ -31,6 +31,7 @@ const notificationTypeAliasMap: Record<string, string> = {
   appointment_success: "APPOINTMENT_SUCCESS",
   appointment_booking_success: "APPOINTMENT_SUCCESS",
   appointment_cancelled: "APPOINTMENT_CANCELLED",
+  appointment_no_show: "APPOINTMENT_NO_SHOW",
   appointment_rescheduled: "APPOINTMENT_RESCHEDULED",
   payment_success: "PAYMENT_SUCCESS",
   payment_update: "PAYMENT_SUCCESS",
@@ -358,6 +359,25 @@ const renderStructuredNotification = (
       return {
         title: "Lịch khám đã bị hủy",
         message: `Lịch khám của bạn${when}${hospital} đã bị hủy.${reasonSegment}`,
+      };
+    }
+  }
+
+  if (type === "APPOINTMENT_NO_SHOW") {
+    const noShowAt = readFirstDateTime(data, ["noShowAt"]);
+    const recordedAt = noShowAt ? ` Trạng thái được ghi nhận lúc ${noShowAt}.` : "";
+
+    if (role === "DOCTOR") {
+      return {
+        title: "Bệnh nhân không đến khám",
+        message: `Lịch khám${patient}${when}${hospital} được ghi nhận không đến khám do bệnh nhân không check-in trong thời gian quy định.${recordedAt}`,
+      };
+    }
+
+    if (!role || role === "PATIENT") {
+      return {
+        title: "Lịch khám được ghi nhận không đến",
+        message: `Lịch khám của bạn${when}${doctor}${hospital} đã được ghi nhận là không đến khám.${recordedAt}`,
       };
     }
   }

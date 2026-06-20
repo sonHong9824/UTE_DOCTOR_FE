@@ -3,6 +3,7 @@ import {
   AppointmentBookingPayload,
   AppointmentBookingResult,
   AppointmentDepositStatusResult,
+  MarkAppointmentNoShowResult,
 } from "@/features/appointment/types/appointment.types";
 import axiosClient from "@/lib/axiosClient";
 import { DataResponse } from "@/types/apiDTO";
@@ -257,6 +258,19 @@ export const cancelAppointment = async (appointmentId: string, reason?: string) 
     console.error("Failed to cancel appointment:", e);
     throw e;
   }
+};
+
+export const markAppointmentNoShow = async (appointmentId: string) => {
+  const res = await axiosClient.patch<DataResponse<MarkAppointmentNoShowResult>>(
+    `/appointment/${appointmentId}/no-show`,
+    {}
+  );
+
+  if (res.data?.code && res.data.code !== "SUCCESS") {
+    throw { response: { data: res.data } };
+  }
+
+  return res.data;
 };
 
 export const getCompletedAppointmentsByDoctor = async (params: {

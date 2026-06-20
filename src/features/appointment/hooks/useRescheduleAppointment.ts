@@ -24,6 +24,7 @@ const INELIGIBLE_VISIT_MESSAGES: Record<string, string> = {
   [VisitStatusEnum.IN_PROGRESS]: "Không thể đổi lịch vì lượt khám đang diễn ra.",
   [VisitStatusEnum.COMPLETED]: "Không thể đổi lịch vì lượt khám đã hoàn tất.",
   [VisitStatusEnum.CANCELLED]: "Lượt khám đã bị hủy, không thể đổi lịch.",
+  [VisitStatusEnum.NO_SHOW]: "Lượt khám đã được ghi nhận không đến khám, không thể đổi lịch.",
 };
 
 const resolveDoctorId = (appointment: RescheduleAppointmentDetail | null): string => {

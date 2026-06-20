@@ -2,7 +2,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppointmentStatus } from "@/enum/appointment-status.enum";
-import { getAppointmentStatusClass, getAppointmentStatusLabel } from "@/features/appointment/utils/appointment-status";
+import {
+  getAppointmentStatusClass,
+  getAppointmentStatusLabel,
+  isAppointmentActionable,
+} from "@/features/appointment/utils/appointment-status";
 import { Calendar, Clock, Coins, Eye, User } from "lucide-react";
 import React from "react";
 
@@ -16,6 +20,7 @@ interface AppointmentListItemProps {
     consultationFee: number;
     doctorName: string;
     specialization: string;
+    actionable?: boolean;
   };
   onView?: (appointmentId: string) => void;
   onReschedule?: (appointmentId: string) => void;
@@ -31,6 +36,7 @@ export const AppointmentListItem: React.FC<AppointmentListItemProps> = ({
   const appointmentDate = new Date(appointment.date);
   const isUpcoming = appointmentDate > new Date();
   const canReschedule =
+    isAppointmentActionable(appointment) &&
     isUpcoming &&
     (appointment.appointmentStatus === AppointmentStatus.PENDING ||
       appointment.appointmentStatus === AppointmentStatus.CONFIRMED);

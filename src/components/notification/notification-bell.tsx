@@ -15,6 +15,7 @@ import { renderNotification } from "@/lib/notification/renderNotification";
 import {
   APPOINTMENT_CANCELLED_EVENT,
   APPOINTMENT_DOCTOR_ASSIGNED_EVENT,
+  APPOINTMENT_NO_SHOW_EVENT,
   ASSIGNMENT_TASKS_CHANGED_EVENT,
   emitAppRealtimeEvent,
   NOTIFICATIONS_CHANGED_EVENT,
@@ -66,6 +67,9 @@ const handlers: NotificationHandlerMap = {
   },
   APPOINTMENT_CANCELLED: (data) => {
     emitAppRealtimeEvent(APPOINTMENT_CANCELLED_EVENT, data);
+  },
+  APPOINTMENT_NO_SHOW: (data) => {
+    emitAppRealtimeEvent(APPOINTMENT_NO_SHOW_EVENT, data);
   },
   APPOINTMENT_RESCHEDULED: (data) => {
     console.log("Appointment rescheduled", data);

@@ -63,6 +63,11 @@ const notificationTypeStyleMap: Partial<
     iconClassName: "bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/60",
     label: "Lịch khám",
   },
+  APPOINTMENT_NO_SHOW: {
+    icon: <AlertTriangle className="h-4 w-4" />,
+    iconClassName: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
+    label: "Không đến khám",
+  },
   APPOINTMENT_RESCHEDULED: {
     icon: <Calendar className="h-4 w-4" />,
     iconClassName: "bg-indigo-50 text-indigo-600 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900/60",
@@ -232,6 +237,7 @@ const notificationComponentMap: Partial<
   COIN_EXPIRY_REMINDER: NotificationItemShell,
   APPOINTMENT_SUCCESS: NotificationItemShell,
   APPOINTMENT_CANCELLED: NotificationItemShell,
+  APPOINTMENT_NO_SHOW: NotificationItemShell,
   APPOINTMENT_RESCHEDULED: NotificationItemShell,
   PAYMENT_SUCCESS: NotificationItemShell,
   ASSIGNMENT_TASK_CREATED: NotificationItemShell,

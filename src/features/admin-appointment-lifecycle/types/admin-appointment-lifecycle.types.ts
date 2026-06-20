@@ -80,6 +80,10 @@ export interface AdminAppointmentSummary {
   bookingDate: number | null;
   scheduledAt: number | null;
   hasWarnings: boolean;
+  noShowAt?: number | null;
+  noShowActor?: string | null;
+  noShowSource?: string | null;
+  noShowMarkedByAccountId?: string | null;
 }
 
 export interface AdminAppointmentsPageResult {
@@ -152,6 +156,10 @@ export interface LifecycleTree {
     bookingDate: number | null;
     patient?: { email?: string | null } | null;
     doctor?: { id?: string | null; name?: string | null } | null;
+    noShowAt?: number | null;
+    noShowActor?: string | null;
+    noShowSource?: string | null;
+    noShowMarkedByAccountId?: string | null;
   };
   rootNodeId: string;
   nodes: LifecycleNode[];

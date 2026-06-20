@@ -16,6 +16,7 @@ const USER_PROFILE_TABS = [
   "personal-info",
   "password",
   "medical-detail",
+  "appointment-history",
   "appointments",
   "notifications",
   "wallet",

@@ -3,7 +3,7 @@ import { VisitStatusEnum } from "@/enum/visit-status.enum";
 
 export type VisitStatus = VisitStatusEnum;
 
-export type VisitFilter = "all" | "waiting" | "checked-in";
+export type VisitFilter = "all" | "waiting" | "checked-in" | "no-show";
 
 export interface VisitItem {
   id: string;
@@ -12,6 +12,7 @@ export interface VisitItem {
   doctorName: string;
   scheduledAt: number;
   status: VisitStatusEnum;
+  appointmentStatus?: string;
 }
 
 export interface VisitCheckInResult {
@@ -24,6 +25,7 @@ export interface VisitListState {
   loading: boolean;
   refreshing: boolean;
   checkingInVisitId: string | null;
+  markingNoShowAppointmentId: string | null;
   error: string | null;
   filter: VisitFilter;
 }

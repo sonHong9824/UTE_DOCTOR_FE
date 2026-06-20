@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  UserX,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useAdminAppointments } from "@/features/admin-appointment-lifecycle/hooks/useAdminAppointments";
+import { useMarkAppointmentNoShow } from "@/features/admin-appointment-lifecycle/hooks/useMarkAppointmentNoShow";
 import {
   badgeToneClass,
   formatStatusLabel,
@@ -36,7 +38,15 @@ import {
   getStatusTone,
 } from "@/features/admin-appointment-lifecycle/utils/lifecycle-formatters";
 
-const APPOINTMENT_STATUS_OPTIONS = ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"];
+const APPOINTMENT_STATUS_OPTIONS = [
+  "PENDING",
+  "CONFIRMED",
+  "COMPLETED",
+  "CANCELLED",
+  "FAILED",
+  "RESCHEDULED",
+  "NO_SHOW",
+];
 const PAYMENT_CATEGORY_OPTIONS = ["DICH_VU", "BHYT"];
 const DEPOSIT_STATUS_OPTIONS = ["NOT_REQUIRED", "PENDING", "PAID", "FAILED", "REFUNDED", "FORFEITED"];
 const ASSIGNMENT_STATUS_OPTIONS = ["NONE", "AWAITING_ASSIGNMENT", "ASSIGNED"];
@@ -107,6 +117,7 @@ export default function AdminAppointmentLifecycleListScreen() {
     resetFilters,
     refresh,
   } = useAdminAppointments();
+  const { markingAppointmentId, markNoShow } = useMarkAppointmentNoShow();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -268,7 +279,13 @@ export default function AdminAppointmentLifecycleListScreen() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((appointment) => (
+                  items.map((appointment) => {
+                    const canMarkNoShow =
+                      appointment.appointmentStatus === "CONFIRMED" &&
+                      appointment.scheduledAt !== null &&
+                      appointment.scheduledAt < Date.now();
+
+                    return (
                     <TableRow key={appointment.appointmentId} className="hover:bg-sky-50/50 dark:hover:bg-sky-950/20">
                       <TableCell className="min-w-[210px] py-4">
                         <div className="space-y-1">
@@ -312,15 +329,34 @@ export default function AdminAppointmentLifecycleListScreen() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button asChild size="sm" variant="outline" className="gap-2">
-                          <Link href={`/admin/appointments/${appointment.appointmentId}/lifecycle`}>
-                            <Eye className="h-4 w-4" />
-                            View lifecycle
-                          </Link>
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          {canMarkNoShow ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => {
+                                if (!window.confirm("Đánh dấu bệnh nhân không đến khám cho lịch này?")) return;
+                                void markNoShow(appointment.appointmentId, () => refresh());
+                              }}
+                              disabled={Boolean(markingAppointmentId)}
+                            >
+                              <UserX className="h-4 w-4" />
+                              {markingAppointmentId === appointment.appointmentId ? "Đang xử lý..." : "Không đến"}
+                            </Button>
+                          ) : null}
+                          <Button asChild size="sm" variant="outline" className="gap-2">
+                            <Link href={`/admin/appointments/${appointment.appointmentId}/lifecycle`}>
+                              <Eye className="h-4 w-4" />
+                              View lifecycle
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

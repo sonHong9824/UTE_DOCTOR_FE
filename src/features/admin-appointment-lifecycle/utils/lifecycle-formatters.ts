@@ -50,7 +50,11 @@ const STATUS_LABELS: Record<string, string> = {
   NOT_REQUIRED: "Not required",
   DICH_VU: "Service",
   BHYT: "Insurance",
-  NO_SHOW: "No show",
+  NO_SHOW: "Không đến khám",
+  STAFF: "Nhân viên",
+  MANUAL: "Thủ công",
+  STARTUP: "Đối soát khi khởi động",
+  DAILY_06AM: "Đối soát hằng ngày",
 };
 
 const EDGE_LABELS: Record<string, string> = {
@@ -107,9 +111,10 @@ export const getStatusTone = (status?: string | null): BadgeTone => {
     case "ERROR":
     case "MISSING":
       return "red";
+    case "NO_SHOW":
+      return "orange";
     case "LEGACY":
     case "UNKNOWN":
-    case "NO_SHOW":
       return "gray";
     case "REFUNDED":
     case "FORFEITED":
@@ -209,6 +214,24 @@ export const formatActorLabel = (actor?: ActorSummary | null): string => {
   }
 
   return actor.actorName || actor.actorEmail || actor.actorRole || "Unknown actor";
+};
+
+export const isNoShowLifecycleNode = (node?: LifecycleNode | null): boolean => {
+  if (!node) return false;
+  return [node.eventType, node.statusAfter, node.label]
+    .filter(Boolean)
+    .some((value) => String(value).toUpperCase().includes("NO_SHOW"));
+};
+
+export const formatLifecycleNodeLabel = (node: LifecycleNode): string => {
+  if (isNoShowLifecycleNode(node)) {
+    if (String(node.eventType).toUpperCase() === "VISIT_NO_SHOW") {
+      return "Lượt khám: Không đến khám";
+    }
+    return "Không đến khám";
+  }
+
+  return node.label || "Unlinked event";
 };
 
 export const formatActorMeta = (actor?: ActorSummary | null): string => {
