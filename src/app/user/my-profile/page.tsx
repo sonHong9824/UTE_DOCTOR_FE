@@ -4,6 +4,7 @@ import Sidebar from "@/components/layout/side-bar";
 import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
 import { usePatientProfile } from "@/features/user-profile/hooks/usePatientProfile";
+import { LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 
 const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
@@ -12,8 +13,21 @@ export default function ProfilePage() {
   // UI-only page: delegates data/side-effects to view-model hook.
   const { user, loading, activeTab, setActiveTab } = usePatientProfile();
 
-  if (loading) return <p className="text-center mt-8">Loading...</p>;
-  if (!user) return <p className="text-center mt-8">Không tìm thấy hồ sơ</p>;
+  if (loading)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50/70 dark:bg-background">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <LoaderCircle className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-sm">Đang tải hồ sơ...</p>
+        </div>
+      </div>
+    );
+  if (!user)
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50/70 px-4 text-center dark:bg-background">
+        <p className="text-muted-foreground">Không tìm thấy hồ sơ</p>
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-slate-50/70 dark:bg-background">
@@ -35,7 +49,7 @@ export default function ProfilePage() {
 
       <main className="min-w-0 pt-4 lg:pl-64 lg:pt-28">
         <div className="w-full min-w-0 px-3 pb-8 sm:px-5 lg:px-6">
-          <UserContent user={user} activeTab={activeTab} />
+          <UserContent user={user} activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
       </main>
 

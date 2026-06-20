@@ -83,15 +83,25 @@ export default function Sidebar({
                 <button
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl text-sm font-medium transition-colors",
+                    "group relative flex items-center gap-3 overflow-hidden rounded-xl text-sm font-medium transition-all duration-200",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60",
                     compact ? "whitespace-nowrap px-3 py-2" : "w-full px-3 py-3 text-left",
                     isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+                      ? "bg-gradient-to-r from-blue-600 to-sky-500 text-white shadow-md shadow-blue-500/20"
+                      : "text-muted-foreground hover:translate-x-0.5 hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)] active:scale-[0.98]"
                   )}
                 >
-                  <Icon className="h-4.5 w-4.5 shrink-0" />
+                  {isActive && !compact ? (
+                    <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-white/80" />
+                  ) : null}
+                  <Icon
+                    className={cn(
+                      "h-4.5 w-4.5 shrink-0 transition-transform duration-200",
+                      !isActive && "group-hover:scale-110"
+                    )}
+                  />
                   <span>{tab.label}</span>
                 </button>
               </li>

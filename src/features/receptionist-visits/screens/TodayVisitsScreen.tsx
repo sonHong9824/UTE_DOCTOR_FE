@@ -13,13 +13,16 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { VisitStatusEnum } from "@/enum/visit-status.enum";
+import VitalSignFormDialog from "@/features/receptionist-visits/components/VitalSignFormDialog";
 import { useTodayVisits } from "@/features/receptionist-visits/hooks/useTodayVisits";
+import type { VisitItem } from "@/features/receptionist-visits/types/visit.types";
 import {
     formatVisitSchedule,
     getVisitStatusLabel,
     getVisitStatusVariant,
 } from "@/features/receptionist-visits/utils/visit.utils";
-import { CheckCircle2, Clock3, Loader2, RefreshCcw, Users } from "lucide-react";
+import { Activity, CheckCircle2, Clock3, Loader2, RefreshCcw, Users } from "lucide-react";
+import { useState } from "react";
 
 const filterOptions = [
   { value: "all", label: "Tất cả" },
@@ -40,6 +43,14 @@ export default function TodayVisitsScreen() {
     checkInVisit,
     counts,
   } = useTodayVisits();
+
+  const [vitalSignVisit, setVitalSignVisit] = useState<VisitItem | null>(null);
+  const [vitalSignDialogOpen, setVitalSignDialogOpen] = useState(false);
+
+  const openVitalSignDialog = (visit: VisitItem) => {
+    setVitalSignVisit(visit);
+    setVitalSignDialogOpen(true);
+  };
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -137,6 +148,9 @@ export default function TodayVisitsScreen() {
                   visits.map((visit) => {
                     const isCheckingIn = checkingInVisitId === visit.id;
                     const canCheckIn = visit.status === VisitStatusEnum.CREATED;
+                    const canRecordVitalSign =
+                      visit.status === VisitStatusEnum.CHECKED_IN ||
+                      visit.status === VisitStatusEnum.IN_PROGRESS;
 
                     return (
                       <TableRow key={visit.id}>
@@ -160,6 +174,17 @@ export default function TodayVisitsScreen() {
                               {isCheckingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                               {isCheckingIn ? "Đang xử lý" : "Check-in"}
                             </Button>
+                          ) : canRecordVitalSign ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openVitalSignDialog(visit)}
+                              className="gap-2"
+                            >
+                              <Activity className="h-4 w-4" />
+                              Ghi nhận chỉ số
+                            </Button>
                           ) : (
                             <span className="text-sm text-muted-foreground">-</span>
                           )}
@@ -173,6 +198,12 @@ export default function TodayVisitsScreen() {
           </div>
         </CardContent>
       </Card>
+
+      <VitalSignFormDialog
+        visit={vitalSignVisit}
+        open={vitalSignDialogOpen}
+        onOpenChange={setVitalSignDialogOpen}
+      />
     </div>
   );
 }
