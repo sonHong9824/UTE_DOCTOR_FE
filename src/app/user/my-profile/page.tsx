@@ -6,10 +6,19 @@ import Navbar from "@/components/navbar";
 import { usePatientProfile } from "@/features/user-profile/hooks/usePatientProfile";
 import { LoaderCircle } from "lucide-react";
 import dynamic from "next/dynamic";
+import { Suspense } from "react";
 
 const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<ProfileLoadingState />}>
+      <ProfilePageContent />
+    </Suspense>
+  );
+}
+
+function ProfilePageContent() {
   // UI-only page: delegates data/side-effects to view-model hook.
   const { user, loading, activeTab, setActiveTab } = usePatientProfile();
 
@@ -54,6 +63,17 @@ export default function ProfilePage() {
       </main>
 
       <ChatBubble />
+    </div>
+  );
+}
+
+function ProfileLoadingState() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50/70 dark:bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <LoaderCircle className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-sm">Đang tải hồ sơ...</p>
+      </div>
     </div>
   );
 }
