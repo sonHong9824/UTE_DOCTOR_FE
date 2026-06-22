@@ -214,13 +214,28 @@ const appointmentDateKeys = [
   "newScheduledAt",
   "date",
   "bookingDate",
+  "startTime", // epoch-ms fallback for the date when no explicit date field is sent
 ];
 
 const appointmentTimeKeys = ["timeRange", "timeSlotLabel", "timeSlot", "appointmentTime"];
 
+// Derive a "HH:mm - HH:mm" range from epoch-ms slot bounds (e.g. APPOINTMENT_DOCTOR_ASSIGNED
+// `startTime`/`endTime`). Used only as a fallback when no human-readable time string is present;
+// FE owns the epoch → display formatting.
+const formatEpochTimeRange = (data: NotificationData): string => {
+  const start = formatTime(data["startTime"]);
+  const end = formatTime(data["endTime"]);
+
+  if (start && end) {
+    return `${start} - ${end}`;
+  }
+
+  return start || end || "";
+};
+
 const buildAppointmentWhen = (data: NotificationData): string => {
   const date = readFirstDate(data, appointmentDateKeys);
-  const time = readString(data, appointmentTimeKeys);
+  const time = readString(data, appointmentTimeKeys) || formatEpochTimeRange(data);
 
   if (date && time) {
     return ` vào ngày ${date} lúc ${time}`;
