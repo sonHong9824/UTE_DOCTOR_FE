@@ -178,13 +178,31 @@
   }
 }
 
-/* Ẩn thanh cuộn trên tất cả trình duyệt */
-::-webkit-scrollbar {
+/* Default: hide scrollbar on body, but allow opt-in visible scrollbars */
+body::-webkit-scrollbar {
   display: none;
 }
 
 html, body {
   -ms-overflow-style: none;  /* IE và Edge */
   scrollbar-width: none;     /* Firefox */
+}
+
+/* Use `.visible-scrollbar` to enable visible, styled scrollbars on elements */
+.visible-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.visible-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(100,100,100,0.4);
+  border-radius: 9999px;
+}
+.visible-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.visible-scrollbar {
+  -ms-overflow-style: auto; /* IE and Edge */
+  scrollbar-width: thin;    /* Firefox */
+  scrollbar-color: rgba(100,100,100,0.4) transparent;
 }
 
