@@ -19,8 +19,12 @@ export interface AssistantChatRequest {
 export interface AssistantChatResponse {
   reply: string;
   mode: AssistantMode;
-  source: 'python-service' | 'fallback';
+  source: 'python-service' | 'fallback' | 'image-classifier';
   suggestions: string[];
+  imagePredictions?: {
+    label: string;
+    confidence: number;
+  }[];
   warning?: string;
 }
 
@@ -55,7 +59,25 @@ async function askAssistantDirect(payload: AssistantChatRequest): Promise<Assist
 
   const data = await response.json();
   if (data && typeof data === 'object' && 'reply' in data) {
-    return data as AssistantChatResponse;
+    const imagePredictions = Array.isArray((data as { image_predictions?: unknown }).image_predictions)
+      ? ((data as { image_predictions: Array<{ label?: unknown; confidence?: unknown }> }).image_predictions)
+          .map((item) => ({
+            label: String(item?.label ?? '').trim(),
+            confidence: Number(item?.confidence ?? 0),
+          }))
+          .filter((item) => item.label.length > 0 && Number.isFinite(item.confidence))
+      : undefined;
+
+    return {
+      reply: String((data as { reply?: unknown }).reply ?? '').trim(),
+      mode: String((data as { mode?: unknown }).mode ?? payload.mode) as AssistantMode,
+      source: (data as { source?: unknown }).source === 'image-classifier' ? 'image-classifier' : 'python-service',
+      suggestions: Array.isArray((data as { suggestions?: unknown }).suggestions)
+        ? ((data as { suggestions: unknown[] }).suggestions.map((item) => String(item)).slice(0, 4))
+        : [],
+      imagePredictions,
+      warning: typeof (data as { warning?: unknown }).warning === 'string' ? String((data as { warning?: unknown }).warning) : undefined,
+    };
   }
 
   if (data && typeof data === 'object' && 'data' in data && data.data) {

@@ -16,6 +16,11 @@ interface ChatMessage {
   role: MessageRole;
   content: string;
   imageUrl?: string;
+  imagePredictions?: {
+    label: string;
+    confidence: number;
+  }[];
+  source?: AssistantChatResponse['source'];
 }
 
 interface AttachedImage {
@@ -37,6 +42,18 @@ function normalizeMessages(value: unknown): ChatMessage[] {
       role: (item.role === 'assistant' ? 'assistant' : 'user') as MessageRole,
       content: typeof item.content === 'string' ? item.content : '',
       imageUrl: typeof item.imageUrl === 'string' ? item.imageUrl : undefined,
+      imagePredictions: Array.isArray(item.imagePredictions)
+        ? item.imagePredictions
+            .map((prediction) => ({
+              label: String((prediction as { label?: unknown })?.label ?? '').trim(),
+              confidence: Number((prediction as { confidence?: unknown })?.confidence ?? 0),
+            }))
+            .filter((prediction) => prediction.label.length > 0 && Number.isFinite(prediction.confidence))
+        : undefined,
+      source:
+        item.source === 'python-service' || item.source === 'fallback' || item.source === 'image-classifier'
+          ? (item.source as AssistantChatResponse['source'])
+          : undefined,
     }))
     .filter((item) => item.content.trim().length > 0 || Boolean(item.imageUrl))
     .slice(-16);
@@ -306,10 +323,18 @@ export default function MedicalAssistantWidget() {
       });
 
       const reply = response?.reply?.trim() || 'Tôi chưa có câu trả lời phù hợp ngay lúc này.';
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: reply,
+          imagePredictions: response?.imagePredictions,
+          source: response?.source,
+        },
+      ]);
       setSuggestions(response?.suggestions?.length ? response.suggestions : DEFAULT_PROMPTS[nextMode]);
       setAttachedImage(null);
-      setAiOnline(response?.source === 'python-service');
+      setAiOnline(response?.source !== 'fallback');
 
       if (response?.warning) {
         toast.info(response.warning);
@@ -424,11 +449,28 @@ export default function MedicalAssistantWidget() {
                         : 'border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100'
                     )}
                   >
+                    {item.role === 'assistant' && item.source === 'image-classifier' ? (
+                      <div className="mb-2 inline-flex rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-300">
+                        Kết quả ảnh
+                      </div>
+                    ) : null}
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.imageUrl} alt="Ảnh đính kèm" className="mb-2 h-24 w-24 rounded-xl object-cover" />
                     ) : null}
                     {item.content ? <p className="whitespace-pre-wrap">{item.content}</p> : null}
+                    {item.imagePredictions?.length ? (
+                      <div className="mt-3 space-y-2 rounded-xl border border-slate-200/80 bg-white/70 p-2 text-xs dark:border-slate-800 dark:bg-slate-950/50">
+                        {item.imagePredictions.slice(0, 3).map((prediction) => (
+                          <div key={prediction.label} className="flex items-center justify-between gap-3">
+                            <span className="line-clamp-2">{prediction.label}</span>
+                            <span className="shrink-0 font-semibold text-slate-600 dark:text-slate-300">
+                              {(prediction.confidence * 100).toFixed(2)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}
