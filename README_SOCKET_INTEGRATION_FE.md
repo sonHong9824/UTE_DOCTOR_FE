@@ -77,6 +77,7 @@ JOIN_ROOM is not treated as global handshake for all namespaces.
 - Responsibility:
 - Create one socket client instance per namespace.
 - Connect/reconnect/update auth token.
+- Resolve the socket origin from `NEXT_PUBLIC_SOCKET_URL`, falling back to `http://localhost:3001` only during local development and to same-origin `/socket.io` polling for Vercel demo builds.
 - Emit heartbeat every 25 seconds while connected.
 - Handle unauthorized connect_error by triggering guarded refresh flow.
 - Expose helper methods: joinRoom, joinUser, joinConversation, leave helpers.
