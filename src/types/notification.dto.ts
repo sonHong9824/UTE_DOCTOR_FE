@@ -126,17 +126,25 @@ export type AssignmentTaskExpiredDto = {
   online?: boolean;
 };
 
+// `APPOINTMENT_DOCTOR_ASSIGNED` (broad booking → receptionist assigns a doctor/slot → patient).
+// Per api-contract 4acfae3 (2026-06-22), `doctorName`, `hospitalName`, `startTime`, `endTime`,
+// `serviceType`, and `specialty` are new, optional, backward-compatible (any may be null/absent);
+// times stay epoch ms — FE still owns formatting. The fallback `message` is now a complete sentence.
 export type AppointmentDoctorAssignedDto = {
   appointmentId: string;
   doctorId?: string;
   doctorName?: string | null;
   patientName?: string | null;
   timeSlotId?: string;
-  scheduledAt?: number; // epoch ms
-  appointmentDate?: number;
+  scheduledAt?: number | null; // epoch ms
+  appointmentDate?: number | null; // epoch ms
+  startTime?: number | null; // epoch ms — slot start
+  endTime?: number | null; // epoch ms — slot end
   timeRange?: string | null;
   timeSlotLabel?: string | null;
   hospitalName?: string | null;
+  serviceType?: string | null; // e.g. KHAM_BHYT | KHAM_DICH_VU | KHAM_ONLINE
+  specialty?: string | null;
   [key: string]: unknown;
 };
 
