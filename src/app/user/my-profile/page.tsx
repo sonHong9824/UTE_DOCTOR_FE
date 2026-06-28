@@ -5,10 +5,7 @@ import UserContent from "@/components/layout/user-content";
 import Navbar from "@/components/navbar";
 import { usePatientProfile } from "@/features/user-profile/hooks/usePatientProfile";
 import { LoaderCircle } from "lucide-react";
-import dynamic from "next/dynamic";
 import { Suspense } from "react";
-
-const ChatBubble = dynamic(() => import("@/components/chat/ChatBubble"), { ssr: false });
 
 export default function ProfilePage() {
   return (
@@ -61,8 +58,6 @@ function ProfilePageContent() {
           <UserContent user={user} activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
       </main>
-
-      <ChatBubble />
     </div>
   );
 }
