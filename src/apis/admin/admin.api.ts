@@ -1,4 +1,12 @@
 import axiosClient from "@/lib/axiosClient";
+import type {
+  AdminCreateDoctorPayload,
+  AdminCreateDoctorResultDto,
+  AdminCreateReceptionistPayload,
+  AdminCreateReceptionistResultDto,
+  AdminReceptionistListQuery,
+  AdminReceptionistListResponseDto,
+} from "@/types/admin-staff.dto";
 import { DataResponse } from "@/types/apiDTO";
 
 export const getDoctorsAdmin = async (params: { 
@@ -41,66 +49,71 @@ export const getDoctorsAdmin = async (params: {
   }
 };
 
-export const createDoctor = async (form: any) => {
-  try {
-    const formData = new FormData();
+const toStaffProvisioningFormData = (
+  payload: AdminCreateDoctorPayload | AdminCreateReceptionistPayload
+) => {
+  const formData = new FormData();
+  formData.append("profile", JSON.stringify(payload.profile));
 
-    // doctor fields
-    if (form.doctorName) formData.append("doctorName", form.doctorName);
-
-    const specialtyId = form.specialty || form.chuyenKhoaId;
-    if (specialtyId) {
-      formData.append("chuyenKhoaId", specialtyId);
-      // also send as "specialty" to mirror update API shape
-      formData.append("specialty", specialtyId);
+  if ("doctorName" in payload) {
+    formData.append("doctorName", payload.doctorName);
+    if (payload.specialty) formData.append("specialty", payload.specialty);
+    if (payload.bio) formData.append("bio", payload.bio);
+    if (payload.degree) formData.append("degree", JSON.stringify(payload.degree));
+    if (payload.academic) formData.append("academic", payload.academic);
+    if (payload.achievements) formData.append("achievements", payload.achievements);
+    if (payload.yearsOfExperience !== undefined) {
+      formData.append("yearsOfExperience", String(payload.yearsOfExperience));
     }
-
-    if (form.bio) formData.append("bio", form.bio);
-    if (form.academic) formData.append("academic", form.academic);
-    if (form.achievements) formData.append("achievements", form.achievements);
-
-    // degree: array -> JSON string
-    if (form.degree) {
-      formData.append("degree", JSON.stringify(form.degree));
-    }
-
-    // yearsOfExperience: number -> string
-    if (form.yearsOfExperience !== undefined) {
-      formData.append("yearsOfExperience", String(form.yearsOfExperience));
-    }
-
-    // profile: nested object -> JSON string
-    if (form.profile) {
-      formData.append("profile", JSON.stringify(form.profile));
-    }
-
-    // avatar file (optional)
-    if (form.avatar) {
-      formData.append("avatar", form.avatar);
-    }
-
-    const res = await axiosClient.post<DataResponse<any>>("/doctors", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-
-    console.log("[Axios] Create doctor:", res.data);
-    return res.data;
-  } catch (error) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const err: any = error;
-      if (err?.response) {
-        console.error("Failed to create doctor (response):", err.response.status, err.response.data);
-      } else if (err?.request) {
-        console.error("Failed to create doctor (no response):", err.request);
-      } else {
-        console.error("Failed to create doctor:", err?.message || err);
-      }
-    } catch (logErr) {
-      console.error("Failed to log create doctor error", logErr);
-    }
-    throw error;
+  } else if (payload.hospitalName) {
+    formData.append("hospitalName", payload.hospitalName);
   }
+
+  if (payload.avatar) formData.append("avatar", payload.avatar);
+  return formData;
+};
+
+export const createDoctor = async (
+  payload: AdminCreateDoctorPayload
+): Promise<DataResponse<AdminCreateDoctorResultDto>> => {
+  const body = payload.avatar ? toStaffProvisioningFormData(payload) : payload;
+  const res = await axiosClient.post<DataResponse<AdminCreateDoctorResultDto>>(
+    "/admin/doctors",
+    body,
+    payload.avatar
+      ? { headers: { "Content-Type": "multipart/form-data" } }
+      : undefined
+  );
+  return res.data;
+};
+
+export const createReceptionist = async (
+  payload: AdminCreateReceptionistPayload
+): Promise<DataResponse<AdminCreateReceptionistResultDto>> => {
+  const body = payload.avatar ? toStaffProvisioningFormData(payload) : payload;
+  const res = await axiosClient.post<DataResponse<AdminCreateReceptionistResultDto>>(
+    "/admin/receptionists",
+    body,
+    payload.avatar
+      ? { headers: { "Content-Type": "multipart/form-data" } }
+      : undefined
+  );
+  return res.data;
+};
+
+export const getReceptionists = async (
+  params: AdminReceptionistListQuery = {}
+): Promise<DataResponse<AdminReceptionistListResponseDto>> => {
+  const res = await axiosClient.get<
+    DataResponse<AdminReceptionistListResponseDto>
+  >("/admin/receptionists", {
+    params: {
+      page: params.page ?? 1,
+      limit: params.limit ?? 20,
+      search: params.search?.trim() || undefined,
+    },
+  });
+  return res.data;
 };
 
 export const updateAccountStatus = async (

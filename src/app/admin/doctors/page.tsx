@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ import { toast } from 'sonner';
 import { createDoctor, getDoctorsAdmin, updateAccountStatus, updateDoctor } from '@/apis/admin/admin.api';
 import { getDoctorById } from '@/apis/doctor/profile.api';
 import { getSpecialties } from '@/apis/appointment/appointment.api';
+import { buildZonedISO, toUTCISOString } from '@/utils/time.util';
 
 // InputField component - moved outside to prevent re-creation on each render
 const InputField = ({ 
@@ -87,27 +89,49 @@ const InputField = ({
   </div>
 );
 
+const createInitialDoctorForm = () => ({
+  doctorName: '',
+  specialty: '',
+  bio: '',
+  degree: [] as string[],
+  academic: '',
+  achievements: '',
+  yearsOfExperience: '',
+  profile: {
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    gender: '',
+    dob: '',
+    avatarUrl: '',
+  },
+});
+
+const getCreateDoctorErrorMessage = (error: unknown) => {
+  if (!axios.isAxiosError<{ message?: string }>(error)) {
+    return error instanceof Error ? error.message : 'Có lỗi khi tạo bác sĩ.';
+  }
+
+  const message = String(error.response?.data?.message ?? error.message ?? '');
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes('email') && normalizedMessage.includes('exist')) {
+    return 'Email này đã tồn tại trong hệ thống.';
+  }
+  if (error.response?.status === 403) {
+    return 'Bạn không có quyền tạo tài khoản bác sĩ.';
+  }
+  if (!error.response && error.request) {
+    return 'Không thể kết nối đến máy chủ. Vui lòng thử lại.';
+  }
+  return message || 'Có lỗi khi tạo bác sĩ.';
+};
+
 const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated?: (created?: any) => void }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
-  const [form, setForm] = useState({
-    doctorName: '',
-    specialty: '',
-    bio: '',
-    degree: [] as string[],
-    academic: '',
-    achievements: '',
-    yearsOfExperience: '',
-    profile: {
-      name: '',
-      address: '',
-      phone: '',
-      email: '',
-      gender: '',
-      dob: '',
-      avatarUrl: '',
-    },
-  });
+  const [form, setForm] = useState(createInitialDoctorForm);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [specialtiesList, setSpecialtiesList] = useState<Array<{ _id: string; name: string }>>([]);
@@ -230,11 +254,10 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
     
     if (!form.profile.name.trim()) newErrors['profile.name'] = 'Vui lòng nhập tên';
     if (!form.profile.email.trim()) newErrors['profile.email'] = 'Vui lòng nhập email';
-
-    if (activeTab === 'professional') {
-      if (!form.doctorName?.trim()) newErrors.doctorName = 'Vui lòng nhập tên bác sĩ';
-      if (!form.specialty?.trim()) newErrors.specialty = 'Vui lòng nhập chuyên khoa';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.profile.email.trim())) {
+      newErrors['profile.email'] = 'Email không hợp lệ';
     }
+    if (!form.doctorName?.trim()) newErrors.doctorName = 'Vui lòng nhập tên bác sĩ';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -254,8 +277,21 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
 
       const academicStr = typeof form.academic === 'string' ? form.academic : String(form.academic ?? '');
 
+      const profile = {
+        ...form.profile,
+        name: form.profile.name.trim(),
+        email: form.profile.email.trim(),
+        dob: form.profile.dob
+          ? toUTCISOString(buildZonedISO(form.profile.dob, '00:00'))
+          : undefined,
+        avatarUrl: undefined,
+      };
+
       const payload = {
         ...form,
+        doctorName: form.doctorName.trim(),
+        specialty: form.specialty || undefined,
+        profile,
         degree: degreeArray,
         academic: academicStr,
         yearsOfExperience: Number(form.yearsOfExperience) || 0,
@@ -269,6 +305,14 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
       if ((typeof code === 'string' && code.toUpperCase() === 'SUCCESS') || code === 'SUCCESS' || code === 200) {
         toast.success(String(message), { id: 'create-doctor-success' });
         const created = (res as any)?.data ?? null;
+        if (created?.emailSent === false) {
+          toast.warning('Tài khoản đã được tạo nhưng email thông tin đăng nhập chưa gửi được.');
+        }
+        setForm(createInitialDoctorForm());
+        setErrors({});
+        setActiveTab('profile');
+        setAvatarPreview(null);
+        setSelectedFile(null);
         onOpenChange(false);
         onCreated?.(created ?? undefined);
       } else {
@@ -276,7 +320,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
       }
     } catch (err) {
       console.error('createDoctor error', err);
-      toast.error('Có lỗi khi tạo bác sĩ');
+      toast.error(getCreateDoctorErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -349,6 +393,7 @@ const DoctorCreateModal = ({ open, onOpenChange, onCreated }: { open: boolean; o
                     icon={Mail}
                     required
                     error={errors['profile.email']}
+                    helper="Mật khẩu tạm thời sẽ được hệ thống tạo và gửi qua email này."
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

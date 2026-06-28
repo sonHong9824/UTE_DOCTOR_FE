@@ -13,6 +13,7 @@ import {
   Newspaper,
   LogOut,
   ChevronRight,
+  UserRoundCheck,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -26,6 +27,7 @@ const menuItems = [
   // { name: 'Tổng quan', icon: LayoutDashboard, path: '/admin' },
   { name: 'Bệnh nhân', icon: Users, path: '/admin/patients' },
   { name: 'Bác sĩ', icon: Stethoscope, path: '/admin/doctors' },
+  { name: 'Lễ tân', icon: UserRoundCheck, path: '/admin/receptionists' },
   { name: 'Chuyên khoa', icon: Layers, path: '/admin/chuyen-khoa' },
   { name: 'Lịch hẹn', icon: CalendarDays, path: '/admin/appointments' },
   { name: 'Thuốc', icon: Pill, path: '/admin/medicines' },
