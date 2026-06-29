@@ -12,9 +12,19 @@
     "Tôi muốn kiểm tra da liễu để đánh giá tình trạng nốt ruồi. Tôi có thể đang bị bệnh gì?"
   ],
   "appointment": [
-    "Tôi muốn đặt khám chuyên khoa phù hợp với triệu chứng của mình",
-    "Làm sao chọn bác sĩ đúng chuyên khoa?",
-    "Cần chuẩn bị gì trước khi đi khám bệnh?",
-    "Bác sĩ nào còn lịch khám trong tuần này?"
+    "Tôi muốn đặt lịch khám thì bắt đầu từ đâu?",
+    "Khác nhau giữa chọn bác sĩ cụ thể và để lễ tân phân công là gì?",
+    "Đặt lịch Dịch vụ cần thanh toán phí giữ chỗ như thế nào?",
+    "Đặt lịch BHYT có cần thanh toán VNPay không?",
+    "Sau khi thanh toán xong nhưng vẫn chờ phân bác sĩ nghĩa là gì?",
+    "Không tìm thấy bác sĩ hoặc khung giờ phù hợp thì tôi nên làm gì?"
+  ],
+  "availability": [
+    "Bác sĩ Nguyễn Văn A ngày mai trống giờ nào?",
+    "Bác sĩ Lan còn lịch hôm nay không?",
+    "Chuyên khoa Da liễu ngày mai còn lịch không?",
+    "Tôi muốn khám Tim mạch vào thứ 6, còn bác sĩ nào trống không?",
+    "Có lịch khám buổi sáng cho bác sĩ X không?",
+    "Tôi muốn khám Da liễu nhưng chưa biết bác sĩ, còn lịch nào gần nhất không?"
   ]
 }

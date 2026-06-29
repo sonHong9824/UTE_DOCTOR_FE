@@ -46,13 +46,17 @@ const MODE_OPTIONS: { label: string; value: AssistantMode }[] = [
   { label: "General", value: "general" },
   { label: "Skin", value: "dermatology" },
   { label: "Booking", value: "appointment" },
+  { label: "Availability", value: "availability" },
 ];
 
 function normalizeMessages(value: unknown): ChatMessage[] {
   if (!Array.isArray(value)) return [];
 
   return value
-    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === "object",
+    )
     .map((item) => ({
       role: (item.role === "assistant" ? "assistant" : "user") as MessageRole,
       content: typeof item.content === "string" ? item.content : "",
@@ -60,13 +64,25 @@ function normalizeMessages(value: unknown): ChatMessage[] {
       imagePredictions: Array.isArray(item.imagePredictions)
         ? item.imagePredictions
             .map((prediction) => ({
-              label: String((prediction as { label?: unknown })?.label ?? "").trim(),
-              confidence: Number((prediction as { confidence?: unknown })?.confidence ?? 0),
+              label: String(
+                (prediction as { label?: unknown })?.label ?? "",
+              ).trim(),
+              confidence: Number(
+                (prediction as { confidence?: unknown })?.confidence ?? 0,
+              ),
             }))
-            .filter((prediction) => prediction.label.length > 0 && Number.isFinite(prediction.confidence))
+            .filter(
+              (prediction) =>
+                prediction.label.length > 0 &&
+                Number.isFinite(prediction.confidence),
+            )
         : undefined,
       source:
-        item.source === "python-service" || item.source === "fallback" || item.source === "image-classifier"
+        item.source === "python-service" ||
+        item.source === "fallback" ||
+        item.source === "image-classifier" ||
+        item.source === "appointment-booking-guide" ||
+        item.source === "doctor-availability"
           ? (item.source as AssistantChatResponse["source"])
           : undefined,
     }))
@@ -83,7 +99,11 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function compressImage(dataUrl: string, maxWidth = 1280, quality = 0.82): Promise<string> {
+function compressImage(
+  dataUrl: string,
+  maxWidth = 1280,
+  quality = 0.82,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => {
@@ -104,13 +124,19 @@ function compressImage(dataUrl: string, maxWidth = 1280, quality = 0.82): Promis
   });
 }
 
-export default function MedicalAssistantWidget({ active = true }: MedicalAssistantWidgetProps) {
+export default function MedicalAssistantWidget({
+  active = true,
+}: MedicalAssistantWidgetProps) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const [chatMode, setChatMode] = useState<AssistantMode>("general");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_PROMPTS.general);
-  const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>(
+    DEFAULT_PROMPTS.general,
+  );
+  const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(
+    null,
+  );
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [showPrompts, setShowPrompts] = useState(true);
@@ -157,12 +183,18 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-16)));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(messages.slice(-16)),
+    );
   }, [messages]);
 
   useEffect(() => {
     if (!active) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }, [messages, active, attachedImage, cameraOpen, sending]);
 
   useEffect(() => {
@@ -206,7 +238,7 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
 
   const canSend = useMemo(
     () => Boolean(message.trim() || attachedImage) && !sending,
-    [message, attachedImage, sending]
+    [message, attachedImage, sending],
   );
 
   const clearConversation = () => {
@@ -218,6 +250,16 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(STORAGE_KEY);
     }
+  };
+
+  const handleModeChange = (mode: AssistantMode) => {
+    setChatMode(mode);
+    if (mode === "appointment" || mode === "availability") {
+      setAttachedImage(null);
+      setCameraOpen(false);
+      stopCamera();
+    }
+    void loadSuggestions(mode);
   };
 
   const handleFileSelect = async (file: File | null) => {
@@ -298,14 +340,23 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
     }
   };
 
-  const sendMessage = async (overrideMessage?: string, overrideMode?: AssistantMode) => {
+  const sendMessage = async (
+    overrideMessage?: string,
+    overrideMode?: AssistantMode,
+  ) => {
     const content = (overrideMessage ?? message).trim();
     if (!content && !attachedImage) return;
     if (sending) return;
 
     const nextMode = overrideMode ?? chatMode;
-    const userText = content || "Please review this medical image and suggest initial next steps.";
-    const imageForMessage = attachedImage?.dataUrl;
+    const isTextOnlyRequest =
+      nextMode === "appointment" || nextMode === "availability";
+    const userText =
+      content ||
+      "Please review this medical image and suggest initial next steps.";
+    const imageForMessage = isTextOnlyRequest
+      ? undefined
+      : attachedImage?.dataUrl;
     const nextUserMessage: ChatMessage = {
       role: "user",
       content: userText,
@@ -318,23 +369,27 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
     setChatMode(nextMode);
     setSending(true);
 
-    const imagePayload = attachedImage
-      ? {
-          imageDataUrl: attachedImage.dataUrl,
-          imageFileName: attachedImage.fileName,
-          imageMimeType: attachedImage.mimeType,
-        }
-      : {};
+    const imagePayload =
+      attachedImage && !isTextOnlyRequest
+        ? {
+            imageDataUrl: attachedImage.dataUrl,
+            imageFileName: attachedImage.fileName,
+            imageMimeType: attachedImage.mimeType,
+          }
+        : {};
 
     try {
       const response: AssistantChatResponse | null = await askAssistant({
         message: userText,
         mode: nextMode,
-        history: nextHistory.slice(-8).map(({ role, content: text }) => ({ role, content: text })),
+        history: nextHistory
+          .slice(-8)
+          .map(({ role, content: text }) => ({ role, content: text })),
         ...imagePayload,
       });
 
-      const reply = response?.reply?.trim() || "I do not have a suitable answer right now.";
+      const reply =
+        response?.reply?.trim() || "I do not have a suitable answer right now.";
       setMessages((prev) => [
         ...prev,
         {
@@ -344,7 +399,11 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
           source: response?.source,
         },
       ]);
-      setSuggestions(response?.suggestions?.length ? response.suggestions : DEFAULT_PROMPTS[nextMode]);
+      setSuggestions(
+        response?.suggestions?.length
+          ? response.suggestions
+          : DEFAULT_PROMPTS[nextMode],
+      );
       setAttachedImage(null);
       setAiOnline(response?.source !== "fallback");
 
@@ -352,12 +411,23 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
         toast.info(response.warning);
       }
     } catch {
-      toast.error("Could not send the request to Medical AI.");
+      toast.error(
+        nextMode === "appointment"
+          ? "Could not send the booking guide request."
+          : nextMode === "availability"
+            ? "Could not check availability right now."
+          : "Could not send the request to Medical AI.",
+      );
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Medical AI is temporarily unavailable. Please try again later.",
+          content:
+            nextMode === "appointment"
+              ? "Booking guide is temporarily unavailable. Please try again later."
+              : nextMode === "availability"
+                ? "Availability assistant is temporarily unavailable. Please try again later."
+              : "Medical AI is temporarily unavailable. Please try again later.",
         },
       ]);
       setSuggestions(DEFAULT_PROMPTS[nextMode]);
@@ -367,7 +437,12 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
     }
   };
 
-  const visiblePrompts = suggestions.length ? suggestions : DEFAULT_PROMPTS[chatMode];
+  const visiblePrompts = suggestions.length
+    ? suggestions
+    : DEFAULT_PROMPTS[chatMode];
+  const isBookingMode = chatMode === "appointment";
+  const isAvailabilityMode = chatMode === "availability";
+  const isTextOnlyMode = isBookingMode || isAvailabilityMode;
 
   if (!active) {
     return null;
@@ -381,13 +456,23 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
             <span
               className={cn(
                 "h-2 w-2 rounded-full",
-                aiOnline === null && "bg-slate-300",
-                aiOnline === true && "bg-emerald-500",
-                aiOnline === false && "bg-amber-500"
+                isBookingMode && "bg-sky-500",
+                isAvailabilityMode && "bg-emerald-500",
+                !isTextOnlyMode && aiOnline === null && "bg-slate-300",
+                !isTextOnlyMode && aiOnline === true && "bg-emerald-500",
+                !isTextOnlyMode && aiOnline === false && "bg-amber-500",
               )}
             />
             <span className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-              {aiOnline === null ? "Checking service" : aiOnline ? "Online" : "Fallback mode"}
+              {isBookingMode
+                ? "Booking guide"
+                : isAvailabilityMode
+                  ? "Availability"
+                : aiOnline === null
+                  ? "Checking service"
+                  : aiOnline
+                    ? "Online"
+                    : "Fallback mode"}
             </span>
           </div>
           <button
@@ -405,15 +490,12 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
             <button
               key={item.value}
               type="button"
-              onClick={() => {
-                setChatMode(item.value);
-                void loadSuggestions(item.value);
-              }}
+              onClick={() => handleModeChange(item.value)}
               className={cn(
                 "h-8 flex-1 rounded-lg px-3 text-xs font-semibold transition",
                 chatMode === item.value
                   ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
               )}
             >
               {item.label}
@@ -425,37 +507,54 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 visible-scrollbar">
         {messages.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-            Ask about symptoms, appointment prep, FAQs, or upload an image for initial skin guidance.
+            {isBookingMode
+              ? "Ask how to book an appointment, pay the deposit, use BHYT, or wait for receptionist assignment."
+              : isAvailabilityMode
+                ? "Ask whether a doctor or specialty has real available slots for a date or time of day."
+              : "Ask about symptoms, appointment prep, FAQs, or upload an image for initial skin guidance."}
           </div>
         ) : null}
 
         {messages.map((item, index) => (
           <div
             key={`${item.role}-${index}`}
-            className={cn("flex w-full", item.role === "user" ? "justify-end" : "justify-start")}
+            className={cn(
+              "flex w-full",
+              item.role === "user" ? "justify-end" : "justify-start",
+            )}
           >
             <div
               className={cn(
                 "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm",
                 item.role === "user"
                   ? "bg-slate-950 text-white dark:bg-slate-100 dark:text-slate-950"
-                  : "border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+                  : "border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100",
               )}
             >
-              {item.role === "assistant" && item.source === "image-classifier" ? (
+              {item.role === "assistant" &&
+              item.source === "image-classifier" ? (
                 <div className="mb-2 inline-flex rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:text-cyan-300">
                   Image result
                 </div>
               ) : null}
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.imageUrl} alt="Attached image" className="mb-2 h-24 w-24 rounded-xl object-cover" />
+                <img
+                  src={item.imageUrl}
+                  alt="Attached image"
+                  className="mb-2 h-24 w-24 rounded-xl object-cover"
+                />
               ) : null}
-              {item.content ? <p className="whitespace-pre-wrap">{item.content}</p> : null}
+              {item.content ? (
+                <p className="whitespace-pre-wrap">{item.content}</p>
+              ) : null}
               {item.imagePredictions?.length ? (
                 <div className="mt-3 space-y-2 rounded-xl border border-slate-200/80 bg-white/70 p-2 text-xs dark:border-slate-800 dark:bg-slate-950/50">
                   {item.imagePredictions.slice(0, 3).map((prediction) => (
-                    <div key={prediction.label} className="flex items-center justify-between gap-3">
+                    <div
+                      key={prediction.label}
+                      className="flex items-center justify-between gap-3"
+                    >
                       <span className="line-clamp-2">{prediction.label}</span>
                       <span className="shrink-0 font-semibold text-slate-600 dark:text-slate-300">
                         {(prediction.confidence * 100).toFixed(2)}%
@@ -475,7 +574,11 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
                 <motion.span
                   key={index}
                   animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 0.6, repeat: Infinity, delay: index * 0.1 }}
+                  transition={{
+                    duration: 0.6,
+                    repeat: Infinity,
+                    delay: index * 0.1,
+                  }}
                   className="text-xl leading-none"
                 >
                   .
@@ -500,7 +603,11 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
               </button>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={attachedImage.dataUrl} alt={attachedImage.fileName} className="h-24 w-24 rounded-xl object-cover" />
+            <img
+              src={attachedImage.dataUrl}
+              alt={attachedImage.fileName}
+              className="h-24 w-24 rounded-xl object-cover"
+            />
           </div>
         ) : null}
 
@@ -521,9 +628,21 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
                 Close camera
               </button>
             </div>
-            {cameraError ? <p className="mb-2 text-xs text-red-500">{cameraError}</p> : null}
-            <video ref={videoRef} className="h-44 w-full rounded-xl bg-black object-cover" playsInline muted autoPlay />
-            <Button type="button" onClick={() => void captureFromCamera()} className="mt-3 w-full rounded-full">
+            {cameraError ? (
+              <p className="mb-2 text-xs text-red-500">{cameraError}</p>
+            ) : null}
+            <video
+              ref={videoRef}
+              className="h-44 w-full rounded-xl bg-black object-cover"
+              playsInline
+              muted
+              autoPlay
+            />
+            <Button
+              type="button"
+              onClick={() => void captureFromCamera()}
+              className="mt-3 w-full rounded-full"
+            >
               <Camera className="h-4 w-4" />
               Capture
             </Button>
@@ -567,7 +686,13 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
         <Textarea
           value={message}
           onChange={(event) => setMessage(event.target.value)}
-          placeholder="Describe symptoms or ask a question..."
+          placeholder={
+            isBookingMode
+              ? "Ask how to book an appointment..."
+              : isAvailabilityMode
+                ? "Ask about doctor or specialty availability..."
+              : "Describe symptoms or ask a question..."
+          }
           rows={2}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -579,14 +704,30 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
         />
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="rounded-full">
-            <Upload className="h-4 w-4" />
-            Image
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setCameraOpen((prev) => !prev)} className="rounded-full">
-            <ImagePlus className="h-4 w-4" />
-            Camera
-          </Button>
+          {!isTextOnlyMode ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-full"
+              >
+                <Upload className="h-4 w-4" />
+                Image
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCameraOpen((prev) => !prev)}
+                className="rounded-full"
+              >
+                <ImagePlus className="h-4 w-4" />
+                Camera
+              </Button>
+            </>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -605,7 +746,9 @@ export default function MedicalAssistantWidget({ active = true }: MedicalAssista
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(event) => void handleFileSelect(event.target.files?.[0] || null)}
+        onChange={(event) =>
+          void handleFileSelect(event.target.files?.[0] || null)
+        }
       />
     </div>
   );
