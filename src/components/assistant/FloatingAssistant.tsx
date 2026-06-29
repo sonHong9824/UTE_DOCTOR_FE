@@ -9,19 +9,25 @@ import {
   getAssistantFeaturesForRole,
 } from "@/components/assistant/assistantRoleConfig";
 import ChatBubble from "@/components/chat/ChatBubble";
-import { getCurrentAuthIdentity, type AuthIdentity } from "@/features/auth/utils/auth-identity";
+import {
+  getCurrentAuthIdentity,
+  type AuthIdentity,
+} from "@/features/auth/utils/auth-identity";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 
-const FEATURE_COPY: Record<AssistantFeature, { title: string; subtitle: string }> = {
+const FEATURE_COPY: Record<
+  AssistantFeature,
+  { title: string; subtitle: string }
+> = {
   chat: {
     title: "Assistant",
     subtitle: "Chat with care team members",
   },
   "medical-ai": {
     title: "Assistant",
-    subtitle: "Medical AI support for patient questions",
+    subtitle: "Medical AI, booking guide, and availability",
   },
 };
 
@@ -52,7 +58,7 @@ export default function FloatingAssistant() {
 
   const features = useMemo(
     () => getAssistantFeaturesForRole(identity?.role),
-    [identity?.role]
+    [identity?.role],
   );
 
   useEffect(() => {
@@ -87,7 +93,11 @@ export default function FloatingAssistant() {
     <div className="pointer-events-none fixed bottom-4 right-4 z-[70] flex w-[calc(100vw-2rem)] max-w-[430px] flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       <motion.div
         initial={false}
-        animate={open ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 16, scale: 0.98 }}
+        animate={
+          open
+            ? { opacity: 1, y: 0, scale: 1 }
+            : { opacity: 0, y: 16, scale: 0.98 }
+        }
         transition={{ duration: 0.18, ease: "easeOut" }}
         aria-hidden={!open}
         className={cn("w-full", !open && "invisible pointer-events-none")}
@@ -95,13 +105,15 @@ export default function FloatingAssistant() {
         <FloatingAssistantPanel
           title={featureCopy.title}
           subtitle={featureCopy.subtitle}
-          tabs={features.length > 1 ? (
-            <FloatingAssistantTabs
-              features={features}
-              activeFeature={activeFeature}
-              onChange={setActiveFeature}
-            />
-          ) : undefined}
+          tabs={
+            features.length > 1 ? (
+              <FloatingAssistantTabs
+                features={features}
+                activeFeature={activeFeature}
+                onChange={setActiveFeature}
+              />
+            ) : undefined
+          }
           onMinimize={() => setOpen(false)}
           onClose={() => setOpen(false)}
         >
@@ -109,7 +121,7 @@ export default function FloatingAssistant() {
             <div
               className={cn(
                 "h-full min-h-0",
-                activeFeature === "chat" ? "block" : "hidden"
+                activeFeature === "chat" ? "block" : "hidden",
               )}
             >
               <ChatBubble
@@ -122,10 +134,12 @@ export default function FloatingAssistant() {
               <div
                 className={cn(
                   "h-full min-h-0",
-                  activeFeature === "medical-ai" ? "block" : "hidden"
+                  activeFeature === "medical-ai" ? "block" : "hidden",
                 )}
               >
-                <MedicalAssistantWidget active={open && activeFeature === "medical-ai"} />
+                <MedicalAssistantWidget
+                  active={open && activeFeature === "medical-ai"}
+                />
               </div>
             ) : null}
           </div>
